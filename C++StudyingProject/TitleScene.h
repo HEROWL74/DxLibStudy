@@ -1,5 +1,4 @@
 #pragma once
-#include "Dxlib.h"
 
 class TitleScene {
 public:
@@ -7,6 +6,9 @@ public:
     void Update();
     void Draw();
     bool IsStartRequested() const;
+    bool IsFadeOutFinished() const;
 private:
     bool m_start;
+    bool m_fadeOut;
+    int m_fadeAlpha;
 };

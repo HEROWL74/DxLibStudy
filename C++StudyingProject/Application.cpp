@@ -32,12 +32,15 @@ void Application::Update() {
         case SceneType::Title:
             title->Update();
             title->Draw();
-            if (title->IsStartRequested()) {
+
+            // フェードアウト終了後にゲームシーンへ移行
+            if (title->IsFadeOutFinished()) {
                 game = std::make_unique<GameScene>();
                 currentScene = SceneType::Game;
                 title.reset();
             }
             break;
+
         case SceneType::Game:
             game->Update();
             game->Draw();
@@ -47,6 +50,7 @@ void Application::Update() {
         ScreenFlip();
     }
 }
+
 
 void Application::Release() {
     title.reset();
