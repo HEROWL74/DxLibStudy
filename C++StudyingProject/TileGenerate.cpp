@@ -25,27 +25,40 @@ void TitleGenerate::LoadTiles() {
 }
 
 void TitleGenerate::SetupMap() {
-    mapLayout = {
-        {"top_left", "top", "top", "top", "top_right"},
-        {"left", "center", "center", "center", "right"},
-        {"left", "center", "center", "center", "right"},
-        {"bottom_left", "bottom", "bottom", "bottom", "bottom_right"}
-    };
+    const int width = 30;  // 1920 / 64
+    const int height = 4;  //自在に変更可能
+
+    mapLayout.clear();
+    mapLayout.resize(height, std::vector<std::string>(width, "center"));
+
+    // 上段
+    mapLayout[0][0] = "top_left";
+    mapLayout[0][width - 1] = "top_right";
+    for (int x = 1; x < width - 1; ++x) {
+        mapLayout[0][x] = "top";
+    }
+
+    // 中段
+    for (int y = 1; y < height - 1; ++y) {
+        mapLayout[y][0] = "left";
+        mapLayout[y][width - 1] = "right";
+    }
+
+    // 下段
+    mapLayout[height - 1][0] = "bottom_left";
+    mapLayout[height - 1][width - 1] = "bottom_right";
+    for (int x = 1; x < width - 1; ++x) {
+        mapLayout[height - 1][x] = "bottom";
+    }
 }
+
 
 void TitleGenerate::DrawMap() {
     const int TILE_SIZE = 64;
-
     const int mapHeight = static_cast<int>(mapLayout.size());
-    const int mapWidth = static_cast<int>(mapLayout[0].size());
 
-    // 画面サイズ
-    const int screenWidth = 1920;
-    const int screenHeight = 1080;
-
-    // ステージの描画開始位置（中央横揃え＋下揃え）
-    const int offsetX = (screenWidth - mapWidth * TILE_SIZE) / 2;
-    const int offsetY = screenHeight - mapHeight * TILE_SIZE;
+    const int offsetX = 0;  // 左端から描画を開始
+    const int offsetY = 1080 - mapHeight * TILE_SIZE;  // 画面下揃え
 
     for (int y = 0; y < mapLayout.size(); ++y) {
         for (int x = 0; x < mapLayout[y].size(); ++x) {
@@ -58,4 +71,5 @@ void TitleGenerate::DrawMap() {
         }
     }
 }
+
 
