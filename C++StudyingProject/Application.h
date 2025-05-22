@@ -4,6 +4,9 @@
 class TitleScene;
 class GameScene;
 
+const int WINDOW_WID = 1980;
+const int WINDOW_HIG = 1080;
+
 class Application {
 public:
     Application();

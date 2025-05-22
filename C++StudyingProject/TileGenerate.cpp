@@ -35,12 +35,27 @@ void TitleGenerate::SetupMap() {
 
 void TitleGenerate::DrawMap() {
     const int TILE_SIZE = 64;
+
+    const int mapHeight = static_cast<int>(mapLayout.size());
+    const int mapWidth = static_cast<int>(mapLayout[0].size());
+
+    // 画面サイズ
+    const int screenWidth = 1920;
+    const int screenHeight = 1080;
+
+    // ステージの描画開始位置（中央横揃え＋下揃え）
+    const int offsetX = (screenWidth - mapWidth * TILE_SIZE) / 2;
+    const int offsetY = screenHeight - mapHeight * TILE_SIZE;
+
     for (int y = 0; y < mapLayout.size(); ++y) {
         for (int x = 0; x < mapLayout[y].size(); ++x) {
             const std::string& tile = mapLayout[y][x];
             if (tileHandles.count(tile)) {
-                DrawGraph(x * TILE_SIZE, y * TILE_SIZE, tileHandles[tile], TRUE);
+                int drawX = offsetX + x * TILE_SIZE;
+                int drawY = offsetY + y * TILE_SIZE;
+                DrawGraph(drawX, drawY, tileHandles[tile], TRUE);
             }
         }
     }
 }
+

@@ -13,7 +13,11 @@ bool Application::Initialize() {
     if (DxLib_Init() == -1) {
         return false;
     }
+    SetGraphMode(WINDOW_WID, WINDOW_HIG, 32);
+    ChangeWindowMode(TRUE); 
     SetDrawScreen(DX_SCREEN_BACK);
+    
+
 
     currentScene = SceneType::Title;
     title = std::make_unique<TitleScene>();
