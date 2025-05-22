@@ -1,26 +1,27 @@
 #pragma once
-#include "DxLib.h"
 #include <memory>
-#include "Game.h"
+#include <DxLib.h>
+class TitleScene;
+class GameScene;
 
-class Game;
-
-class Application
-{
+class Application {
 public:
-	Application();
-	~Application();
+    Application();
+    ~Application();
 
-	//ÉRÉsÅ[Çã÷é~Ç≥ÇπÇÈ
-	Application(const Application&) = delete;
-	Application& operator=(const Application&) = delete;
+    Application(const Application&) = delete;
+    Application& operator=(const Application&) = delete;
 
-	void Run();
+    void Run();
 
 private:
-	bool Initialize();
-	void Update();
-	void Release();
+    bool Initialize();
+    void Update();
+    void Release();
 
-	std::unique_ptr<Game> m_game;
+    enum class SceneType { Title, Game };
+    SceneType currentScene;
+
+    std::unique_ptr<TitleScene> title;
+    std::unique_ptr<GameScene> game;
 };
