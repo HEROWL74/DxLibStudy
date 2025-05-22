@@ -4,6 +4,7 @@
 class TitleScene;
 class GameScene;
 
+
 const int WINDOW_WID = 1980;
 const int WINDOW_HIG = 1080;
 
@@ -27,4 +28,5 @@ private:
 
     std::unique_ptr<TitleScene> title;
     std::unique_ptr<GameScene> game;
+    
 };
