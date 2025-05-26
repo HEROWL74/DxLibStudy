@@ -1,12 +1,13 @@
 #include "Player.h"
 #include "DxLib.h"
-
+#include <cmath>
 Player::Player() :
     m_x(100), m_y(800), m_vx(0), m_vy(0),
     m_onGround(false), m_isJumping(false), m_jumpTime(0),
     m_animFrame(0), m_animTimer(0), m_state(State::Idle)
 {
     LoadImages();
+    GetGraphSize(m_idle, &m_width, &m_height);
 }
 
 Player::~Player() {
@@ -17,6 +18,15 @@ Player::~Player() {
         DeleteGraph(handle);
     }
 }
+
+int Player::GetX() const { return static_cast<int>(m_x); }
+int Player::GetY() const { return static_cast<int>(m_y); }
+int Player::GetW() const { return m_width; }
+int Player::GetH() const { return m_height; }
+float Player::GetVY() const { return m_vy; }
+void  Player::SetY(float y) { m_y = y; }
+void  Player::SetVY(float vy) { m_vy = vy; }
+void  Player::SetOnGround(bool g) { m_onGround = g; }
 
 void Player::LoadImages() {
     m_idle = LoadGraph("Sprites/Characters/Default/character_green_idle.png");
@@ -34,9 +44,18 @@ void Player::Update() {
         m_vx = -moveSpeed;
         m_facingLeft = true;
     }
-    if (CheckHitKey(KEY_INPUT_RIGHT)) {
+    else if (CheckHitKey(KEY_INPUT_RIGHT)) {
         m_vx = moveSpeed;
         m_facingLeft = false;
+    }
+    else {
+        //ÉLÅ[Çó£ÇµÇƒÇ¢ÇΩÇÁñÄéCÇ≈å∏ë¨
+        m_vx *= friction;
+
+        //  î˜è¨ë¨ìxÇ0Ç…Ç∑ÇÈ
+        if (std::abs(m_vx) < 0.1f) {
+            m_vx = 0.0f;
+        }
     }
     //ÇµÇ·Ç™Ç›Ç∆è’ìÀîªíË
     if (m_onGround && CheckHitKey(KEY_INPUT_DOWN)) {
