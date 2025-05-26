@@ -4,7 +4,8 @@
 Player::Player() :
     m_x(100), m_y(800), m_vx(0), m_vy(0),
     m_onGround(false), m_isJumping(false), m_jumpTime(0),
-    m_animFrame(0), m_animTimer(0), m_state(State::Idle)
+    m_animFrame(0), m_animTimer(0), m_state(State::Idle),
+    m_maxHealth(6),m_health(m_maxHealth),m_coins(0)
 {
     LoadImages();
     GetGraphSize(m_idle, &m_width, &m_height);
@@ -23,6 +24,11 @@ int Player::GetX() const { return static_cast<int>(m_x); }
 int Player::GetY() const { return static_cast<int>(m_y); }
 int Player::GetW() const { return m_width; }
 int Player::GetH() const { return m_height; }
+
+int Player::GetHealth()    const { return m_health; }
+int Player::GetMaxHealth() const { return m_maxHealth; }
+int Player::GetCoinCount() const { return m_coins; }
+
 float Player::GetVY() const { return m_vy; }
 void  Player::SetY(float y) { m_y = y; }
 void  Player::SetVY(float vy) { m_vy = vy; }
@@ -156,4 +162,18 @@ void Player::Draw() {
         DrawGraph(m_x, m_y, handle, TRUE);      // ‰EŒü‚«
     }
 
+}
+
+void Player::AddCoin(int amount) {
+    m_coins += amount;
+}
+
+void Player::TakeDamage(int amount) {
+    m_health -= amount;
+    if (m_health < 0) m_health = 0;
+}
+
+void Player::Heal(int amount) {
+    m_health += amount;
+    if (m_health > m_maxHealth) m_health = m_maxHealth;
 }

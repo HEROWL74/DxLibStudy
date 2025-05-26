@@ -1,4 +1,4 @@
-#include "GameScene.h"
+ï»¿#include "GameScene.h"
 #include "DxLib.h"
 #include "NormalSlime.h"
 #include "SpikeSlime.h"
@@ -6,59 +6,87 @@
 GameScene::GameScene() {
     m_generator = std::make_unique<TitleGenerate>();
     m_player = std::make_unique<Player>();
+    m_hud = std::make_unique<HUD>();
 
-    // „Ÿ„Ÿ “G¶¬i‚»‚Ì‚Ü‚Üj „Ÿ„Ÿ
+
+    // â”€â”€ æ•µç”Ÿæˆï¼ˆãã®ã¾ã¾ï¼‰ â”€â”€
     m_enemies.push_back(std::make_unique<NormalSlime>(200, 800));
     m_enemies.push_back(std::make_unique<SpikeSlime>(400, 800));
 
-    // „Ÿ„Ÿ ‹ó’†ƒvƒ‰ƒbƒgƒtƒH[ƒ€‚Æ‚µ‚ÄƒuƒƒbƒN‚ğ”z’u „Ÿ„Ÿ
+   
+
+    // â”€â”€ ç©ºä¸­ãƒ—ãƒ©ãƒƒãƒˆãƒ•ã‚©ãƒ¼ãƒ ã¨ã—ã¦ãƒ–ãƒ­ãƒƒã‚¯ã‚’é…ç½® â”€â”€
     const int tileSize = 64;
     const int mapH = m_generator->GetMapHeight();
-    const int floorY = 1080 - mapH * tileSize;       // ’nã°‚ÌYÀ•W
-    const int airLevel = floorY - 3 * tileSize;        // °‚©‚ç3s•ªã
+    const int floorY = 1080 - mapH * tileSize;       // åœ°ä¸ŠåºŠã®Yåº§æ¨™
+    const int airLevel = floorY - 3 * tileSize;        // åºŠã‹ã‚‰3è¡Œåˆ†ä¸Š
 
-    // X À•W‚Í‚¨D‚İ‚ÅB‚±‚±‚Å‚Í‰¡•À‚Ñ‚É 5 ‚Â”z’u‚·‚é—á
+    // X åº§æ¨™ã¯ãŠå¥½ã¿ã§ã€‚ã“ã“ã§ã¯æ¨ªä¸¦ã³ã« 5 ã¤é…ç½®ã™ã‚‹ä¾‹
     int startX = 500;
     int count = 5;
     for (int i = 0; i < count; ++i) {
-        int bx = startX + i * tileSize;   // ƒ^ƒCƒ‹•‚¸‚Â‰E‚Ö
+        int bx = startX + i * tileSize;   // ã‚¿ã‚¤ãƒ«å¹…ãšã¤å³ã¸
         m_blocks.push_back(std::make_unique<Block>(bx, airLevel));
     }
     m_fadeIn = true;
     m_fadeAlpha = 255;
+
+
+    for (int i = 0; i < 5; ++i) {
+        int cx = startX + i * tileSize;
+        int cy = airLevel - tileSize / 2;  // ãƒ—ãƒ©ãƒƒãƒˆãƒ•ã‚©ãƒ¼ãƒ ã®ä¸­å¿ƒã¡ã‚‡ã„ä¸Š
+        m_coins.push_back(std::make_unique<Coin>(cx, cy));
+    }
 }
 
 void GameScene::Update() {
-    // ƒvƒŒƒCƒ„[‘OƒtƒŒ[ƒ€ˆÊ’uEƒTƒCƒYæ“¾
-    int prevX = m_player->GetX();
-    int prevY = m_player->GetY();
-    int pw = m_player->GetW();
-    int ph = m_player->GetH();
 
-    // ƒvƒŒƒCƒ„[XVi“ü—ÍE•¨—j
+
+    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼æ›´æ–°ï¼ˆå…¥åŠ›ãƒ»ç‰©ç†ï¼‰
     m_player->Update();
 
-    {
+    
         float vy = m_player->GetVY();
-        // ‰º•ûŒü‚ÉˆÚ“®’†‚¾‚¯”»’è
-        if (vy > 0.0f) {
-            int px = m_player->GetX();
-            int py = m_player->GetY();
-            int pw = m_player->GetW();
-            int ph = m_player->GetH();
-            float oldBottom = (py - vy) + ph;
-            float newBottom = py + ph;
+        int   px = m_player->GetX();
+        int   py = m_player->GetY();
+        int   pw = m_player->GetW();
+        int   ph = m_player->GetH();
 
+        // â”€â”€ 2) é ­çªãåˆ¤å®šï¼ˆvy<0 ã®ã¨ãã ã‘ï¼‰ â”€â”€
+        if (vy < 0.0f) {
+            float oldY = py - vy;            // ï¼‘ãƒ•ãƒ¬ãƒ¼ãƒ å‰ã® Y
             for (auto& b : m_blocks) {
                 int bx = b->GetX();
                 int by = b->GetY();
                 int bw = b->GetW();
                 int bh = b->GetH();
-                // …•½”ÍˆÍd‚È‚è
+                // æ°´å¹³é‡ãªã‚Šãƒã‚§ãƒƒã‚¯
                 if (px + pw > bx && px < bx + bw) {
-                    // ‹Œ’ê•Ó‚ªƒuƒƒbƒN‚Ìã–Ê‚æ‚èãiƒj‚ÅAV’ê•Ó‚ª‰º–Ê‚æ‚è‰ºi>=j‚È‚ç’…’n
+                    float blockBottom = by + bh;
+                    // æ—§é ­é ‚ â‰¥ ãƒ–ãƒ­ãƒƒã‚¯åº•é¢  &&  æ–°é ­é ‚ â‰¤ ãƒ–ãƒ­ãƒƒã‚¯åº•é¢
+                    if (oldY >= blockBottom && py <= blockBottom) {
+                        // ã¶ã¤ã‹ã£ãŸï¼
+                        m_player->SetY(blockBottom);    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®é ­ã‚’ãƒ–ãƒ­ãƒƒã‚¯åº•é¢ã«åˆã‚ã›ã‚‹
+                        m_player->SetVY(0.0f);          // ä¸Šæ˜‡åœæ­¢
+                        break;
+                    }
+                }
+            }
+        }
+        // â”€â”€ 3) ç©ºä¸­ãƒ–ãƒ­ãƒƒã‚¯ä¸Šã§ã®ç€åœ°åˆ¤å®šï¼ˆvy>0 ã®ã¨ãï¼‰ â”€â”€
+        if (vy > 0.0f) {
+            float oldBottom = (py - vy) + ph;
+            float newBottom = py + ph;
+            for (auto& b : m_blocks) {
+                int bx = b->GetX();
+                int by = b->GetY();
+                int bw = b->GetW();
+                int bh = b->GetH();
+                // æ°´å¹³é‡ãªã‚Š
+                if (px + pw > bx && px < bx + bw) {
+                    // æ—§åº•é¢ â‰¤ ãƒ–ãƒ­ãƒƒã‚¯ä¸Šé¢  &&  æ–°åº•é¢ â‰¥ ãƒ–ãƒ­ãƒƒã‚¯ä¸Šé¢
                     if (oldBottom <= by && newBottom >= by) {
-                        // ’…’nˆ—
+                        // ç€åœ°ï¼
                         m_player->SetY(static_cast<float>(by - ph));
                         m_player->SetVY(0.0f);
                         m_player->SetOnGround(true);
@@ -67,9 +95,9 @@ void GameScene::Update() {
                 }
             }
         }
-    }
 
-    // 4) °iƒ}ƒbƒv‰º’[j‚Æ‚Ì“–‚½‚è”»’è
+
+    // 4) åºŠï¼ˆãƒãƒƒãƒ—ä¸‹ç«¯ï¼‰ã¨ã®å½“ãŸã‚Šåˆ¤å®š
     {
         const int tileSize = 64;
         const int mapH = m_generator->GetMapHeight();
@@ -84,7 +112,7 @@ void GameScene::Update() {
         }
     }
 
-    // 5) “GXV{Õ“Ë”»’è
+    // 5) æ•µæ›´æ–°ï¼‹è¡çªåˆ¤å®š
     for (auto& e : m_enemies) {
         e->Update();
         int px = m_player->GetX();
@@ -92,7 +120,7 @@ void GameScene::Update() {
         int pw = m_player->GetW();
         int ph = m_player->GetH();
         if (e->IsColliding(px, py, pw, ph)) {
-            // TODO: Õ“Ë‚Ìˆ—iƒ_ƒ[ƒWAƒmƒbƒNƒoƒbƒNASE‚È‚Çj
+            // TODO: è¡çªæ™‚ã®å‡¦ç†ï¼ˆãƒ€ãƒ¡ãƒ¼ã‚¸ã€ãƒãƒƒã‚¯ãƒãƒƒã‚¯ã€SEãªã©ï¼‰
         }
     }
 
@@ -100,7 +128,11 @@ void GameScene::Update() {
         b->Update(*m_player);
     }
 
-    // 6) ƒtƒF[ƒhƒCƒ“§Œä
+    for (auto& c : m_coins) {
+        c->Update(*m_player);
+    }
+
+    // 6) ãƒ•ã‚§ãƒ¼ãƒ‰ã‚¤ãƒ³åˆ¶å¾¡
     if (m_fadeIn) {
         m_fadeAlpha -= 5;
         if (m_fadeAlpha <= 0) {
@@ -114,11 +146,13 @@ void GameScene::Update() {
 void GameScene::Draw() {
     m_generator->DrawMap();
     m_player->Draw();
-    //ƒuƒƒbƒN‚Í°‚Ìã‚É•`‰æ
+    //ãƒ–ãƒ­ãƒƒã‚¯ã¯åºŠã®ä¸Šã«æç”»
     for (auto& b : m_blocks) {
         b->Draw();
     }
-    // ƒtƒF[ƒhƒCƒ“•`‰æ
+    // ã‚³ã‚¤ãƒ³æç”»
+    for (auto& c : m_coins) c->Draw();
+    // ãƒ•ã‚§ãƒ¼ãƒ‰ã‚¤ãƒ³æç”»
     if (m_fadeIn) {
         SetDrawBlendMode(DX_BLENDMODE_ALPHA, m_fadeAlpha);
         DrawBox(0, 0, 1920, 1080, GetColor(0, 0, 0), TRUE);
@@ -127,5 +161,7 @@ void GameScene::Draw() {
     for (auto& e : m_enemies) {
         e->Draw();
     }
-
+    m_hud->Draw(m_player->GetHealth(),
+        m_player->GetMaxHealth(),
+        m_player->GetCoinCount());
 }

@@ -5,6 +5,8 @@
 #include "Player.h"
 #include "EnemyBase.h"
 #include "Block.h"
+#include "HUD.h"
+#include "Coin.h"
 class GameScene {
 public:
     GameScene();
@@ -15,6 +17,8 @@ private:
     std::unique_ptr<Player> m_player;
     std::vector<std::unique_ptr<EnemyBase>> m_enemies;
     std::vector < std::unique_ptr<Block>> m_blocks;
+    std::unique_ptr<HUD> m_hud;
+    std::vector<std::unique_ptr<Coin>> m_coins;
     bool m_fadeIn;
     int m_fadeAlpha;
 };

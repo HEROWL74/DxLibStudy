@@ -15,11 +15,21 @@ public:
     int  GetW() const;
     int  GetH() const;
 
+    int GetHealth() const;
+    int GetMaxHealth() const;
+    int GetCoinCount() const;
+
     //垂直の速度取得と位置、速度、着地フラグ設定
     float GetVY() const;
     void SetY(float y);
     void SetVY(float vy);
     void SetOnGround(bool onGround);
+
+    void AddCoin(int amount);
+
+    void TakeDamage(int amount);
+
+    void Heal(int amount);
 
 private:
     enum class State {
@@ -61,6 +71,11 @@ private:
     int m_duck;
     std::vector<int> m_walk;
     bool m_facingLeft;
+
+    //ライフ・コイン管理
+    int m_health;
+    int m_maxHealth;
+    int m_coins;
 
 
 
