@@ -60,15 +60,6 @@ GameScene::GameScene()
 }
 
 void GameScene::Update() {
-    // ── フェードイン制御 ──
-    if (m_fadeIn) {
-        m_fadeAlpha -= 5;
-        if (m_fadeAlpha <= 0) {
-            m_fadeAlpha = 0;
-            m_fadeIn = false;
-        }
-    }
-
     // ■ ライフ０でゲームオーバー開始
     if (!m_isGameOver && m_player->GetHealth() <= 0) {
         m_isGameOver = true;
@@ -84,6 +75,15 @@ void GameScene::Update() {
             m_gameOverIndex < static_cast<int>(m_gameOverText.size()))
         {
             ++m_gameOverIndex;
+        }
+
+        // ゲームオーバー表示完了後、キー入力でリスタート
+        if (m_gameOverIndex >= static_cast<int>(m_gameOverText.size()) &&
+            m_gameOverTimer > 60) { // 文字表示完了後、1秒待機
+            if (CheckHitKey(KEY_INPUT_R) || CheckHitKey(KEY_INPUT_SPACE) ||
+                CheckHitKey(KEY_INPUT_RETURN)) {
+                RestartGame();
+            }
         }
         return;
     }
@@ -130,7 +130,7 @@ void GameScene::Update() {
         m_player->SetClimbing(onLadder && climbInput);
     }
 
-    // ── スパイク踏み判定 → ダメージ（重複削除：1箇所のみ）──
+    // ── スパイク踏み判定 → ダメージ ──
     {
         int px = m_player->GetX(), py = m_player->GetY();
         int pw = m_player->GetW(), ph = m_player->GetH();
@@ -217,7 +217,7 @@ void GameScene::Update() {
             // ② それ以外は横衝突扱い → ダメージ＋ノックバック
             {
                 // １回だけダメージ処理
-                m_player->TakeDamage(1);
+                m_player->TakeDamage(-1);
 
                 // ノックバック方向：プレイヤーの中心 vs 敵の中心
                 float playerCenterX = px + pw * 0.5f;
@@ -286,6 +286,15 @@ void GameScene::Update() {
         ),
         m_coinEffects.end()
     );
+
+    // ── フェードイン制御 ──
+    if (m_fadeIn) {
+        m_fadeAlpha -= 5;
+        if (m_fadeAlpha <= 0) {
+            m_fadeAlpha = 0;
+            m_fadeIn = false;
+        }
+    }
 }
 
 void GameScene::Draw() {
@@ -330,6 +339,22 @@ void GameScene::Draw() {
             GetColor(255, 0, 0),  // 赤文字
             m_fontHandle
         );
+
+        // リスタート指示を表示（文字表示完了後）
+        if (m_gameOverIndex >= static_cast<int>(m_gameOverText.size()) &&
+            m_gameOverTimer > 60) {
+            std::string restartText = "Press R, SPACE or ENTER to Restart";
+            int restartW = GetDrawStringWidthToHandle(restartText.c_str(), restartText.size(), m_fontHandle);
+            int restartX = (1920 - restartW) / 2;
+            int restartY = y + 80;
+
+            DrawStringToHandle(
+                restartX, restartY,
+                restartText.c_str(),
+                GetColor(255, 255, 255),  // 白文字
+                m_fontHandle
+            );
+        }
     }
 
     // フェードインオーバーレイ
@@ -346,4 +371,46 @@ bool GameScene::IsHitBottom(const Rect& r, int px, int py, int pw, int ph, float
     int nowB = py + ph;                          // 現在の足位置
     return px + pw > r.x && px < r.x + r.w &&
         prevB <= r.y && nowB >= r.y;
+}
+
+void GameScene::RestartGame()
+{
+    // ゲームオーバー状態をリセット
+    m_isGameOver = false;
+    m_gameOverTimer = 0;
+    m_gameOverIndex = 0;
+
+    // フェードイン再開
+    m_fadeIn = true;
+    m_fadeAlpha = 255;
+
+    // プレイヤーをリセット（新しいPlayerインスタンスを作成）
+    m_player.reset();
+    m_player = std::make_unique<Player>();
+
+    // 敵をリセット
+    m_enemies.clear();
+    int floorY = m_stage1->GetStartPos().y + 64;
+    m_enemies.push_back(
+        std::make_unique<NormalSlime>(200, floorY - 64, static_cast<float>(floorY))
+    );
+    m_enemies.push_back(
+        std::make_unique<SpikeSlime>(400, floorY - 64)
+    );
+
+    // コインをリセット
+    m_coins.clear();
+    for (auto& r : m_stage1->GetCoinRects()) {
+        m_coins.push_back(std::make_unique<Coin>(r.x, r.y));
+    }
+
+    // コインエフェクトをクリア
+    m_coinEffects.clear();
+
+    // ブロックをリセット（必要に応じて）
+    m_blocks.clear();
+    for (auto& r : m_stage1->GetPlatformRects()) {
+        m_blocks.push_back(std::make_unique<Block>(r.x, r.y));
+    }
+    
 }

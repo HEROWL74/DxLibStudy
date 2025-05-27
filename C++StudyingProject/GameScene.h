@@ -14,6 +14,7 @@ public:
     GameScene();
     void Update();
     void Draw();
+    void RestartGame();  // リスタート機能を追加
 
 private:
     std::unique_ptr<Player> m_player;

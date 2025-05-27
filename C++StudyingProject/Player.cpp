@@ -17,7 +17,7 @@ Player::Player()
     , m_isJumping(false)
     , m_facingLeft(false)
     , m_maxHealth(6)
-    , m_health(m_maxHealth)
+    , m_health(6)
     , m_coins(0)
     , m_climbing(false),
     m_climbSpeed(2.0f), m_climbFrame(0), m_climbTimer(0)

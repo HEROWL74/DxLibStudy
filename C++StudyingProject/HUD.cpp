@@ -42,18 +42,15 @@ void HUD::Draw(int currentHealth, int maxHealth, int coins)
 
     for (int i = 0; i < numHearts; ++i) {
         if (hp >= 2) {
-            // HPが2以上 → 満タンハート（元のコードが正しかった）
-            DrawGraph(x, y, imgHeartFull, TRUE);
+            DrawGraph(x, y, imgHeartFull, TRUE);  // 満タンハート
             hp -= 2;
         }
         else if (hp == 1) {
-            // HPが1 → 半分ハート
-            DrawGraph(x, y, imgHeartHalf, TRUE);
+            DrawGraph(x, y, imgHeartHalf, TRUE);  // 半分ハート
             hp = 0;
         }
         else {
-            // HPが0 → 空ハート（元のコードが正しかった）
-            DrawGraph(x, y, imgHeartEmpty, TRUE);
+            DrawGraph(x, y, imgHeartEmpty, TRUE); // 空ハート
         }
         x += ICON_SIZE + MARGIN_HEART;
     }
