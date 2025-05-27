@@ -8,7 +8,9 @@ public:
 
     // currentHealth：現在HP（1刻み）、maxHealth：最大HP、coins：所持コイン数
     void Draw(int currentHealth, int maxHealth, int coins);
-
+    
+    // コインアイコンの描画位置を取得（効果のターゲット座標）
+    std::pair<int, int> GetCoinIconPos(int maxHearts) const;
 private:
     int imgHeartFull;
     int imgHeartHalf;
@@ -19,6 +21,8 @@ private:
 
     //数字スプライト
     std::array<int, 10> imgDigits;
+    static constexpr int START_X = 20;
+    static constexpr int START_Y = 20;
     static constexpr int DIGIT_WIDTH = 24; //数字の画像の幅
     static constexpr int DIGIT_HEIGHT = 32; //数字の画像の高さ
     static constexpr int MARGIN_DIGIT = 4;//数字同士の間隔

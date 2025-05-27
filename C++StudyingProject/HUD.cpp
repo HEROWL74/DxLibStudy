@@ -27,29 +27,40 @@ HUD::~HUD() {
     }
 }
 
-void HUD::Draw(int currentHealth, int maxHealth = 3, int coins) {
-    const int startX = 20, startY = 20;
-    int x = startX;
+void HUD::Draw(int currentHealth, int maxHealth, int coins)
+{
+    int x = START_X,y =  START_Y;
 
-    // 1) プレイヤーアイコン
-    DrawGraph(x, startY, imgPlayerIcon, TRUE);
+    
+
+    // プレイヤーアイコン
+    DrawGraph(x, y, imgPlayerIcon, TRUE);
     x += ICON_SIZE + MARGIN_ICON_HEART;
 
-    // 2) ハートを maxHearts 個並べる
+    // ハート
     for (int i = 0; i < maxHealth; ++i) {
-        DrawGraph(x, startY, imgHeartFull, TRUE);
+        DrawGraph(x, y, imgHeartFull, TRUE);
         x += ICON_SIZE + MARGIN_HEART;
     }
 
-    // 3) ハートとコインの間隔調整
+    // コインアイコン
     x += MARGIN_HEART_COIN - MARGIN_HEART;
+    DrawGraph(x, y, imgCoin, TRUE);
+    x += ICON_SIZE + 4;
 
-    {
-        std::string s = std::to_string(coins);
-        for (char c : s) {
-            int d = c - '0';
-            DrawGraph(x, startY, imgDigits[d], TRUE);
-            x += DIGIT_WIDTH + MARGIN_DIGIT;
-        }
+    // コイン数（数字スプライト）
+    std::string s = std::to_string(coins);
+    for (char c : s) {
+        int d = c - '0';
+        DrawGraph(x, y, imgDigits[d], TRUE);
+        x += DIGIT_WIDTH + MARGIN_DIGIT;
     }
+}
+std::pair<int, int> HUD::GetCoinIconPos(int maxHearts) const {
+    // Draw() とまったく同じ計算でアイコンの位置を返す
+    int x = START_X + ICON_SIZE + MARGIN_ICON_HEART
+        + maxHearts * (ICON_SIZE + MARGIN_HEART)
+        + (MARGIN_HEART_COIN - MARGIN_HEART);
+    int y = START_Y;
+    return { x, y };
 }

@@ -1,37 +1,23 @@
 #pragma once
 #include "DxLib.h"
-#include "Player.h"
+
+class Player;  // 前方宣言
 
 class Coin {
 public:
-    Coin(int x, int y, int tx, int ty);
+    Coin(int x, int y);
     ~Coin();
 
-    // 毎フレーム更新。回収されたら isCollected() が true になる
-    void Update(Player& player);
-    void Draw() const;
-
-    bool IsDone() const { return m_state == State::Collected; }
-
-    bool isCollected() const { return m_collected; }
+    // プレイヤーが近づいたら collected=true に
+    void     Update(const Player& player);
+    void     Draw() const;
+    bool     isCollected() const { return m_collected; }
+    int      GetX() const { return m_x; }
+    int      GetY() const { return m_y; }
 
 private:
-
-    enum class State { Idle, MovingToHUD, Collected };
-    float m_x, m_y;
-    int m_w, m_h;
-    int m_handle;
-
-    // アニメーション開始座標
-    float m_startX, m_startY;
-    // HUDアイコン座標
-    int   m_targetX, m_targetY;
-    // アニメーション進行
-    int   m_timer, m_duration;
-
-    State m_state;
-
+    int  m_x, m_y;
+    int  m_w, m_h;
+    int  m_handle;
     bool m_collected;
-
-    static constexpr int COLLIDE_MARGIN = 0;
 };

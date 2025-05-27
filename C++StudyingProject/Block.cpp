@@ -28,7 +28,7 @@ void Block::Update(const Player& player) {
     int pw = player.GetW();
     int ph = player.GetH();
 
-    // １．接触判定：ぴったり重なったら Fall 表示
+    // 接触判定：ぴったり重なったら Fall を表示
     bool touching = !(px + pw  < m_x ||
         px      > m_x + m_width ||
         py + ph  < m_y ||
