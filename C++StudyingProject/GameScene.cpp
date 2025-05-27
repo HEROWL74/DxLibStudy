@@ -13,7 +13,7 @@
 GameScene::GameScene()
     : m_fadeIn(true)
     , m_fadeAlpha(255)
-    ,m_isGameOver(false)
+    , m_isGameOver(false)
     , m_gameOverTimer(0)
     , m_gameOverIndex(0)
 {
@@ -23,11 +23,12 @@ GameScene::GameScene()
     // プレイヤー／HUD生成
     m_player = std::make_unique<Player>();
     m_hud = std::make_unique<HUD>();
-    
-    //サウンドをロード
+
+    // サウンドをロード
     m_coinSound = LoadSoundMem("Sounds/sfx_coin.ogg");
-    if (m_coinSound == -1)printfDx("サウンド読み込み失敗: Sounds/sfx.coin.ogg");
-    // フォント読み込み（UI/Font/GameFont.ttf を適宜ファイル名に変更）
+    if (m_coinSound == -1) printfDx("サウンド読み込み失敗: Sounds/sfx_coin.ogg");
+
+    // フォント読み込み
     m_fontHandle = CreateFontToHandle(
         "UI/Font/GameFont.ttf",  // フォントファイルへの相対パス
         64,                      // フォントサイズ
@@ -37,7 +38,6 @@ GameScene::GameScene()
     if (m_fontHandle == -1) {
         printfDx("フォント読み込み失敗: UI/Font/GameFont.ttf\n");
     }
-    
 
     // 空中プラットフォーム → Block クラスで描画
     for (auto& r : m_stage1->GetPlatformRects()) {
@@ -59,60 +59,60 @@ GameScene::GameScene()
     );
 }
 
-
-
-
 void GameScene::Update() {
-   
+    // ── フェードイン制御 ──
+    if (m_fadeIn) {
+        m_fadeAlpha -= 5;
+        if (m_fadeAlpha <= 0) {
+            m_fadeAlpha = 0;
+            m_fadeIn = false;
+        }
+    }
+
+    // ■ ライフ０でゲームオーバー開始
+    if (!m_isGameOver && m_player->GetHealth() <= 0) {
+        m_isGameOver = true;
+        m_gameOverTimer = 0;
+        m_gameOverIndex = 0;
+    }
+
+    // ゲームオーバー中は他の Update を止めて文字送りだけ行う
+    if (m_isGameOver) {
+        ++m_gameOverTimer;
+        // 10フレームごとに１文字ずつ表示
+        if (m_gameOverTimer % 10 == 0 &&
+            m_gameOverIndex < static_cast<int>(m_gameOverText.size()))
+        {
+            ++m_gameOverIndex;
+        }
+        return;
+    }
 
     // ── プレイヤー更新 ──
     m_player->Update();
 
     float vy = m_player->GetVY();
 
-
-    {
-
-       
-
-        if (vy > 0.0f) {  // プレイヤーが落下中のとき
-            int px = m_player->GetX(), py = m_player->GetY();
-            int pw = m_player->GetW(), ph = m_player->GetH();
-            float oldB = (py - vy) + ph;  // 前の足位置
-            float newB = py + ph;         // 現在の足位置
-
-            for (const auto& r : m_stage1->GetFloorRects()) {
-                if (px + pw > r.x && px < r.x + r.w &&
-                    oldB <= r.y && newB >= r.y) {
-                    m_player->SetY(static_cast<float>(r.y - ph));  // 床上に配置
-                    m_player->SetVY(0.0f);                         // 落下停止
-                    m_player->SetOnGround(true);                   // 着地フラグ
-                    break;
-                }
-            }
-        }
-
-    }
-    // ── スプリングアニメ更新 ──
-    m_stage1->UpdateSprings();
-
-    // ── スプリング踏み判定 → 跳ね返り & アニメ開始 ──
-    {
+    // ── 床着地判定 ──
+    if (vy > 0.0f) {  // プレイヤーが落下中のとき
         int px = m_player->GetX(), py = m_player->GetY();
         int pw = m_player->GetW(), ph = m_player->GetH();
-        auto& springs = m_stage1->GetSpringRects();
-        int footY = py + ph;
-        int prevFootY = (py - vy) + ph;
+        float oldB = (py - vy) + ph;  // 前の足位置
+        float newB = py + ph;         // 現在の足位置
 
-        for (auto& r : m_stage1->GetSpikeRects()) {
+        for (const auto& r : m_stage1->GetFloorRects()) {
             if (px + pw > r.x && px < r.x + r.w &&
-                prevFootY <= r.y && footY >= r.y) {
-                m_player->TakeDamage(1);
+                oldB <= r.y && newB >= r.y) {
+                m_player->SetY(static_cast<float>(r.y - ph));  // 床上に配置
+                m_player->SetVY(0.0f);                         // 落下停止
+                m_player->SetOnGround(true);                   // 着地フラグ
                 break;
             }
         }
-
     }
+
+    // ── スプリングアニメ更新 ──
+    m_stage1->UpdateSprings();
 
     // ── はしご登り判定 ──
     {
@@ -130,12 +130,12 @@ void GameScene::Update() {
         m_player->SetClimbing(onLadder && climbInput);
     }
 
-    // ── スパイク踏み判定 → ダメージ ──
+    // ── スパイク踏み判定 → ダメージ（重複削除：1箇所のみ）──
     {
         int px = m_player->GetX(), py = m_player->GetY();
         int pw = m_player->GetW(), ph = m_player->GetH();
         int footY = py + ph;
-        int prevFootY = (py - vy) + ph;
+        int prevFootY = static_cast<int>((py - vy) + ph);
 
         for (auto& r : m_stage1->GetSpikeRects()) {
             if (px + pw > r.x && px < r.x + r.w &&
@@ -144,7 +144,6 @@ void GameScene::Update() {
                 break;
             }
         }
-
     }
 
     // ── 頭突き判定 ──
@@ -185,9 +184,6 @@ void GameScene::Update() {
         }
     }
 
-  
- 
-    
     // ── 敵衝突判定：踏みつけ vs 横衝突 ──
     {
         int px = m_player->GetX(), py = m_player->GetY();
@@ -236,13 +232,12 @@ void GameScene::Update() {
             // 処理済みの敵は消さずに次へ
             ++it;
         }
-
-        // ── 敵更新 ──
-        for (auto& e : m_enemies) {
-            e->Update();
-        }
     }
 
+    // ── 敵更新 ──
+    for (auto& e : m_enemies) {
+        e->Update();
+    }
 
     // ── ブロック状態更新 ──
     for (auto& b : m_blocks) b->Update(*m_player);
@@ -263,14 +258,14 @@ void GameScene::Update() {
                 int tx = digitPos.first;
                 int ty = digitPos.second;
 
-                                // CoinEffect のコンストラクタは (int startX, int startY, int targetX, int targetY)
+                // CoinEffect のコンストラクタは (int startX, int startY, int targetX, int targetY)
                 m_coinEffects.push_back(
-                     std::make_unique<CoinEffect>(
-                            static_cast<int>(sx),
-                            static_cast<int>(sy),
-                            tx,
-                            ty
-                         )
+                    std::make_unique<CoinEffect>(
+                        static_cast<int>(sx),
+                        static_cast<int>(sy),
+                        tx,
+                        ty
+                    )
                 );
             }
         }
@@ -291,35 +286,6 @@ void GameScene::Update() {
         ),
         m_coinEffects.end()
     );
-
-    // ── フェードイン制御 ──
-    if (m_fadeIn) {
-        m_fadeAlpha -= 5;
-        if (m_fadeAlpha <= 0) {
-            m_fadeAlpha = 0;
-            m_fadeIn = false;
-        }
-    }
-
-    // ■ ライフ０でゲームオーバー開始
-    if (!m_isGameOver && m_player->GetHealth() <= 0) {
-        m_isGameOver = true;
-        m_gameOverTimer = 0;
-        m_gameOverIndex = 0;
-    }
-
-    // ゲームオーバー中は他の Update を止めて文字送りだけ行う
-    if (m_isGameOver) {
-        ++m_gameOverTimer;
-        // 10フレームごとに１文字ずつ表示
-        if (m_gameOverTimer % 10 == 0 &&
-            m_gameOverIndex < static_cast<int>(m_gameOverText.size()))
-        {
-            ++m_gameOverIndex;
-        }
-        return;
-    }
-
 }
 
 void GameScene::Draw() {
@@ -347,6 +313,7 @@ void GameScene::Draw() {
         m_player->GetMaxHealth(),
         m_player->GetCoinCount()
     );
+
     // ■ ゲームオーバー文字表示
     if (m_isGameOver && m_fontHandle >= 0 && m_gameOverIndex > 0) {
         // 今まで表示する文字数分だけ切り出し
@@ -355,7 +322,7 @@ void GameScene::Draw() {
         // 画面中央に表示
         int textW = GetDrawStringWidthToHandle(s.c_str(), s.size(), m_fontHandle);
         int x = (1920 - textW) / 2;
-        int y = 1080 / 2 - 32;  // 好きな位置に調整してください
+        int y = 1080 / 2 - 32;
 
         DrawStringToHandle(
             x, y,
@@ -363,14 +330,13 @@ void GameScene::Draw() {
             GetColor(255, 0, 0),  // 赤文字
             m_fontHandle
         );
+    }
 
-        // フェードインオーバーレイ
-        if (m_fadeIn) {
-            SetDrawBlendMode(DX_BLENDMODE_ALPHA, m_fadeAlpha);
-            DrawBox(0, 0, 1920, 1080, GetColor(0, 0, 0), TRUE);
-            SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-        }
-
+    // フェードインオーバーレイ
+    if (m_fadeIn) {
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, m_fadeAlpha);
+        DrawBox(0, 0, 1920, 1080, GetColor(0, 0, 0), TRUE);
+        SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
     }
 }
 

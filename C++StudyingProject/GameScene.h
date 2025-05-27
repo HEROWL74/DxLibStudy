@@ -1,7 +1,6 @@
 #pragma once
 #include <memory>
 #include <vector>
-#include "TitleGenerate.h"
 #include "Player.h"
 #include "EnemyBase.h"
 #include "Block.h"
@@ -17,10 +16,9 @@ public:
     void Draw();
 
 private:
-    std::unique_ptr<TitleGenerate> m_generator;
     std::unique_ptr<Player> m_player;
     std::vector<std::unique_ptr<EnemyBase>> m_enemies;
-    std::vector < std::unique_ptr<Block>> m_blocks;
+    std::vector<std::unique_ptr<Block>> m_blocks;
     std::unique_ptr<HUD> m_hud;
     std::vector<std::unique_ptr<Coin>> m_coins;
     std::vector<std::unique_ptr<CoinEffect>> m_coinEffects;
@@ -30,13 +28,13 @@ private:
     int m_fadeAlpha;
     bool IsHitBottom(const Rect& r, int px, int py, int pw, int ph, float vy);
 
-    // ■ ゲームオーバー表示用
+    // ゲームオーバー表示用
     bool   m_isGameOver = false;         // ゲームオーバー開始フラグ
-    int    m_gameOverTimer;      // フレームカウント
-    int    m_gameOverIndex;      // 現在表示済みの文字数
-    std::string m_gameOverText = "GAMEOVER";  // "GAME OVER"
+    int    m_gameOverTimer;              // フレームカウント
+    int    m_gameOverIndex;              // 現在表示済みの文字数
+    std::string m_gameOverText = "GAMEOVER";
 
-    // ■ フォントハンドル
+    // フォントハンドル
     int    m_fontHandle;
-    int m_coinSound;
+    int    m_coinSound;
 };
