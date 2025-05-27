@@ -8,7 +8,7 @@
 #include "HUD.h"
 #include "Coin.h"
 #include "CoinEffect.h"
-
+#include "Stage1Generate.h"
 
 class GameScene {
 public:
@@ -24,6 +24,7 @@ private:
     std::unique_ptr<HUD> m_hud;
     std::vector<std::unique_ptr<Coin>> m_coins;
     std::vector<std::unique_ptr<CoinEffect>> m_coinEffects;
+    std::unique_ptr<Stage1Generate> m_stage1;
 
     bool m_fadeIn;
     int m_fadeAlpha;

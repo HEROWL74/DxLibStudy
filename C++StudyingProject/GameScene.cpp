@@ -1,64 +1,102 @@
 ﻿#include "GameScene.h"
 #include "DxLib.h"
+
+#include "Stage1Generate.h"
+#include "Player.h"
+#include "HUD.h"
+#include "Block.h"
+#include "Coin.h"
+#include "CoinEffect.h"
 #include "NormalSlime.h"
 #include "SpikeSlime.h"
-#include <memory>
-#include <algorithm>  // std::remove_if
 
 GameScene::GameScene()
     : m_fadeIn(true)
     , m_fadeAlpha(255)
 {
-    // 描画マップ・プレイヤー・HUD を生成
-    m_generator = std::make_unique<TitleGenerate>();
+    // ステージ１生成
+    m_stage1 = std::make_unique<Stage1Generate>();
+
+    // プレイヤー／HUD生成
     m_player = std::make_unique<Player>();
     m_hud = std::make_unique<HUD>();
 
-    // 敵の生成
-    int mapH3 = m_generator->GetMapHeight();
-    int floorY3 = 1080 - mapH3 * 64;
+    // 空中プラットフォーム → Block クラスで描画
+    for (auto& r : m_stage1->GetPlatformRects()) {
+        m_blocks.push_back(std::make_unique<Block>(r.x, r.y));
+    }
+
+    // コイン配置 → Coin クラスで生成
+    for (auto& r : m_stage1->GetCoinRects()) {
+        m_coins.push_back(std::make_unique<Coin>(r.x, r.y));
+    }
+
+    // 敵生成（床の高さ floorY を Stage1Generate から推定）
+    int floorY = m_stage1->GetStartPos().y + 64;  // スタート位置直下が床
     m_enemies.push_back(
-        std::make_unique<NormalSlime>(200, floorY3 - 64, static_cast<float>(floorY3))
+        std::make_unique<NormalSlime>(200, floorY - 64, static_cast<float>(floorY))
     );
-    m_enemies.push_back(std::make_unique<SpikeSlime>(400, 770));
-
-    // 空中プラットフォームのブロックを並べる
-    const int tileSize2 = 64;
-    const int mapH2 = m_generator->GetMapHeight();
-    const int floorY2 = 1080 - mapH2 * tileSize2;
-    const int airLevel = floorY2 - 3 * tileSize2;
-    const int startX2 = 500;
-    const int count = 5;
-    for (int i = 0; i < count; ++i) {
-        int bx = startX2 + i * tileSize2;
-        m_blocks.push_back(std::make_unique<Block>(bx, airLevel));
-    }
-
-    // コイン配置例：空中プラットフォーム上
-    const int tileSize = 64;
-    int mapH = m_generator->GetMapHeight();
-    int floorY = 1080 - mapH * tileSize;
-    int airY = floorY - 3 * tileSize;
-    for (int i = 0; i < 5; ++i) {
-        m_coins.push_back(
-            std::make_unique<Coin>(500 + i * tileSize, airY - tileSize / 2)
-        );
-    }
+    m_enemies.push_back(
+        std::make_unique<SpikeSlime>(400, floorY - 64)
+    );
 }
 
 void GameScene::Update() {
-    // 1) プレイヤー更新
+    // ── はしご登り判定 ──
+    {
+        int px = m_player->GetX(), py = m_player->GetY();
+        int pw = m_player->GetW(), ph = m_player->GetH();
+        bool onLadder = false;
+        for (auto& r : m_stage1->GetLadders()) {
+            if (px + pw > r.x && px < r.x + r.w &&
+                py + ph > r.y && py < r.y + r.h) {
+                onLadder = true;
+                break;
+            }
+        }
+        bool climbInput = CheckHitKey(KEY_INPUT_UP) || CheckHitKey(KEY_INPUT_DOWN);
+        m_player->SetClimbing(onLadder && climbInput);
+    }
+
+    // ── プレイヤー更新 ──
     m_player->Update();
 
-    // プレイヤー状態取得
     float vy = m_player->GetVY();
-    int   px = m_player->GetX();
-    int   py = m_player->GetY();
-    int   pw = m_player->GetW();
-    int   ph = m_player->GetH();
 
-    // 2) 頭突き判定（上方向移動中のみ）
+    // ── スプリングアニメ更新 ──
+    m_stage1->UpdateSprings();
+
+    // ── スプリング踏み判定 → 跳ね返り & アニメ開始 ──
+    {
+        int px = m_player->GetX(), py = m_player->GetY();
+        int pw = m_player->GetW(), ph = m_player->GetH();
+        auto& springs = m_stage1->GetSpringRects();
+        for (int i = 0; i < (int)springs.size(); ++i) {
+            auto& r = springs[i];
+            if (px + pw > r.x && px < r.x + r.w &&
+                py + ph > r.y && py < r.y + r.h) {
+                m_player->SetVY(-14.0f);
+                m_stage1->ActivateSpring(i);
+            }
+        }
+    }
+
+    // ── スパイク踏み判定 → ダメージ ──
+    {
+        int px = m_player->GetX(), py = m_player->GetY();
+        int pw = m_player->GetW(), ph = m_player->GetH();
+        for (auto& r : m_stage1->GetSpikeRects()) {
+            if (px + pw > r.x && px < r.x + r.w &&
+                py + ph > r.y && py < r.y + r.h) {
+                m_player->TakeDamage(1);
+            }
+        }
+    }
+
+    // ── 頭突き判定 ──
     if (vy < 0.0f) {
+        int px = m_player->GetX(), py = m_player->GetY();
+        int pw = m_player->GetW(), ph = m_player->GetH();
         float oldY = py - vy;
         for (auto& b : m_blocks) {
             int bx = b->GetX(), by = b->GetY();
@@ -74,15 +112,16 @@ void GameScene::Update() {
         }
     }
 
-    // 3) 空中プラットフォーム上での着地判定（下方向移動中のみ）
+    // ── 空中プラットフォーム上着地判定 ──
     if (vy > 0.0f) {
-        float oldBottom = (py - vy) + ph;
-        float newBottom = py + ph;
+        int px = m_player->GetX(), py = m_player->GetY();
+        int pw = m_player->GetW(), ph = m_player->GetH();
+        float oldB = (py - vy) + ph, newB = py + ph;
         for (auto& b : m_blocks) {
             int bx = b->GetX(), by = b->GetY();
-            int bw = b->GetW(), bh = b->GetH();
+            int bw = b->GetW();
             if (px + pw > bx && px < bx + bw) {
-                if (oldBottom <= by && newBottom >= by) {
+                if (oldB <= by && newB >= by) {
                     m_player->SetY(static_cast<float>(by - ph));
                     m_player->SetVY(0.0f);
                     m_player->SetOnGround(true);
@@ -92,11 +131,11 @@ void GameScene::Update() {
         }
     }
 
-    // 4) 床（マップ下端）への着地
+    // ── 床着地判定 ──
     {
-        const int tileSize = 64;
-        const int mapH = m_generator->GetMapHeight();
-        const int floorY = 1080 - mapH * tileSize;
+        const int mapH = m_stage1->GetStartPos().y / 64 + 1;
+        const int floorY = 1080 - mapH * 64;
+        int py = m_player->GetY(), ph = m_player->GetH();
         if (vy > 0.0f && py + ph > floorY) {
             m_player->SetY(static_cast<float>(floorY - ph));
             m_player->SetVY(0.0f);
@@ -104,92 +143,88 @@ void GameScene::Update() {
         }
     }
 
-    // 2) 敵踏みつけ判定（落下中のみ）
+    // ── 敵踏みつけ→Stomp処理 ──
     if (vy > 0.0f) {
-        float oldBottom = (py - vy) + ph;
-        float newBottom = py + ph;
-
-        // イテレータを使って倒した敵は削除
+        int px = m_player->GetX(), py = m_player->GetY();
+        int pw = m_player->GetW(), ph = m_player->GetH();
+        float oldB = (py - vy) + ph, newB = py + ph;
         for (auto it = m_enemies.begin(); it != m_enemies.end(); ) {
             auto& e = *it;
-            int ex = e->GetX();
-            int ey = e->GetY();
-            int ew = e->GetW();
-            //int eh = e->GetH(); // 今回はトップだけ見るので不要
-
-            // 水平重なり
-            if (px + pw > ex && px < ex + ew) {
-                // 旧底面 ≤ 敵上面 && 新底面 ≥ 敵上面 なら踏みつけ
-                if (oldBottom <= ey && newBottom >= ey) {
-                    // 敵を倒す
-                    it = m_enemies.erase(it);
-                    // プレイヤーを少し跳ね上げる
-                    m_player->SetVY(-10.0f);
-                    m_player->SetOnGround(false);
-                    continue;
-                }
+            int ex = e->GetX(), ey = e->GetY(), ew = e->GetW();
+            if (px + pw > ex && px < ex + ew &&
+                oldB <= ey && newB >= ey) {
+                it = m_enemies.erase(it);
+                m_player->SetVY(-10.0f);
+                m_player->SetOnGround(false);
+                continue;
             }
             ++it;
         }
     }
-    for (auto it = m_enemies.begin(); it != m_enemies.end(); ++it) {
-        auto& e = *it;
-        e->Update();
-        // （踏みつけ判定は先に行っている前提）
-        if (e->IsColliding(px, py, pw, ph)) {
-            // ダメージ＋ヒット演出
-            m_player->TakeDamage(1);
 
-            // ノックバック方向：敵とプレイヤーのX位置で決定
-            int ex = e->GetX(), ew = e->GetW();
-            float dir = (px + pw / 2 < ex + ew / 2) ? -1.0f : 1.0f;
-
-            // 少し跳ね返る＆横ノックバック
-            m_player->SetVY(-8.0f);
-            m_player->SetVX(dir * 5.0f);
-            m_player->SetOnGround(false);
-            break;  // １回ダメージを与えたらループ抜け
+    // ── 敵衝突ダメージ＆ノックバック ──
+    {
+        int px = m_player->GetX(), py = m_player->GetY();
+        int pw = m_player->GetW(), ph = m_player->GetH();
+        for (auto& e : m_enemies) {
+            if (e->IsColliding(px, py, pw, ph)) {
+                m_player->TakeDamage(1);
+                int ex = e->GetX(), ew = e->GetW();
+                float dir = (px + pw / 2 < ex + ew / 2) ? -1.0f : 1.0f;
+                m_player->SetVY(-8.0f);
+                m_player->SetVX(dir * 5.0f);
+                m_player->SetOnGround(false);
+                break;
+            }
         }
+        // 敵更新
+        for (auto& e : m_enemies) e->Update();
     }
 
-    // 6) ブロック状態更新
-    for (auto& b : m_blocks) {
-        b->Update(*m_player);
-    }
+    // ── ブロック状態更新 ──
+    for (auto& b : m_blocks) b->Update(*m_player);
 
-    // 7) コイン収集判定 → Update とエフェクト生成
+    // ── コイン収集＆エフェクト生成 ──
     for (auto& c : m_coins) {
         if (!c->isCollected()) {
             c->Update(*m_player);
             if (c->isCollected()) {
-                int hearts = m_player->GetMaxHealth() / 2;
-                auto pos = m_hud->GetCoinIconPos(hearts);
+                float sx = static_cast<float>(c->GetX());
+                float sy = static_cast<float>(c->GetY());
+                // HUD のコインアイコン位置を取得
+                auto pos = m_hud->GetCoinIconPos(m_player->GetMaxHealth() / 2);
                 int tx = pos.first;
                 int ty = pos.second;
+                                // CoinEffect のコンストラクタは (int startX, int startY, int targetX, int targetY)
                 m_coinEffects.push_back(
-                    std::make_unique<CoinEffect>(
-                        c->GetX(), c->GetY(), tx, ty
-                    )
+                     std::make_unique<CoinEffect>(
+                            static_cast<int>(sx),
+                            static_cast<int>(sy),
+                            tx,
+                            ty
+                         )
                 );
             }
         }
     }
 
-    // 8) CoinEffect 更新・完了処理
-    for (auto& e : m_coinEffects) {
-        e->Update();
-    }
-    for (auto it = m_coinEffects.begin(); it != m_coinEffects.end(); ) {
-        if ((*it)->IsFinished()) {
-            m_player->AddCoin(1);
-            it = m_coinEffects.erase(it);
-        }
-        else {
-            ++it;
-        }
-    }
+    // ── CoinEffect 更新＆完了 ──
+    for (auto& e : m_coinEffects) e->Update();
+    m_coinEffects.erase(
+        std::remove_if(
+            m_coinEffects.begin(), m_coinEffects.end(),
+            [&](auto& e) {
+                if (e->IsFinished()) {
+                    m_player->AddCoin(1);
+                    return true;
+                }
+                return false;
+            }
+        ),
+        m_coinEffects.end()
+    );
 
-    // 9) フェードイン制御
+    // ── フェードイン制御 ──
     if (m_fadeIn) {
         m_fadeAlpha -= 5;
         if (m_fadeAlpha <= 0) {
@@ -200,21 +235,30 @@ void GameScene::Update() {
 }
 
 void GameScene::Draw() {
-    // 背景マップ
-    m_generator->DrawMap();
+    // ステージ描画（床、はしご、旗、スパイク、スプリング）
+    m_stage1->DrawMap();
+
+    // 空中プラットフォーム
+    for (auto& b : m_blocks) b->Draw();
+
+    // コイン（未収集のみ）
+    for (auto& c : m_coins) c->Draw();
+
+    // コインエフェクト
+    for (auto& e : m_coinEffects) e->Draw();
 
     // プレイヤー
     m_player->Draw();
 
-    // 空中プラットフォーム（ブロック）
-    for (auto& b : m_blocks) {
-        b->Draw();
-    }
+    // 敵
+    for (auto& e : m_enemies) e->Draw();
 
-    // コイン（未収集のみ）
-    for (auto& c : m_coins) {
-        c->Draw();
-    }
+    // HUD（ハート数, コイン数）
+    m_hud->Draw(
+        m_player->GetMaxHealth() / 2,
+        m_player->GetMaxHealth(),
+        m_player->GetCoinCount()
+    );
 
     // フェードインオーバーレイ
     if (m_fadeIn) {
@@ -222,21 +266,4 @@ void GameScene::Draw() {
         DrawBox(0, 0, 1920, 1080, GetColor(0, 0, 0), TRUE);
         SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
     }
-
-    // コインエフェクト
-    for (auto& e : m_coinEffects) {
-        e->Draw();
-    }
-
-    // 敵
-    for (auto& e : m_enemies) {
-        e->Draw();
-    }
-
-    // HUD（ハート＋コイン数）
-    m_hud->Draw(
-        m_player->GetMaxHealth() / 2,
-        m_player->GetMaxHealth(),
-        m_player->GetCoinCount()
-    );
 }

@@ -33,8 +33,10 @@ public:
     void  SetVX(float vx);
     void  SetOnGround(bool onGround);
 
+    void SetClimbing(bool climbing) { m_climbing = climbing; }
+
 private:
-    enum class State { Idle, Walk, Jump, Duck, Hit };
+    enum class State { Idle, Walk, Jump, Duck, Hit, Climb };
     State m_state;
 
     // 座標・速度
@@ -56,6 +58,13 @@ private:
     int m_health;
     int m_maxHealth;
     int m_coins;
+
+    //ーーはしごーー//
+    bool m_climbing;
+    float m_climbSpeed;
+    int   m_climbFrame, m_climbTimer;
+    int   m_climbA, m_climbB;
+    std::vector<int> m_climb;
 
     // 描画用ハンドル
     int m_idle;

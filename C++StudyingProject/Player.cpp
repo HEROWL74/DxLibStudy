@@ -1,6 +1,6 @@
 #include "Player.h"
 #include <algorithm>
-
+#include "Stage1Generate.h"
 using namespace std;
 
 Player::Player()
@@ -19,6 +19,8 @@ Player::Player()
     , m_maxHealth(6)
     , m_health(m_maxHealth)
     , m_coins(0)
+    , m_climbing(false),
+    m_climbSpeed(2.0f), m_climbFrame(0), m_climbTimer(0)
 {
     LoadImages();
     GetGraphSize(m_idle, &m_width, &m_height);
@@ -41,9 +43,13 @@ void Player::LoadImages() {
     m_duck = LoadGraph("Sprites/Characters/Default/character_green_duck.png");
     m_hit = LoadGraph("Sprites/Characters/Default/character_green_hit.png");
     m_walk = { m_walkA, m_walkB };
+    m_climbA = LoadGraph("Sprites/Characters/Default/character_green_climb_a.png");
+    m_climbB = LoadGraph("Sprites/Characters/Default/character_green_climb_b.png");
+    m_climb = { m_climbA, m_climbB };
 }
 
 void Player::Update() {
+
     // ヒット演出タイマー
     if (m_hitTimer > 0) --m_hitTimer;
 
@@ -59,6 +65,7 @@ void Player::Update() {
         else if (CheckHitKey(KEY_INPUT_RIGHT)) {
             m_vx = min(m_vx + accel, maxSpeed);
         }
+       
         else {
             m_vx *= friction;
             if (std::abs(m_vx) < 0.1f) m_vx = 0.0f;
@@ -66,6 +73,23 @@ void Player::Update() {
     }
     else {
         m_vx *= friction;
+    }
+
+    if (m_climbing) {
+        // 上下キーで登降
+        if (CheckHitKey(KEY_INPUT_UP)) {
+            m_y -= m_climbSpeed;
+        }
+        else if (CheckHitKey(KEY_INPUT_DOWN)) {
+            m_y += m_climbSpeed;
+        }
+        // アニメ更新
+        if (++m_climbTimer > 12) {
+            m_climbTimer = 0;
+            m_climbFrame = (m_climbFrame + 1) % 2;
+        }
+        m_state = State::Climb;
+        return;  // そのほかの処理はスキップ
     }
 
     // ジャンプ開始
@@ -98,7 +122,11 @@ void Player::Update() {
     if (m_hitTimer > 0)  m_state = State::Hit;
     else if (!m_onGround)  m_state = State::Jump;
     else if (m_vx != 0.0f)  m_state = State::Walk;
+    else if (CheckHitKey(KEY_INPUT_DOWN))
+        m_state = State::Duck;
     else   m_state = State::Idle;
+    
+    
 
     // 歩行アニメ
     if (m_state == State::Walk) {
@@ -122,12 +150,18 @@ void Player::Draw() {
     case State::Jump: handle = m_jump;               break;
     case State::Duck: handle = m_duck;               break;
     case State::Hit:  handle = m_hit;                break;
+    case State::Climb: handle = m_climb[m_climbFrame]; break;
     }
-    if (m_facingLeft) {
-        DrawTurnGraph(static_cast<int>(m_x), static_cast<int>(m_y), handle, TRUE);
+    if (m_state == State::Climb) {
+        // はしごは反転不要なので通常描画
+        DrawGraph((int)m_x, (int)m_y, handle, TRUE);
     }
     else {
-        DrawGraph(static_cast<int>(m_x), static_cast<int>(m_y), handle, TRUE);
+        // 既存の左右反転分岐
+        if (m_facingLeft)
+            DrawTurnGraph((int)m_x, (int)m_y, handle, TRUE);
+        else
+            DrawGraph((int)m_x, (int)m_y, handle, TRUE);
     }
 }
 

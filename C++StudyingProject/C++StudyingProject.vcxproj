@@ -150,6 +150,7 @@
     <ClCompile Include="NormalSlime.cpp" />
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="SpikeSlime.cpp" />
+    <ClCompile Include="Stage1Generate.cpp" />
     <ClCompile Include="TileGenerate.cpp" />
     <ClCompile Include="TitleScene.cpp" />
   </ItemGroup>
@@ -165,6 +166,7 @@
     <ClInclude Include="NormalSlime.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="SpikeSlime.h" />
+    <ClInclude Include="Stage1Generate.h" />
     <ClInclude Include="TitleGenerate.h" />
     <ClInclude Include="TitleScene.h" />
   </ItemGroup>
