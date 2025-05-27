@@ -43,6 +43,7 @@ void Stage1Generate::SetupMap() {
     int floorRow = H - 1;
     for (int x = 0; x < W; ++x) {
         m_layout[floorRow][x] = "ground";
+        m_floors.push_back({ x * TILE, floorRow * TILE, TILE, TILE });
     }
 
     m_start = { (W - 1) * TILE, (floorRow - 1) * TILE, TILE, TILE };

@@ -5,7 +5,7 @@ using namespace std;
 
 Player::Player()
     : m_x(100.0f)
-    , m_y(800.0f)
+    , m_y(400.0f)
     , m_vx(0.0f)
     , m_vy(0.0f)
     , m_state(State::Idle)

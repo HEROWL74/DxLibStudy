@@ -88,6 +88,9 @@ private:
     static constexpr int   maxJumpTime = 15;
     static constexpr int   hitDuration = 30;
 
+    //–³“GŠÔ
+    
+
     // ‰æ‘œƒ[ƒh
     void LoadImages();
 };

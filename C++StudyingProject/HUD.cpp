@@ -37,9 +37,22 @@ void HUD::Draw(int currentHealth, int maxHealth, int coins)
     DrawGraph(x, y, imgPlayerIcon, TRUE);
     x += ICON_SIZE + MARGIN_ICON_HEART;
 
-    // ハート
-    for (int i = 0; i < maxHealth; ++i) {
-        DrawGraph(x, y, imgHeartFull, TRUE);
+    // ハート（半ハート単位 currentHealth, maxHealth）
+    int numHearts = maxHealth / 2;      // 例: 6/2 = 3 ハート
+    int hp = currentHealth;             // HP（半ハート単位）
+
+    for (int i = 0; i < numHearts; ++i) {
+        if (hp >= 2) {
+            DrawGraph(x, y, imgHeartEmpty, TRUE);
+            hp -= 2;
+        }
+        else if (hp == 1) {
+            DrawGraph(x, y, imgHeartHalf, TRUE);
+            hp = 0;
+        }
+        else {
+            DrawGraph(x, y, imgHeartFull, TRUE);
+        }
         x += ICON_SIZE + MARGIN_HEART;
     }
 
@@ -56,11 +69,16 @@ void HUD::Draw(int currentHealth, int maxHealth, int coins)
         x += DIGIT_WIDTH + MARGIN_DIGIT;
     }
 }
-std::pair<int, int> HUD::GetCoinIconPos(int maxHearts) const {
-    // Draw() とまったく同じ計算でアイコンの位置を返す
+std::pair<int, int> HUD::GetCoinDigitPos(int maxHearts, int coinCount) const {
     int x = START_X + ICON_SIZE + MARGIN_ICON_HEART
         + maxHearts * (ICON_SIZE + MARGIN_HEART)
-        + (MARGIN_HEART_COIN - MARGIN_HEART);
+        + (MARGIN_HEART_COIN - MARGIN_HEART)
+        + ICON_SIZE + 10; // コインアイコンの右側
+
+    // 桁数に応じて右に移動
+    int digitCount = std::to_string(coinCount).size();
+    x += (DIGIT_WIDTH + MARGIN_DIGIT) * (digitCount - 1);
+
     int y = START_Y;
     return { x, y };
 }

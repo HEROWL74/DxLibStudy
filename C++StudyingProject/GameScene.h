@@ -28,4 +28,7 @@ private:
 
     bool m_fadeIn;
     int m_fadeAlpha;
+    bool IsHitBottom(const Rect& r, int px, int py, int pw, int ph, float vy);
+
+    int m_coinSound;
 };

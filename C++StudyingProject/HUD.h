@@ -10,7 +10,7 @@ public:
     void Draw(int currentHealth, int maxHealth, int coins);
     
     // コインアイコンの描画位置を取得（効果のターゲット座標）
-    std::pair<int, int> GetCoinIconPos(int maxHearts) const;
+    std::pair<int, int> GetCoinDigitPos(int maxHearts, int coinCount) const;
 private:
     int imgHeartFull;
     int imgHeartHalf;

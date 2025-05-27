@@ -23,7 +23,7 @@ public:
     const std::vector<Rect>& GetCoinRects()    const { return m_coins; }
     const std::vector<Rect>& GetSpringRects()  const;
     const std::vector<Rect>& GetSpikeRects()   const;
-
+    const std::vector<Rect>& GetFloorRects() const { return m_floors; }
     // “¥‚ñ‚¾‚Æ‚«‚ÉŒÄ‚Ô
     void ActivateSpring(int index);
 
@@ -40,7 +40,7 @@ private:
     std::vector<Rect>                    m_platforms;
     std::vector<Rect>                    m_coins;
     std::vector<Rect>                    m_spikes;
-
+    std::vector<Rect>                    m_floors;
     struct Spring { Rect r; bool active; int timer; };
     std::vector<Spring>                  m_springs;
     int                                  m_springDuration;
