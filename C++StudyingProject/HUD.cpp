@@ -1,5 +1,6 @@
 #include "HUD.h"
 #include <string>
+
 HUD::HUD() {
     imgHeartFull = LoadGraph("Sprites/Tiles/Default/hud_heart.png");
     imgHeartHalf = LoadGraph("Sprites/Tiles/Default/hud_heart_half.png");
@@ -7,7 +8,7 @@ HUD::HUD() {
     imgCoin = LoadGraph("Sprites/Tiles/Default/hud_coin.png");
     imgPlayerIcon = LoadGraph("Sprites/Tiles/Default/hud_player_helmet_green.png");
 
-    //数字スプライト読み込み
+    // 数字スプライト読み込み
     for (int i = 0; i < 10; ++i) {
         std::string path = "Sprites/Tiles/Default/hud_character_"
             + std::to_string(i) + ".png";
@@ -29,9 +30,7 @@ HUD::~HUD() {
 
 void HUD::Draw(int currentHealth, int maxHealth, int coins)
 {
-    int x = START_X,y =  START_Y;
-
-    
+    int x = START_X, y = START_Y;
 
     // プレイヤーアイコン
     DrawGraph(x, y, imgPlayerIcon, TRUE);
@@ -43,15 +42,18 @@ void HUD::Draw(int currentHealth, int maxHealth, int coins)
 
     for (int i = 0; i < numHearts; ++i) {
         if (hp >= 2) {
-            DrawGraph(x, y, imgHeartEmpty, TRUE);
+            // HPが2以上 → 満タンハート
+            DrawGraph(x, y, imgHeartFull, TRUE);
             hp -= 2;
         }
         else if (hp == 1) {
+            // HPが1 → 半分ハート
             DrawGraph(x, y, imgHeartHalf, TRUE);
             hp = 0;
         }
         else {
-            DrawGraph(x, y, imgHeartFull, TRUE);
+            // HPが0 → 空ハート
+            DrawGraph(x, y, imgHeartEmpty, TRUE);
         }
         x += ICON_SIZE + MARGIN_HEART;
     }
@@ -69,6 +71,7 @@ void HUD::Draw(int currentHealth, int maxHealth, int coins)
         x += DIGIT_WIDTH + MARGIN_DIGIT;
     }
 }
+
 std::pair<int, int> HUD::GetCoinDigitPos(int maxHearts, int coinCount) const {
     int x = START_X + ICON_SIZE + MARGIN_ICON_HEART
         + maxHearts * (ICON_SIZE + MARGIN_HEART)

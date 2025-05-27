@@ -24,7 +24,7 @@ public:
     int   GetMaxHealth() const;
     int   GetCoinCount() const;
     void  AddCoin(int amount);
-    void  TakeDamage(int amount);
+    void  TakeDamage(int damage);
 
     // ノックバック・位置調整用セッター
     void  SetX(float x);
@@ -89,8 +89,16 @@ private:
     static constexpr int   hitDuration = 30;
 
     //無敵時間
-    
+    int m_invincibleTimer;
+    static constexpr int invicibleDuration = 60;
+    static constexpr int blinkInterval = 6;   // 点滅間隔（フレーム数）
+    bool  m_visible;                    // 点滅表示フラグ
+
+    //被ダメ効果音ハンドル
+    int m_hurtSound;
 
     // 画像ロード
     void LoadImages();
+    //効果音ロード
+    void LoadSounds();
 };

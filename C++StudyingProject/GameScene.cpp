@@ -13,6 +13,9 @@
 GameScene::GameScene()
     : m_fadeIn(true)
     , m_fadeAlpha(255)
+    ,m_isGameOver(false)
+    , m_gameOverTimer(0)
+    , m_gameOverIndex(0)
 {
     // ステージ１生成
     m_stage1 = std::make_unique<Stage1Generate>();
@@ -20,10 +23,21 @@ GameScene::GameScene()
     // プレイヤー／HUD生成
     m_player = std::make_unique<Player>();
     m_hud = std::make_unique<HUD>();
-
+    
     //サウンドをロード
     m_coinSound = LoadSoundMem("Sounds/sfx_coin.ogg");
     if (m_coinSound == -1)printfDx("サウンド読み込み失敗: Sounds/sfx.coin.ogg");
+    // フォント読み込み（UI/Font/GameFont.ttf を適宜ファイル名に変更）
+    m_fontHandle = CreateFontToHandle(
+        "UI/Font/GameFont.ttf",  // フォントファイルへの相対パス
+        64,                      // フォントサイズ
+        5,                       // 太さ
+        DX_FONTTYPE_ANTIALIASING // アンチエイリアス
+    );
+    if (m_fontHandle == -1) {
+        printfDx("フォント読み込み失敗: UI/Font/GameFont.ttf\n");
+    }
+    
 
     // 空中プラットフォーム → Block クラスで描画
     for (auto& r : m_stage1->GetPlatformRects()) {
@@ -286,6 +300,26 @@ void GameScene::Update() {
             m_fadeIn = false;
         }
     }
+
+    // ■ ライフ０でゲームオーバー開始
+    if (!m_isGameOver && m_player->GetHealth() <= 0) {
+        m_isGameOver = true;
+        m_gameOverTimer = 0;
+        m_gameOverIndex = 0;
+    }
+
+    // ゲームオーバー中は他の Update を止めて文字送りだけ行う
+    if (m_isGameOver) {
+        ++m_gameOverTimer;
+        // 10フレームごとに１文字ずつ表示
+        if (m_gameOverTimer % 10 == 0 &&
+            m_gameOverIndex < static_cast<int>(m_gameOverText.size()))
+        {
+            ++m_gameOverIndex;
+        }
+        return;
+    }
+
 }
 
 void GameScene::Draw() {
@@ -313,12 +347,30 @@ void GameScene::Draw() {
         m_player->GetMaxHealth(),
         m_player->GetCoinCount()
     );
+    // ■ ゲームオーバー文字表示
+    if (m_isGameOver && m_fontHandle >= 0 && m_gameOverIndex > 0) {
+        // 今まで表示する文字数分だけ切り出し
+        std::string s = m_gameOverText.substr(0, m_gameOverIndex);
 
-    // フェードインオーバーレイ
-    if (m_fadeIn) {
-        SetDrawBlendMode(DX_BLENDMODE_ALPHA, m_fadeAlpha);
-        DrawBox(0, 0, 1920, 1080, GetColor(0, 0, 0), TRUE);
-        SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+        // 画面中央に表示
+        int textW = GetDrawStringWidthToHandle(s.c_str(), s.size(), m_fontHandle);
+        int x = (1920 - textW) / 2;
+        int y = 1080 / 2 - 32;  // 好きな位置に調整してください
+
+        DrawStringToHandle(
+            x, y,
+            s.c_str(),
+            GetColor(255, 0, 0),  // 赤文字
+            m_fontHandle
+        );
+
+        // フェードインオーバーレイ
+        if (m_fadeIn) {
+            SetDrawBlendMode(DX_BLENDMODE_ALPHA, m_fadeAlpha);
+            DrawBox(0, 0, 1920, 1080, GetColor(0, 0, 0), TRUE);
+            SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+        }
+
     }
 }
 

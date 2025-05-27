@@ -30,5 +30,13 @@ private:
     int m_fadeAlpha;
     bool IsHitBottom(const Rect& r, int px, int py, int pw, int ph, float vy);
 
+    // ■ ゲームオーバー表示用
+    bool   m_isGameOver = false;         // ゲームオーバー開始フラグ
+    int    m_gameOverTimer;      // フレームカウント
+    int    m_gameOverIndex;      // 現在表示済みの文字数
+    std::string m_gameOverText = "GAMEOVER";  // "GAME OVER"
+
+    // ■ フォントハンドル
+    int    m_fontHandle;
     int m_coinSound;
 };

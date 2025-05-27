@@ -21,9 +21,11 @@ Player::Player()
     , m_coins(0)
     , m_climbing(false),
     m_climbSpeed(2.0f), m_climbFrame(0), m_climbTimer(0)
+    , m_invincibleTimer(0), m_visible(true)
 {
     LoadImages();
     GetGraphSize(m_idle, &m_width, &m_height);
+    LoadSounds();
 }
 
 Player::~Player() {
@@ -46,6 +48,11 @@ void Player::LoadImages() {
     m_climbA = LoadGraph("Sprites/Characters/Default/character_green_climb_a.png");
     m_climbB = LoadGraph("Sprites/Characters/Default/character_green_climb_b.png");
     m_climb = { m_climbA, m_climbB };
+}
+
+void Player::LoadSounds() {
+    m_hurtSound = LoadSoundMem("Sounds/sfx_hurt.ogg");
+    if (m_hurtSound == -1) printfDx("サウンド読み込み失敗: sfx_hurt.ogg");
 }
 
 void Player::Update() {
@@ -90,6 +97,16 @@ void Player::Update() {
         }
         m_state = State::Climb;
         return;  // そのほかの処理はスキップ
+    }
+    if (m_invincibleTimer > 0) {
+        --m_invincibleTimer;
+             // 一定間隔で表示／非表示を切り替え
+        m_visible = ((m_invincibleTimer / blinkInterval) % 2) == 0;
+        
+    }
+    else {
+        m_visible = true;
+        
     }
 
     // ジャンプ開始
@@ -144,6 +161,7 @@ void Player::Update() {
 
 void Player::Draw() {
     int handle = m_idle;
+    if (!m_visible) return;
     switch (m_state) {
     case State::Idle: handle = m_idle;               break;
     case State::Walk: handle = m_walk[m_animFrame];  break;
@@ -185,9 +203,15 @@ void Player::SetOnGround(bool onGround) { m_onGround = onGround; }
 // アイテム・ダメージ
 void Player::AddCoin(int amount) { m_coins += amount; }
 
-void Player::TakeDamage(int amount) {
+void Player::TakeDamage(int damage) {
     if (m_hitTimer == 0) {
-        m_health = max(0, m_health - amount);
-        m_hitTimer = hitDuration;
+        if (m_invincibleTimer == 0) {
+            m_health = max(0, m_health + damage);
+            m_hitTimer = hitDuration;
+            //被ダメ効果音再生
+            PlaySoundMem(m_hurtSound, DX_PLAYTYPE_BACK);
+            m_invincibleTimer = invicibleDuration;
+            m_visible = true;
+        }
     }
 }
