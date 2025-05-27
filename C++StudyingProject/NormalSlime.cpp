@@ -1,14 +1,19 @@
+// NormalSlime.cpp
 #include "NormalSlime.h"
+#include "DxLib.h"
 
-NormalSlime::NormalSlime(int startX, int startY)
-    : m_x(startX)
-    , m_y(startY)
+NormalSlime::NormalSlime(int startX, int startY, float floorY)
+    : m_x(static_cast<float>(startX))
+    , m_y(static_cast<float>(startY))
+    , m_vx(2.0f)
+    , m_vy(0.0f)
+    , m_floorY(floorY)
     , m_w(64)
     , m_h(64)
-    , m_vx(2)
     , m_frame(0)
     , m_timer(0)
 {
+    // 歩行アニメーション用画像を読み込む
     m_graphs.push_back(LoadGraph("Sprites/Enemies/Default/slime_normal_walk_a.png"));
     m_graphs.push_back(LoadGraph("Sprites/Enemies/Default/slime_normal_walk_b.png"));
 }
@@ -20,20 +25,28 @@ NormalSlime::~NormalSlime() {
 }
 
 void NormalSlime::Update() {
-    // 単純に左右往復
+    // ── 垂直方向：重力適用・床との当たり判定 ──
+    m_vy += gravity;
+    m_y += m_vy;
+    if (m_y > m_floorY - m_h) {
+        m_y = m_floorY - m_h;
+        m_vy = 0.0f;
+    }
+
+    // ── 水平方向：左右移動して端で折り返し ──
     m_x += m_vx;
     if (m_x < 0 || m_x > 1920 - m_w) {
         m_vx = -m_vx;
         m_x += m_vx;
     }
 
-    // 歩行アニメ
-    if (++m_timer > 16) {
+    // ── アニメーション更新 ──
+    if (++m_timer > 20) {
         m_timer = 0;
-        m_frame = (m_frame + 1) % (int)m_graphs.size();
+        m_frame = (m_frame + 1) % static_cast<int>(m_graphs.size());
     }
 }
 
 void NormalSlime::Draw() {
-    DrawGraph(m_x, m_y, m_graphs[m_frame], TRUE);
+    DrawGraph(static_cast<int>(m_x), static_cast<int>(m_y), m_graphs[m_frame], TRUE);
 }

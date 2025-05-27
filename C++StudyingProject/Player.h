@@ -1,83 +1,84 @@
 #pragma once
 #include <vector>
-#include <string>
+#include <cmath>
+#include "DxLib.h"
 
 class Player {
 public:
     Player();
     ~Player();
 
+    // 毎フレーム更新・描画
     void Update();
     void Draw();
-    //座標&大きさを取得する変数
-    int  GetX() const;
-    int  GetY() const;
-    int  GetW() const;
-    int  GetH() const;
 
-    int GetHealth() const;
-    int GetMaxHealth() const;
-    int GetCoinCount() const;
-
-    //垂直の速度取得と位置、速度、着地フラグ設定
+    // 当たり判定用アクセサ
+    int   GetX() const;
+    int   GetY() const;
+    int   GetW() const;
+    int   GetH() const;
     float GetVY() const;
-    void SetY(float y);
-    void SetVY(float vy);
-    void SetOnGround(bool onGround);
 
-    void AddCoin(int amount);
+    // HP・コイン管理
+    int   GetHealth()    const;
+    int   GetMaxHealth() const;
+    int   GetCoinCount() const;
+    void  AddCoin(int amount);
+    void  TakeDamage(int amount);
 
-    void TakeDamage(int amount);
-
-    void Heal(int amount);
+    // ノックバック・位置調整用セッター
+    void  SetX(float x);
+    void  SetY(float y);
+    void  SetVY(float vy);
+    void  SetVX(float vx);
+    void  SetOnGround(bool onGround);
 
 private:
-    enum class State {
-        Idle,
-        Walk,
-        Jump,
-        Duck
-    };
-
+    enum class State { Idle, Walk, Jump, Duck, Hit };
     State m_state;
-    int m_x, m_y;
+
+    // 座標・速度
+    float m_x, m_y;
     float m_vx, m_vy;
-    bool m_onGround;
-    bool m_isJumping;
-    int m_jumpTime;
+
+    // ステートタイマー
     int m_animFrame;
     int m_animTimer;
+    int m_jumpTime;
+    int m_hitTimer;
 
-    // ── 追加 ──
-       // スプライトの実際の幅・高さ
-    int m_width;
-    int m_height;
-
-
-
-    const float gravity = 0.5f;
-    const float moveSpeed = 4.0f;
-    const float jumpPower = -10.0f;
-    const int maxJumpTime = 15;
-
-    const float maxSpeed = 6.0f;
-    const float accel = 0.5f;
-    const float friction = 0.85f;
-
-
-    // 画像ハンドル
-    int m_idle;
-    int m_jump;
-    int m_duck;
-    std::vector<int> m_walk;
+    // フラグ
+    bool m_onGround;
+    bool m_isJumping;
     bool m_facingLeft;
 
-    //ライフ・コイン管理
+    // HP・コイン
     int m_health;
     int m_maxHealth;
     int m_coins;
 
+    // 描画用ハンドル
+    int m_idle;
+    int m_walkA;
+    int m_walkB;
+    int m_jump;
+    int m_duck;
+    int m_hit;
+    std::vector<int> m_walk;
 
+    // 当たり判定サイズ
+    int m_width;
+    int m_height;
 
+    // 定数
+    static constexpr float gravity = 0.5f;
+    static constexpr float accel = 0.5f;
+    static constexpr float maxSpeed = 6.0f;
+    static constexpr float friction = 0.85f;
+    static constexpr float jumpPower = -10.0f;
+    static constexpr int   maxJumpTime = 15;
+    static constexpr int   hitDuration = 30;
+
+    // 画像ロード
     void LoadImages();
 };

@@ -15,7 +15,11 @@ GameScene::GameScene()
     m_hud = std::make_unique<HUD>();
 
     // 敵の生成
-    m_enemies.push_back(std::make_unique<NormalSlime>(200, 770));
+    int mapH3 = m_generator->GetMapHeight();
+    int floorY3 = 1080 - mapH3 * 64;
+    m_enemies.push_back(
+        std::make_unique<NormalSlime>(200, floorY3 - 64, static_cast<float>(floorY3))
+    );
     m_enemies.push_back(std::make_unique<SpikeSlime>(400, 770));
 
     // 空中プラットフォームのブロックを並べる
@@ -100,11 +104,51 @@ void GameScene::Update() {
         }
     }
 
-    // 5) 敵更新＋衝突判定
-    for (auto& e : m_enemies) {
+    // 2) 敵踏みつけ判定（落下中のみ）
+    if (vy > 0.0f) {
+        float oldBottom = (py - vy) + ph;
+        float newBottom = py + ph;
+
+        // イテレータを使って倒した敵は削除
+        for (auto it = m_enemies.begin(); it != m_enemies.end(); ) {
+            auto& e = *it;
+            int ex = e->GetX();
+            int ey = e->GetY();
+            int ew = e->GetW();
+            //int eh = e->GetH(); // 今回はトップだけ見るので不要
+
+            // 水平重なり
+            if (px + pw > ex && px < ex + ew) {
+                // 旧底面 ≤ 敵上面 && 新底面 ≥ 敵上面 なら踏みつけ
+                if (oldBottom <= ey && newBottom >= ey) {
+                    // 敵を倒す
+                    it = m_enemies.erase(it);
+                    // プレイヤーを少し跳ね上げる
+                    m_player->SetVY(-10.0f);
+                    m_player->SetOnGround(false);
+                    continue;
+                }
+            }
+            ++it;
+        }
+    }
+    for (auto it = m_enemies.begin(); it != m_enemies.end(); ++it) {
+        auto& e = *it;
         e->Update();
+        // （踏みつけ判定は先に行っている前提）
         if (e->IsColliding(px, py, pw, ph)) {
-            // TODO: ダメージ／ノックバックなど
+            // ダメージ＋ヒット演出
+            m_player->TakeDamage(1);
+
+            // ノックバック方向：敵とプレイヤーのX位置で決定
+            int ex = e->GetX(), ew = e->GetW();
+            float dir = (px + pw / 2 < ex + ew / 2) ? -1.0f : 1.0f;
+
+            // 少し跳ね返る＆横ノックバック
+            m_player->SetVY(-8.0f);
+            m_player->SetVX(dir * 5.0f);
+            m_player->SetOnGround(false);
+            break;  // １回ダメージを与えたらループ抜け
         }
     }
 
