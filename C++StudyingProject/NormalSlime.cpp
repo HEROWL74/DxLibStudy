@@ -5,7 +5,7 @@
 NormalSlime::NormalSlime(int startX, int startY, float floorY)
     : m_x(static_cast<float>(startX))
     , m_y(static_cast<float>(startY))
-    , m_vx(2.0f)
+    , m_vx(3.0f)
     , m_vy(0.0f)
     , m_floorY(floorY)
     , m_w(64)

@@ -140,7 +140,7 @@ void GameScene::Update() {
         for (auto& r : m_stage1->GetSpikeRects()) {
             if (px + pw > r.x && px < r.x + r.w &&
                 prevFootY <= r.y && footY >= r.y) {
-                m_player->TakeDamage(1);
+                m_player->TakeDamage(-1);  // 修正: 1 → -1
                 break;
             }
         }
@@ -217,7 +217,7 @@ void GameScene::Update() {
             // ② それ以外は横衝突扱い → ダメージ＋ノックバック
             {
                 // １回だけダメージ処理
-                m_player->TakeDamage(-1);
+                m_player->TakeDamage(-1);  // 修正: 1 → -1
 
                 // ノックバック方向：プレイヤーの中心 vs 敵の中心
                 float playerCenterX = px + pw * 0.5f;
@@ -412,5 +412,4 @@ void GameScene::RestartGame()
     for (auto& r : m_stage1->GetPlatformRects()) {
         m_blocks.push_back(std::make_unique<Block>(r.x, r.y));
     }
-    
 }
