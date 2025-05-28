@@ -11,6 +11,9 @@ public:
     // 毎フレーム更新・描画
     void Update();
     void Draw();
+    void Draw(int cameraX);
+
+     void SetCameraOffset(int cameraX) { m_cameraOffsetX = cameraX; }
 
     // 当たり判定用アクセサ
     int   GetX() const;
@@ -42,6 +45,8 @@ private:
     // 座標・速度
     float m_x, m_y;
     float m_vx, m_vy;
+
+    int m_cameraOffsetX = 0;
 
     // ステートタイマー
     int m_animFrame;

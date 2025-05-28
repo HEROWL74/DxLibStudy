@@ -9,6 +9,12 @@
 #include "CoinEffect.h"
 #include "NormalSlime.h"
 #include "SpikeSlime.h"
+#include "Camera.h"
+
+GameScene::~GameScene() {
+    // unique_ptrは自動的に削除されるが、明示的に定義することで
+    // 完全な型定義が利用可能な場所でデストラクタが呼ばれることを保証
+}
 
 GameScene::GameScene()
     : m_fadeIn(true)
@@ -20,9 +26,10 @@ GameScene::GameScene()
     // ステージ１生成
     m_stage1 = std::make_unique<Stage1Generate>();
 
-    // プレイヤー／HUD生成
+    // プレイヤー／HUD／カメラ生成
     m_player = std::make_unique<Player>();
     m_hud = std::make_unique<HUD>();
+    m_camera = std::make_unique<Camera>();
 
     // サウンドをロード
     m_coinSound = LoadSoundMem("Sounds/sfx_coin.ogg");
@@ -30,10 +37,10 @@ GameScene::GameScene()
 
     // フォント読み込み
     m_fontHandle = CreateFontToHandle(
-        "UI/Font/GameFont.ttf",  // フォントファイルへの相対パス
-        64,                      // フォントサイズ
-        5,                       // 太さ
-        DX_FONTTYPE_ANTIALIASING // アンチエイリアス
+        "UI/Font/GameFont.ttf",
+        64,
+        5,
+        DX_FONTTYPE_ANTIALIASING
     );
     if (m_fontHandle == -1) {
         printfDx("フォント読み込み失敗: UI/Font/GameFont.ttf\n");
@@ -49,14 +56,15 @@ GameScene::GameScene()
         m_coins.push_back(std::make_unique<Coin>(r.x, r.y));
     }
 
-    // 敵生成（床の高さ floorY を Stage1Generate から推定）
-    int floorY = m_stage1->GetStartPos().y + 64;  // スタート位置直下が床
-    m_enemies.push_back(
-        std::make_unique<NormalSlime>(200, floorY - 64, static_cast<float>(floorY))
-    );
-    m_enemies.push_back(
-        std::make_unique<SpikeSlime>(400, floorY - 64)
-    );
+    // 敵生成（複数箇所に配置）
+    m_enemies.push_back(std::make_unique<NormalSlime>(600, 916, 980.0f));
+    m_enemies.push_back(std::make_unique<SpikeSlime>(1200, 916));
+    m_enemies.push_back(std::make_unique<NormalSlime>(2000, 916, 980.0f));
+    m_enemies.push_back(std::make_unique<SpikeSlime>(2800, 916));
+    m_enemies.push_back(std::make_unique<NormalSlime>(3500, 916, 980.0f));
+    m_enemies.push_back(std::make_unique<SpikeSlime>(4200, 916));
+    m_enemies.push_back(std::make_unique<NormalSlime>(5000, 916, 980.0f));
+    m_enemies.push_back(std::make_unique<SpikeSlime>(5800, 916));
 }
 
 void GameScene::Update() {
@@ -91,6 +99,10 @@ void GameScene::Update() {
     // ── プレイヤー更新 ──
     m_player->Update();
 
+    // ── カメラ更新（プレイヤーに追従） ──
+    m_camera->Update(*m_player, *m_stage1);
+    m_stage1->SetCameraX(m_camera->GetX());
+
     float vy = m_player->GetVY();
 
     // ── 床着地判定 ──
@@ -113,6 +125,26 @@ void GameScene::Update() {
 
     // ── スプリングアニメ更新 ──
     m_stage1->UpdateSprings();
+
+    // ── スプリング踏み判定 ──
+    {
+        int px = m_player->GetX(), py = m_player->GetY();
+        int pw = m_player->GetW(), ph = m_player->GetH();
+        float vy = m_player->GetVY();
+
+        if (vy > 0.0f) {  // 落下中
+            for (const auto& spring : m_stage1->GetSprings()) {
+                int sx = spring.x, sy = spring.y;
+                if (px + pw > sx && px < sx + 64 &&
+                    py + ph >= sy - 32 && py + ph <= sy) {
+                    m_player->SetVY(-20.0f);  // 強いジャンプ
+                    m_player->SetOnGround(false);
+                    // スプリングアニメーション（Stage1Generateで処理）
+                    break;
+                }
+            }
+        }
+    }
 
     // ── はしご登り判定 ──
     {
@@ -140,7 +172,7 @@ void GameScene::Update() {
         for (auto& r : m_stage1->GetSpikeRects()) {
             if (px + pw > r.x && px < r.x + r.w &&
                 prevFootY <= r.y && footY >= r.y) {
-                m_player->TakeDamage(-1);  // 修正: 1 → -1
+                m_player->TakeDamage(-1);
                 break;
             }
         }
@@ -217,7 +249,7 @@ void GameScene::Update() {
             // ② それ以外は横衝突扱い → ダメージ＋ノックバック
             {
                 // １回だけダメージ処理
-                m_player->TakeDamage(-1);  // 修正: 1 → -1
+                m_player->TakeDamage(-1);
 
                 // ノックバック方向：プレイヤーの中心 vs 敵の中心
                 float playerCenterX = px + pw * 0.5f;
@@ -261,7 +293,7 @@ void GameScene::Update() {
                 // CoinEffect のコンストラクタは (int startX, int startY, int targetX, int targetY)
                 m_coinEffects.push_back(
                     std::make_unique<CoinEffect>(
-                        static_cast<int>(sx),
+                        static_cast<int>(sx - m_camera->GetX()),  // カメラ座標を考慮
                         static_cast<int>(sy),
                         tx,
                         ty
@@ -287,6 +319,19 @@ void GameScene::Update() {
         m_coinEffects.end()
     );
 
+    // ── ゴール判定 ──
+    {
+        int px = m_player->GetX(), py = m_player->GetY();
+        int pw = m_player->GetW(), ph = m_player->GetH();
+        Point goal = m_stage1->GetGoalPos();
+
+        if (px + pw > goal.x && px < goal.x + 100 &&
+            py + ph > goal.y && py < goal.y + 100) {
+            // ゴール到達！（必要に応じてシーン切り替えなど）
+            printfDx("Goal Reached!\n");
+        }
+    }
+
     // ── フェードイン制御 ──
     if (m_fadeIn) {
         m_fadeAlpha -= 5;
@@ -301,22 +346,48 @@ void GameScene::Draw() {
     // ステージ描画（床、はしご、旗、スパイク、スプリング）
     m_stage1->DrawMap();
 
-    // 空中プラットフォーム
-    for (auto& b : m_blocks) b->Draw();
+    // カメラ座標を取得
+    int cameraX = m_camera->GetX();
 
-    // コイン（未収集のみ）
-    for (auto& c : m_coins) c->Draw();
+    // 描画座標変換のためのオフセットを設定
+    // DxLibのカメラ機能を使用して座標変換
+    SetCameraScreenCenter(960.0f, 540.0f);  // 画面中央を基準
+ 
 
-    // コインエフェクト
-    for (auto& e : m_coinEffects) e->Draw();
+    // 空中プラットフォーム（元のDraw()メソッドを使用）
+    for (auto& b : m_blocks) {
+        int blockX = b->GetX();
+        if (blockX + b->GetW() >= cameraX && blockX < cameraX + 1920) {  // 画面内のみ描画
+            b->Draw();  // 元のDraw()メソッドを使用
+        }
+    }
 
-    // プレイヤー
+    // コイン（未収集のみ、元のDraw()メソッドを使用）
+    for (auto& c : m_coins) {
+        int coinX = c->GetX();
+        if (coinX + 32 >= cameraX && coinX < cameraX + 1920) {  // 画面内のみ描画
+            c->Draw();  // 元のDraw()メソッドを使用
+        }
+    }
+
+    // プレイヤー（元のDraw()メソッドを使用）
     m_player->Draw();
 
-    // 敵
-    for (auto& e : m_enemies) e->Draw();
+    // 敵（元のDraw()メソッドを使用）
+    for (auto& e : m_enemies) {
+        int enemyX = e->GetX();
+        if (enemyX + e->GetW() >= cameraX && enemyX < cameraX + 1920) {  // 画面内のみ描画
+            e->Draw();  // 元のDraw()メソッドを使用
+        }
+    }
 
-    // HUD（ハート数, コイン数）
+    // カメラをリセットして UI 描画用に戻す
+ 
+
+    // コインエフェクト（スクリーン座標なのでそのまま）
+    for (auto& e : m_coinEffects) e->Draw();
+
+    // HUD（ハート数, コイン数）- 常に画面に固定
     m_hud->Draw(
         m_player->GetHealth(),
         m_player->GetMaxHealth(),
@@ -357,6 +428,11 @@ void GameScene::Draw() {
         }
     }
 
+    // デバッグ情報表示（カメラとプレイヤー位置）
+    DrawFormatString(10, 10, GetColor(255, 255, 255),
+        "Camera: %d, Player: %d, Screen: %d",
+        cameraX, m_player->GetX(), m_player->GetX() - cameraX);
+
     // フェードインオーバーレイ
     if (m_fadeIn) {
         SetDrawBlendMode(DX_BLENDMODE_ALPHA, m_fadeAlpha);
@@ -388,15 +464,20 @@ void GameScene::RestartGame()
     m_player.reset();
     m_player = std::make_unique<Player>();
 
+    // カメラリセット
+    m_camera.reset();
+    m_camera = std::make_unique<Camera>();
+
     // 敵をリセット
     m_enemies.clear();
-    int floorY = m_stage1->GetStartPos().y + 64;
-    m_enemies.push_back(
-        std::make_unique<NormalSlime>(200, floorY - 64, static_cast<float>(floorY))
-    );
-    m_enemies.push_back(
-        std::make_unique<SpikeSlime>(400, floorY - 64)
-    );
+    m_enemies.push_back(std::make_unique<NormalSlime>(600, 916, 980.0f));
+    m_enemies.push_back(std::make_unique<SpikeSlime>(1200, 916));
+    m_enemies.push_back(std::make_unique<NormalSlime>(2000, 916, 980.0f));
+    m_enemies.push_back(std::make_unique<SpikeSlime>(2800, 916));
+    m_enemies.push_back(std::make_unique<NormalSlime>(3500, 916, 980.0f));
+    m_enemies.push_back(std::make_unique<SpikeSlime>(4200, 916));
+    m_enemies.push_back(std::make_unique<NormalSlime>(5000, 916, 980.0f));
+    m_enemies.push_back(std::make_unique<SpikeSlime>(5800, 916));
 
     // コインをリセット
     m_coins.clear();

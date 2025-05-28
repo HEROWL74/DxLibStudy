@@ -160,6 +160,8 @@ void Player::Update() {
 }
 
 void Player::Draw() {
+    int drawX = m_x - m_cameraOffsetX;
+    int drawY = m_y;
     int handle = m_idle;
     if (!m_visible) return;
     switch (m_state) {
@@ -183,6 +185,17 @@ void Player::Draw() {
     }
 }
 
+void Player::Draw(int cameraX) {
+    // カメラ対応版
+    int drawX = m_x - cameraX;
+    int drawY = m_y;
+
+    // 画面外カリング
+    if (drawX + m_x < -100 || drawX > 1920 + 100) return;
+
+    // 既存の描画処理
+  
+}
 // アクセサ
 int   Player::GetX()         const { return static_cast<int>(m_x); }
 int   Player::GetY()         const { return static_cast<int>(m_y); }
