@@ -18,6 +18,19 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="EffectManager.cpp" />
+    <ClCompile Include="GameScreen.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="SoundManager.cpp" />
+    <ClCompile Include="UIManager.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="EffectManager.h" />
+    <ClInclude Include="GameScreen.h" />
+    <ClInclude Include="SoundManager.h" />
+    <ClInclude Include="UIManager.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
@@ -142,40 +155,6 @@
       <AdditionalLibraryDirectories>C:\Program Files\DxLib_VC\プロジェクトに追加すべきファイル_VC用</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="Application.cpp" />
-    <ClCompile Include="Block.cpp" />
-    <ClCompile Include="Camera.cpp" />
-    <ClCompile Include="Coin.cpp" />
-    <ClCompile Include="CoinEffect.cpp" />
-    <ClCompile Include="Game.cpp" />
-    <ClCompile Include="GameScene.cpp" />
-    <ClCompile Include="HUD.cpp" />
-    <ClCompile Include="main.cpp" />
-    <ClCompile Include="NormalSlime.cpp" />
-    <ClCompile Include="Player.cpp" />
-    <ClCompile Include="SpikeSlime.cpp" />
-    <ClCompile Include="Stage1Generate.cpp" />
-    <ClCompile Include="TileGenerate.cpp" />
-    <ClCompile Include="TitleScene.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Application.h" />
-    <ClInclude Include="Block.h" />
-    <ClInclude Include="Camera.h" />
-    <ClInclude Include="Coin.h" />
-    <ClInclude Include="CoinEffect.h" />
-    <ClInclude Include="EnemyBase.h" />
-    <ClInclude Include="Game.h" />
-    <ClInclude Include="GameScene.h" />
-    <ClInclude Include="HUD.h" />
-    <ClInclude Include="NormalSlime.h" />
-    <ClInclude Include="Player.h" />
-    <ClInclude Include="SpikeSlime.h" />
-    <ClInclude Include="Stage1Generate.h" />
-    <ClInclude Include="TitleGenerate.h" />
-    <ClInclude Include="TitleScene.h" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
