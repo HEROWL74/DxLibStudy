@@ -1,5 +1,7 @@
 #pragma once
 #include "DxLib.h"
+#include "StageManager.h"
+#include "Player.h"
 #include <string>
 
 class GameScene
@@ -19,82 +21,37 @@ private:
     static const int SCREEN_W = 1920;
     static const int SCREEN_H = 1080;
 
-    // キャラクター色名
-    enum CharacterColor {
-        BEIGE = 0,
-        GREEN = 1,
-        PINK = 2,
-        PURPLE = 3,
-        YELLOW = 4
-    };
-
-    // キャラクター状態
-    enum CharacterState {
-        IDLE,
-        WALKING,
-        JUMPING,
-        DUCKING
-    };
-
-    // キャラクタースプライト構造体
-    struct CharacterSprites {
-        int front;
-        int idle;
-        int walk_a;
-        int walk_b;
-        int jump;
-        int duck;
-        int hit;
-        int climb_a;
-        int climb_b;
-    };
-
     // テクスチャハンドル
     int backgroundHandle;
-    CharacterSprites characterSprites; // 全スプライト
     int fontHandle;
+
+    // ゲームオブジェクト
+    StageManager stageManager;
+    Player gamePlayer;  // 'player'から'gamePlayer'に変更
 
     // キャラクター情報
     int selectedCharacterIndex;
-    std::string characterColorName;
     std::string characterName;
 
-    // プレイヤー状態
-    float playerX, playerY;
-    float velocityX, velocityY;
-    float groundY;               // 地面のY座標
-    bool facingRight;           // 向いている方向（true=右、false=左）
-    CharacterState currentState;
-    bool onGround;              // 地面にいるかどうか
-
-    // アニメーション
-    float animationTimer;       // アニメーション用タイマー
-    bool walkAnimFrame;         // walk_a(false) or walk_b(true)
-    float bobPhase;            // アイドル時の上下の揺れ効果
+    // カメラシステム
+    float cameraX;              // カメラのX座標
+    float targetCameraX;        // カメラの目標X座標
 
     // 物理定数
-    static constexpr float GRAVITY = 0.8f;
-    static constexpr float JUMP_POWER = -18.0f;
-    static constexpr float MOVE_SPEED = 5.0f;
-    static constexpr float WALK_ANIM_SPEED = 0.2f; // アニメーション速度
+    static constexpr float CAMERA_LERP = 0.08f;     // カメラの追従速度
 
     // 状態管理
     bool exitRequested;
 
     // キー入力
-    bool leftPressed, rightPressed, downPressed, spacePressed;
-    bool leftPressedPrev, rightPressedPrev, downPressedPrev, spacePressedPrev;
     bool escPressed, escPressedPrev;
+    bool stageSelectPressed, stageSelectPressedPrev; // ステージ切り替え用
 
     // ヘルパー関数
-    std::string GetCharacterColorName(int index);
     std::string GetCharacterDisplayName(int index);
-    void LoadAllCharacterSprites(int characterIndex);
     void UpdateInput();
-    void UpdatePhysics();
-    void UpdateAnimation();
-    int GetCurrentSprite();
-    void DrawCharacter();
+    void UpdateCamera();
+    void DrawUI();
 
     // ユーティリティ
     float Lerp(float a, float b, float t);

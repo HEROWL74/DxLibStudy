@@ -22,13 +22,29 @@
     <ClCompile Include="CharacterSelectScene.cpp" />
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="GameScene.cpp" />
+    <ClCompile Include="GrassStage.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Player.cpp" />
+    <ClCompile Include="PurpleStage.cpp" />
+    <ClCompile Include="SandStage.cpp" />
+    <ClCompile Include="SnowStage.cpp" />
+    <ClCompile Include="Stage.cpp" />
+    <ClCompile Include="StageManager.cpp" />
+    <ClCompile Include="StoneStage.cpp" />
     <ClCompile Include="TitleScene.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CharacterSelectScene.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="GameScene.h" />
+    <ClInclude Include="GrassStage.h" />
+    <ClInclude Include="Player.h" />
+    <ClInclude Include="PurpleStage.h" />
+    <ClInclude Include="SandStage.h" />
+    <ClInclude Include="SnowStage.h" />
+    <ClInclude Include="Stage.h" />
+    <ClInclude Include="StageManager.h" />
+    <ClInclude Include="StoneStage.h" />
     <ClInclude Include="TitleScene.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
