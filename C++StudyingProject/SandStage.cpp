@@ -21,27 +21,44 @@ void SandStage::CreateMainTerrain() {
     // 砂漠の起伏のある地形
     int groundHeight = 3;
 
-    // 起伏のある地面
-    CreatePlatform(0, 13, 12, groundHeight);   // 低い地面
-    CreatePlatform(12, 11, 8, groundHeight + 2); // 少し高い地面
-    CreatePlatform(20, 14, 10, groundHeight);  // また低い地面
-    CreatePlatform(30, 10, 10, groundHeight + 3); // 高い丘
-    CreatePlatform(40, 12, 20, groundHeight + 1); // 最後の地面
+    // 起伏のある地面 - より登りやすく調整
+    CreatePlatform(0, 13, 15, groundHeight);     // 平い地面
+    CreatePlatform(15, 11, 10, groundHeight + 2); // 少し高い地面
+    CreatePlatform(25, 14, 12, groundHeight);    // また平い地面
+    CreatePlatform(37, 10, 12, groundHeight + 3); // 高い丘
+    CreatePlatform(49, 12, 15, groundHeight + 1); // 中程度の高さ
+    CreatePlatform(64, 9, 15, groundHeight + 4);  // さらに高い丘
+    CreatePlatform(79, 11, 15, groundHeight + 2); // 下り坂
+    CreatePlatform(94, 13, 26, groundHeight);     // 最後の平地
 }
 
 void SandStage::CreatePlatforms() {
-    // 砂漠のオアシス周りのプラットフォーム
-    CreatePlatform(5, 9, 3, 1);   // 小さな島
-    CreatePlatform(15, 7, 2, 1);  // ジャンプ台
-    CreatePlatform(25, 8, 4, 1);  // 中くらいの島
+    // 砂漠のオアシス風りのプラットフォーム
+    CreatePlatform(5, 9, 4, 1);   // 小さな島
+    CreatePlatform(12, 7, 3, 1);  // ジャンプ台
+    CreatePlatform(20, 8, 5, 1);  // 中くらいの島
+    CreatePlatform(30, 6, 4, 1);  // 高い足場
 
-    // ピラミッド風の構造
-    CreatePlatform(35, 8, 1, 1);  // 頂上
-    CreatePlatform(34, 9, 3, 1);  // 2段目
-    CreatePlatform(33, 10, 5, 1); // 1段目（実際は3段目）
+    // ピラミッド風の構造 - より登りやすく
+    CreatePlatform(42, 8, 1, 1);  // 頂上
+    CreatePlatform(41, 9, 3, 1);  // 2段目
+    CreatePlatform(40, 10, 5, 1); // 1段目（実際は3段目）
+    CreatePlatform(39, 11, 7, 1); // 基部
 
-    // 砂丘を表現するプラットフォーム
-    CreatePlatform(48, 8, 2, 1);
-    CreatePlatform(52, 6, 3, 1);
-    CreatePlatform(56, 4, 2, 1);
+    // 砂丘を表現するプラットフォーム - ジャンプしやすい配置
+    CreatePlatform(55, 7, 3, 1);  // 砂丘の頂上
+    CreatePlatform(52, 9, 2, 1);  // 砂丘の中腹
+    CreatePlatform(58, 9, 3, 1);  // 砂丘の反対側
+
+    // 追加の足場
+    CreatePlatform(68, 6, 4, 1);  // 高い足場
+    CreatePlatform(75, 8, 3, 1);  // 中間の足場
+    CreatePlatform(85, 5, 3, 1);  // さらに高い足場
+    CreatePlatform(92, 9, 2, 1);  // ゴール前の足場
+
+    // サボテンのような細い足場
+    CreatePlatform(26, 12, 1, 1);
+    CreatePlatform(47, 7, 1, 1);
+    CreatePlatform(73, 4, 1, 1);
+    CreatePlatform(98, 10, 1, 1);
 }

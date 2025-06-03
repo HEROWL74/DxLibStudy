@@ -61,7 +61,7 @@ void CoinSystem::UpdateCoin(Coin& coin, float playerX, float playerY, float hudC
     // 状態に応じた処理
     switch (coin.state) {
     case COIN_IDLE:
-        // 吸い寄せ範囲内かチェック（プレイヤーとの距離で判定）
+        // 引き寄せ範囲内かチェック（プレイヤーとの距離で判定）
         if (playerDistance <= ATTRACT_DISTANCE) {
             coin.state = COIN_ATTRACTING;
             coin.attractTimer = 0.0f;
@@ -78,7 +78,7 @@ void CoinSystem::UpdateCoin(Coin& coin, float playerX, float playerY, float hudC
         break;
 
     case COIN_COLLECTED:
-        // 収集アニメーション（ゆっくり時間をかけて）
+        // 収集アニメーション（ゆっくりと消え去りをかけて）
         coin.attractTimer += 0.016f; // 60FPS想定
 
         // HUDに到達したかチェック（距離が十分近くなったら削除）
@@ -107,14 +107,14 @@ void CoinSystem::UpdateCoinPhysics(Coin& coin, float hudCoinX, float hudCoinY)
 
     case COIN_COLLECTED:
     {
-        // 収集時の演出（HUDのコインアイコンに向かって加速移動）
+        // 収集後の演出（HUDのコインアイコンに向かって加速移動）
         float progress = coin.attractTimer / 1.2f; // 1.2秒でゆっくり完了
         float dirX = hudCoinX - coin.x;
         float dirY = hudCoinY - coin.y;
         float distance = sqrtf(dirX * dirX + dirY * dirY);
 
         if (distance > 0.1f) {
-            // 正規化された方向ベクトル
+            // 正規化されたベクトル
             dirX /= distance;
             dirY /= distance;
 
@@ -126,7 +126,7 @@ void CoinSystem::UpdateCoinPhysics(Coin& coin, float hudCoinX, float hudCoinY)
         }
 
         // フェードアウトと拡大効果
-        coin.alpha = (int)(255 * (1.0f - progress * 0.9f)); // より強くフェードアウト
+        coin.alpha = (int)(255 * (1.0f - progress * 0.9f)); // よりキビキビとフェードアウト
         coin.scale = 1.0f + progress * 0.3f; // ゆっくりと拡大
     }
     break;
@@ -147,7 +147,7 @@ void CoinSystem::UpdateCoinAnimation(Coin& coin)
         coin.animationTimer -= 2.0f * 3.14159265f;
     }
 
-    // 吸い寄せ時のスケールアニメーション
+    // 引き寄せ時のスケールアニメーション
     if (coin.state == COIN_ATTRACTING) {
         float pulseScale = 1.0f + sinf(coin.animationTimer * 4.0f) * 0.1f;
         coin.scale = pulseScale;
@@ -204,7 +204,7 @@ void CoinSystem::DrawCoin(const Coin& coin, float cameraX)
 #ifdef _DEBUG
     SetDrawBlendMode(DX_BLENDMODE_ALPHA, 50);
     DrawCircle(screenX, screenY, (int)COLLECTION_DISTANCE, GetColor(0, 255, 0), FALSE); // 収集範囲（緑）
-    DrawCircle(screenX, screenY, (int)ATTRACT_DISTANCE, GetColor(255, 255, 0), FALSE);  // 吸い寄せ範囲（黄）
+    DrawCircle(screenX, screenY, (int)ATTRACT_DISTANCE, GetColor(255, 255, 0), FALSE);  // 引き寄せ範囲（黄）
 
     // HUDターゲット位置を表示（赤い×印） - 固定されたスクリーン座標
     int hudTargetScreenX = 30 + 80 + 20 + 48 / 2;
@@ -229,7 +229,7 @@ void CoinSystem::DrawCoin(const Coin& coin, float cameraX)
         float dirX = hudWorldX - coin.x;
         float dirY = hudWorldY - coin.y;
 
-        // 方向ベクトルを線で表示
+        // 方向ベクトルを矢印で表示
         int endX = screenX + (int)(dirX * 0.1f);
         int endY = screenY + (int)(dirY * 0.1f);
         DrawLine(screenX, screenY, endX, endY, GetColor(255, 0, 255));
@@ -285,50 +285,208 @@ void CoinSystem::ClearAllCoins()
     coins.clear();
 }
 
+void CoinSystem::GenerateCoinsForStageIndex(int stageIndex)
+{
+    switch (stageIndex) {
+    case 0: // Grass Stage
+        GenerateCoinsForGrassStage();
+        break;
+    case 1: // Stone Stage
+        GenerateCoinsForStoneStage();
+        break;
+    case 2: // Sand Stage
+        GenerateCoinsForSandStage();
+        break;
+    case 3: // Snow Stage
+        GenerateCoinsForSnowStage();
+        break;
+    case 4: // Purple Stage
+        GenerateCoinsForPurpleStage();
+        break;
+    default:
+        GenerateCoinsForGrassStage(); // デフォルト
+        break;
+    }
+}
+
 void CoinSystem::GenerateCoinsForStage()
 {
-    // ステージに適当にコインを配置（拡張されたステージ用）
+    // デフォルト配置（後方互換性のため）
+    GenerateCoinsForGrassStage();
+}
+
+void CoinSystem::GenerateCoinsForGrassStage()
+{
     ClearAllCoins();
 
-    // 基本的な配置パターン（プレイヤーが通りやすい位置に配置）
-    std::vector<std::pair<float, float>> coinPositions = {
-        // 序盤エリア（地面近くで取りやすく）
-        {400, 700}, {600, 650}, {800, 700}, {1000, 650}, {1200, 700},
+    std::vector<std::pair<float, float>> grassCoins = {
+        // スタート地点周辺（地面レベル）
+        {300, 650}, {500, 600}, {700, 650}, {900, 600},
 
-        // 中盤エリア1
-        {1400, 650}, {1600, 600}, {1800, 650}, {2000, 600}, {2200, 650},
+        // 序盤プラットフォーム周辺
+        {400, 450}, {800, 350}, {1200, 450}, {350, 500},
 
-        // 中盤エリア2
-        {2400, 700}, {2600, 650}, {2800, 700}, {3000, 650}, {3200, 700},
+        // ギャップ1周辺（取りやすい位置）
+        {1000, 600}, {1400, 550}, {1300, 500}, {1600, 450},
 
-        // 中盤エリア3
-        {3400, 650}, {3600, 600}, {3800, 650}, {4000, 600}, {4200, 650},
+        // 中盤の高いプラットフォーム
+        {2000, 400}, {2400, 350}, {2800, 400}, {2100, 500},
 
-        // 終盤エリア1
-        {4400, 700}, {4600, 650}, {4800, 700}, {5000, 650}, {5200, 700},
+        // ギャップ2エリア
+        {3200, 500}, {3600, 450}, {3100, 600}, {3800, 550},
 
-        // 終盤エリア2
-        {5400, 650}, {5600, 600}, {5800, 650}, {6000, 600}, {6200, 650},
+        // 終盤エリア
+        {4400, 600}, {4800, 550}, {5200, 600}, {5600, 500},
+        {6000, 450}, {6400, 500}, {6800, 550},
 
-        // 最終エリア
-        {6400, 700}, {6600, 650}, {6800, 700}, {7000, 650}, {7200, 700},
-
-        // プラットフォーム上（少し高め）
-        {1000, 500}, {1800, 450}, {2600, 500}, {3400, 450}, {4200, 500},
-        {5000, 450}, {5800, 500}, {6600, 450},
-
-        // ボーナスコイン（高い場所、チャレンジ用）
-        {900, 400}, {1500, 300}, {2100, 350}, {2700, 300}, {3300, 350},
-        {3900, 300}, {4500, 350}, {5100, 300}, {5700, 350}, {6300, 300},
-
-        // 発見しやすい位置
-        {500, 600}, {1100, 550}, {1700, 600}, {2300, 550}, {2900, 600},
-        {3500, 550}, {4100, 600}, {4700, 550}, {5300, 600}, {5900, 550},
-        {6500, 600}
+        // チャレンジコイン（高い場所）
+        {1500, 250}, {3000, 200}, {4500, 250}, {6000, 200}
     };
 
-    // コインを配置
-    for (const auto& pos : coinPositions) {
+    for (const auto& pos : grassCoins) {
+        AddCoin(pos.first, pos.second);
+    }
+}
+
+void CoinSystem::GenerateCoinsForStoneStage()
+{
+    ClearAllCoins();
+
+    std::vector<std::pair<float, float>> stoneCoins = {
+        // スタート地点周辺（安全な地面レベル）
+        {300, 700}, {600, 700}, {900, 700}, {1200, 700},
+
+        // 低い塔の周辺（取りやすい高さ）
+        {500, 550}, {800, 500}, {1100, 550}, {1400, 500},
+
+        // 安全な橋の上
+        {700, 650}, {1000, 600}, {1600, 650}, {1900, 600},
+
+        // 中間プラットフォーム上
+        {1300, 550}, {1700, 500}, {2200, 550}, {2500, 500},
+
+        // 石の通路（地面レベル）
+        {2000, 700}, {2400, 700}, {2800, 700}, {3200, 700},
+
+        // 安全な足場の上
+        {2600, 600}, {3000, 550}, {3400, 600}, {3800, 550},
+
+        // 終盤エリア（取りやすい位置）
+        {4200, 700}, {4600, 650}, {5000, 700}, {5400, 650},
+
+        // ゴール前エリア
+        {5800, 700}, {6200, 650}, {6600, 700},
+
+        // ボーナスコイン（少し高い場所だが安全）
+        {1000, 400}, {2500, 350}, {4000, 400}, {5500, 350}
+    };
+
+    for (const auto& pos : stoneCoins) {
+        AddCoin(pos.first, pos.second);
+    }
+}
+
+void CoinSystem::GenerateCoinsForSandStage()
+{
+    ClearAllCoins();
+
+    std::vector<std::pair<float, float>> sandCoins = {
+        // オアシス周辺
+        {350, 650}, {750, 600}, {1150, 650}, {550, 700},
+
+        // 砂丘の頂上
+        {500, 450}, {1300, 400}, {2100, 450}, {900, 500},
+
+        // ピラミッドの周辺
+        {2800, 500}, {3200, 450}, {3600, 400}, {2600, 550},
+
+        // 砂漠の隠れた場所
+        {1600, 550}, {2400, 500}, {4000, 550}, {1800, 600},
+
+        // 高い砂丘
+        {4400, 350}, {4800, 300}, {5200, 350}, {4600, 400},
+
+        // 砂の橋
+        {5600, 600}, {6000, 550}, {6400, 600}, {5800, 650},
+
+        // ゴール前のオアシス
+        {6800, 650}, {7200, 600}, {7000, 550},
+
+        // 砂漠のお宝（チャレンジコイン）
+        {900, 200}, {2700, 150}, {4600, 200}, {6600, 250}
+    };
+
+    for (const auto& pos : sandCoins) {
+        AddCoin(pos.first, pos.second);
+    }
+}
+
+void CoinSystem::GenerateCoinsForSnowStage()
+{
+    ClearAllCoins();
+
+    std::vector<std::pair<float, float>> snowCoins = {
+        // 山麓
+        {400, 700}, {800, 650}, {1200, 700}, {600, 750},
+
+        // 雪の足場
+        {600, 550}, {1400, 500}, {2200, 550}, {1000, 600},
+
+        // 氷の洞窟風
+        {1000, 450}, {1800, 400}, {2600, 450}, {1300, 500},
+
+        // 山の中腹
+        {3000, 600}, {3400, 550}, {3800, 600}, {3200, 650},
+
+        // 雪だるまの周辺
+        {2400, 350}, {4200, 400}, {5000, 350}, {2600, 450},
+
+        // 氷柱の近く
+        {4600, 550}, {5400, 500}, {6200, 550}, {4800, 600},
+
+        // 山頂付近
+        {5800, 300}, {6600, 250}, {7000, 300}, {6200, 400},
+
+        // 雪原の秘宝
+        {1300, 200}, {3500, 150}, {5700, 200}, {6800, 350}
+    };
+
+    for (const auto& pos : snowCoins) {
+        AddCoin(pos.first, pos.second);
+    }
+}
+
+void CoinSystem::GenerateCoinsForPurpleStage()
+{
+    ClearAllCoins();
+
+    std::vector<std::pair<float, float>> purpleCoins = {
+        // 魔法の島の周辺
+        {400, 650}, {900, 600}, {1400, 550}, {650, 700},
+
+        // 浮遊する魔法の輪
+        {700, 450}, {1200, 400}, {1700, 350}, {950, 500},
+
+        // 魔法の橋
+        {2000, 500}, {2500, 450}, {3000, 500}, {2250, 550},
+
+        // 魔法の階段周辺
+        {2200, 350}, {3400, 300}, {4600, 350}, {2800, 400},
+
+        // 高い魔法の島
+        {3800, 400}, {4200, 350}, {4600, 400}, {4000, 450},
+
+        // 魔法の通路
+        {5000, 550}, {5400, 500}, {5800, 550}, {5200, 600},
+
+        // 最終エリアの魔法
+        {6200, 450}, {6600, 400}, {7000, 450}, {6400, 500},
+
+        // 隠された魔法のコイン
+        {1100, 200}, {2800, 150}, {4400, 200}, {6400, 250}
+    };
+
+    for (const auto& pos : purpleCoins) {
         AddCoin(pos.first, pos.second);
     }
 }

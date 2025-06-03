@@ -46,17 +46,20 @@ private:
         int front, idle, walk_a, walk_b, jump, duck, hit, climb_a, climb_b;
     };
 
-    // 物理定数
-    static constexpr float GRAVITY = 0.8f;
-    static constexpr float JUMP_POWER = -18.0f;
+    // 物理定数（ふわっとしたジャンプに調整）
+    static constexpr float GRAVITY = 0.6f;             // 重力を弱く
+    static constexpr float JUMP_POWER = -16.0f;        // ジャンプ力を少し弱く
     static constexpr float MOVE_SPEED = 8.0f;
     static constexpr float WALK_ANIM_SPEED = 0.15f;
-    static constexpr float MAX_FALL_SPEED = 15.0f;
+    static constexpr float MAX_FALL_SPEED = 12.0f;     // 最大落下速度を抑制
 
-    // **追加：イージング関連の定数**
+    // **追加：イージング関数の定数**
     static constexpr float FRICTION = 0.85f;           // 摩擦係数（横移動の減速）
     static constexpr float ACCELERATION = 1.2f;        // 加速度
     static constexpr float MAX_HORIZONTAL_SPEED = 8.0f; // 最大横移動速度
+
+    // ジャンプの空気抵抗（ふわっと感を演出）
+    static constexpr float AIR_RESISTANCE = 0.98f;     // 空中での速度減衰
 
     // プレイヤー状態
     float x, y;
@@ -83,7 +86,7 @@ private:
     void LoadCharacterSprites(int characterIndex);
     std::string GetCharacterColorName(int index);
 
-    // ===== 精密な衝突判定システム =====
+    // ===== 詳細な衝突判定システム =====
 
     // メイン衝突判定関数
     bool CheckXCollision(float newX, float currentY, float width, float height, StageManager* stageManager);
@@ -99,7 +102,7 @@ private:
     float FindPreciseGroundY(float playerX, float playerY, float width, StageManager* stageManager);
     float FindPreciseCeilingY(float playerX, float playerY, float width, StageManager* stageManager);
 
-    // ===== 後方互換性のための旧関数 =====
+    // ===== 上位互換性のための旧関数 =====
     bool CheckCollision(float newX, float newY, StageManager* stageManager);
     float GetGroundY(float checkX, StageManager* stageManager);
     bool CheckCollisionRect(float x, float y, float width, float height, StageManager* stageManager);

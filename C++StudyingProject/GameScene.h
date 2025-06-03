@@ -19,6 +19,7 @@ public:
 
     bool IsExitRequested() const { return exitRequested; }
 
+
 private:
     // 画面サイズ
     static const int SCREEN_W = 1920;
@@ -39,21 +40,12 @@ private:
     int selectedCharacterIndex;
     std::string characterName;
 
-    // カメラシステム
+    // カメラシステム（滑らかな追従用に簡素化）
     float cameraX;              // カメラのX座標
-    float targetCameraX;        // カメラの目標X座標
-
-    // **追加：カメラのイージング関連**
-    float cameraVelocityX;      // カメラの速度
     float previousPlayerX;      // 前フレームのプレイヤーX座標
 
-    // 物理定数
-    static constexpr float CAMERA_LERP = 0.08f;     // カメラの追従速度
-
-    // **追加：カメラのイージング定数**
-    static constexpr float CAMERA_ACCELERATION = 0.5f;  // カメラの加速度
-    static constexpr float CAMERA_FRICTION = 0.92f;     // カメラの摩擦
-    static constexpr float CAMERA_MAX_SPEED = 12.0f;    // カメラの最大速度
+    // **カメラの滑らか追従定数（シンプル化）**
+    static constexpr float CAMERA_FOLLOW_SPEED = 0.05f;  // カメラ追従速度（遅めで滑らか）
 
     // 状態管理
     bool exitRequested;
@@ -77,6 +69,7 @@ private:
     std::string GetCharacterDisplayName(int index);
     void UpdateInput();
     void UpdateCamera();
+    void UpdateCameraSimple();  // シンプル版カメラ（オプション）
     void UpdateGameLogic();  // ゲームロジック更新を追加
     void DrawUI();
     void DrawSeamlessBackground(); // シームレス背景描画を追加
@@ -92,4 +85,5 @@ private:
 
     // ユーティリティ
     float Lerp(float a, float b, float t);
+    float SmoothLerp(float current, float target, float speed);  // 滑らかなイージング用
 };

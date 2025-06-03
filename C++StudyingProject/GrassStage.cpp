@@ -22,62 +22,63 @@ void GrassStage::CreateMainTerrain() {
     int groundLevel = 12; // グリッド座標
     int groundHeight = 4; // 地面の厚さ
 
-    // 拡張されたメイン地面（120タイル分）
+    // 拡張したメインの部分のプラットフォーム（120タイル使用）
     CreatePlatform(0, groundLevel, 120, groundHeight);
 
-    // 地面に穴を作る（ギャップジャンプ用）
-    // 穴1（初級）
+    // 地面に隙間を作る（ギャップジャンプ用）- 間隔を広げて詰まりを防止
+    // 隙間1（初級）- 幅を3タイルに拡張
     CreatePlatform(15, groundLevel, 8, groundHeight);  // 左の地面
-    CreatePlatform(28, groundLevel, 8, groundHeight);  // 右の地面
-    // 23-28の間が穴
+    CreatePlatform(26, groundLevel, 8, groundHeight);  // 右の地面
+    // 23-26の間が隙間（3タイル幅）
 
-    // 穴2（中級）
-    CreatePlatform(45, groundLevel, 8, groundHeight);  // 左の地面
-    CreatePlatform(58, groundLevel, 8, groundHeight);  // 右の地面
-    // 53-58の間が穴
+    // 隙間2（中級）- 幅を4タイルに拡張
+    CreatePlatform(40, groundLevel, 8, groundHeight);  // 左の地面
+    CreatePlatform(52, groundLevel, 8, groundHeight);  // 右の地面
+    // 48-52の間が隙間（4タイル幅）
 
-    // 穴3（上級）
-    CreatePlatform(75, groundLevel, 8, groundHeight);  // 左の地面
-    CreatePlatform(90, groundLevel, 8, groundHeight);  // 右の地面
-    // 83-90の間が穴
+    // 隙間3（上級）- 幅を5タイルに拡張
+    CreatePlatform(70, groundLevel, 8, groundHeight);  // 左の地面
+    CreatePlatform(83, groundLevel, 8, groundHeight);  // 右の地間
+    // 78-83の間が隙間（5タイル幅）
 
     // 最後の地面
-    CreatePlatform(98, groundLevel, 22, groundHeight);
+    CreatePlatform(95, groundLevel, 25, groundHeight);
 }
 
 void GrassStage::CreatePlatforms() {
-    // 浮遊プラットフォーム（拡張版）
+    // 浮遊プラットフォーム（拡張版）- プレイヤーが詰まらないよう配置
 
-    // 序盤エリア
+    // 序盤エリア - ジャンプの練習用
     CreatePlatform(5, 8, 4, 1);   // 小さなプラットフォーム
     CreatePlatform(12, 6, 3, 1);  // ジャンプ用プラットフォーム
-    CreatePlatform(20, 4, 5, 1);  // 高いプラットフォーム
+    CreatePlatform(18, 4, 5, 1);  // 高いプラットフォーム
 
-    // ギャップを渡るためのプラットフォーム（穴1）
-    CreatePlatform(24, 9, 2, 1);  // 穴の上のプラットフォーム
-    CreatePlatform(26, 7, 2, 1);  // より高いプラットフォーム
+    // ギャップ1を渡るためのプラットフォーム - 配置を調整
+    CreatePlatform(20, 9, 3, 1);  // 隙間手前の足場
+    CreatePlatform(24, 7, 2, 1);  // 中間の高い足場
 
-    // 中盤エリア
-    CreatePlatform(35, 8, 6, 1);  // 大きなプラットフォーム
-    CreatePlatform(42, 5, 3, 1);  // 高いプラットフォーム
-    CreatePlatform(48, 3, 2, 1);  // 最高点のプラットフォーム
+    // 中盤エリア - より高度なジャンプ
+    CreatePlatform(32, 8, 6, 1);  // 大きなプラットフォーム
+    CreatePlatform(45, 6, 3, 1);  // 高いプラットフォーム
+    CreatePlatform(50, 3, 2, 1);  // 最高点のプラットフォーム
 
-    // ギャップを渡るためのプラットフォーム（穴2）
-    CreatePlatform(54, 9, 2, 1);  // 穴2の上のプラットフォーム
-    CreatePlatform(56, 7, 2, 1);  // より高いプラットフォーム
+    // ギャップ2を渡るためのプラットフォーム - 配置を調整
+    CreatePlatform(48, 9, 2, 1);  // 隙間上のプラットフォーム
+    CreatePlatform(50, 7, 2, 1);  // より高いプラットフォーム
 
-    // 中後盤エリア
-    CreatePlatform(65, 8, 6, 1);  // 大きなプラットフォーム
-    CreatePlatform(72, 5, 3, 1);  // 高いプラットフォーム
-    CreatePlatform(78, 3, 2, 1);  // チャレンジプラットフォーム
+    // 中上盤エリア
+    CreatePlatform(60, 8, 6, 1);  // 大きなプラットフォーム
+    CreatePlatform(67, 5, 3, 1);  // 高いプラットフォーム
+    CreatePlatform(73, 3, 2, 1);  // チャレンジプラットフォーム
 
-    // ギャップを渡るためのプラットフォーム（穴3）
-    CreatePlatform(85, 9, 2, 1);  // 穴3の上のプラットフォーム
-    CreatePlatform(87, 7, 2, 1);  // より高いプラットフォーム
+    // ギャップ3を渡るためのプラットフォーム - 配置を調整
+    CreatePlatform(79, 9, 2, 1);  // 隙間上のプラットフォーム
+    CreatePlatform(81, 7, 2, 1);  // より高いプラットフォーム
 
-    // 終盤エリア
-    CreatePlatform(95, 8, 6, 1);  // 大きなプラットフォーム
-    CreatePlatform(102, 5, 3, 1); // 高いプラットフォーム
-    CreatePlatform(108, 3, 2, 1); // 最終チャレンジ
-    CreatePlatform(115, 8, 4, 1); // ゴール前プラットフォーム
+    // 終盤エリア - ゴール前の最終チャレンジ
+    CreatePlatform(88, 8, 4, 1);  // 大きなプラットフォーム
+    CreatePlatform(95, 5, 3, 1);  // 高いプラットフォーム
+    CreatePlatform(100, 3, 2, 1); // 最終チャレンジ
+    CreatePlatform(108, 8, 4, 1); // ゴール前プラットフォーム
+    CreatePlatform(115, 6, 3, 1); // ゴール直前の足場
 }

@@ -9,7 +9,7 @@ public:
     // コインの状態
     enum CoinState {
         COIN_IDLE,        // 通常状態
-        COIN_ATTRACTING,  // 吸い寄せ中
+        COIN_ATTRACTING,  // 引き寄せ中
         COIN_COLLECTED    // 収集済み
     };
 
@@ -21,7 +21,7 @@ public:
         CoinState state;            // 状態
         float animationTimer;       // アニメーションタイマー
         float bobPhase;            // 浮遊効果のフェーズ
-        float attractTimer;        // 吸い寄せタイマー
+        float attractTimer;        // 引き寄せタイマー
         float scale;               // スケール
         int alpha;                 // 透明度
         bool active;               // アクティブフラグ
@@ -46,8 +46,18 @@ public:
     int GetCollectedCoinsCount() const { return collectedCoinsCount; }
     void ResetCollectedCount() { collectedCoinsCount = 0; }
 
-    // ステージ用の自動配置
+    // ステージ用の自動配置（改良版）
     void GenerateCoinsForStage();
+
+    // ステージ特化のコイン配置メソッド
+    void GenerateCoinsForGrassStage();
+    void GenerateCoinsForStoneStage();
+    void GenerateCoinsForSandStage();
+    void GenerateCoinsForSnowStage();
+    void GenerateCoinsForPurpleStage();
+
+    // ステージインデックスに基づく配置
+    void GenerateCoinsForStageIndex(int stageIndex);
 
 private:
     // テクスチャ
@@ -61,8 +71,8 @@ private:
     // 物理・演出定数
     static constexpr float COIN_SIZE = 64.0f;           // コインサイズ（48→64に拡大）
     static constexpr float COLLECTION_DISTANCE = 80.0f; // 収集開始距離
-    static constexpr float ATTRACT_DISTANCE = 120.0f;   // 吸い寄せ開始距離
-    static constexpr float ATTRACT_SPEED = 4.0f;        // 吸い寄せ速度（8.0→4.0に減速）
+    static constexpr float ATTRACT_DISTANCE = 120.0f;   // 引き寄せ開始距離
+    static constexpr float ATTRACT_SPEED = 4.0f;        // 引き寄せ速度（8.0→4.0に減速）
     static constexpr float BOB_SPEED = 0.04f;           // 浮遊速度
     static constexpr float BOB_AMPLITUDE = 8.0f;        // 浮遊振幅
     static constexpr float ROTATE_SPEED = 0.02f;        // 回転速度（アニメーション用）

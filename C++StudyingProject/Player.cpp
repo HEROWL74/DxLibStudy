@@ -90,7 +90,7 @@ void Player::Draw(float cameraX)
 
 void Player::UpdatePhysics(StageManager* stageManager)
 {
-    // **改善された水平移動処理（イージング付き）**
+    // **改良された水平移動処理（イージング付き）**
     bool leftPressed = CheckHitKey(KEY_INPUT_LEFT) && currentState != DUCKING;
     bool rightPressed = CheckHitKey(KEY_INPUT_RIGHT) && currentState != DUCKING;
 
@@ -120,7 +120,7 @@ void Player::UpdatePhysics(StageManager* stageManager)
         // キー入力がない場合の自然な減速（摩擦）
         velocityX *= FRICTION;
 
-        // 極小の速度は0にする（完全停止）
+        // 極遅の速度は0にする（完全停止）
         if (fabsf(velocityX) < 0.1f) {
             velocityX = 0.0f;
         }
@@ -142,16 +142,31 @@ void Player::UpdatePhysics(StageManager* stageManager)
         velocityX *= 0.8f; // しゃがみ時はより強い減速
     }
 
-    // ジャンプ処理
-    if (CheckHitKey(KEY_INPUT_SPACE) && onGround) {
+    // ジャンプ処理（ふわっとした感じに調整）
+    static bool spaceWasPressed = false;
+    bool spacePressed = CheckHitKey(KEY_INPUT_SPACE) != 0;
+
+    if (spacePressed && !spaceWasPressed && onGround) {
         velocityY = JUMP_POWER;
         currentState = JUMPING;
         onGround = false;
     }
+    spaceWasPressed = spacePressed;
 
-    // 重力適用
+    // 重力適用（ふわっとした感じに調整）
     if (!onGround) {
+        // ジャンプボタンを離したときの早期落下（より自然な操作感）
+        if (currentState == JUMPING && !spacePressed && velocityY < 0) {
+            velocityY *= 0.7f; // 上昇を早めに止める
+        }
+
         velocityY += GRAVITY;
+
+        // 空気抵抗によるふわっと感の演出
+        if (velocityY < 0) { // 上昇中
+            velocityY *= AIR_RESISTANCE;
+        }
+
         if (velocityY > MAX_FALL_SPEED) {
             velocityY = MAX_FALL_SPEED;
         }
