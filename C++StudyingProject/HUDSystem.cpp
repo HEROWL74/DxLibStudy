@@ -1,0 +1,260 @@
+#include "HUDSystem.h"
+#include <algorithm>
+
+HUDSystem::HUDSystem()
+    : maxLife(6)          // 3ハート × 2 = 6ライフ
+    , currentLife(6)      // 初期値は満タン
+    , coins(0)            // 初期コイン数
+    , currentPlayerCharacter(0) // デフォルトはbeige
+    , hudX(30)            // 左上から30ピクセル（少し余裕を持たせる）
+    , hudY(30)            // 上から30ピクセル（少し余裕を持たせる）
+    , visible(true)       // 初期状態で表示
+{
+    // テクスチャハンドルを初期化
+    heartTextures.full = heartTextures.half = heartTextures.empty = -1;
+    playerIconTextures.beige = playerIconTextures.green = playerIconTextures.pink = -1;
+    playerIconTextures.purple = playerIconTextures.yellow = -1;
+    coinTextures.coin = -1;
+
+    for (int i = 0; i < 10; i++) {
+        coinTextures.numbers[i] = -1;
+    }
+}
+
+HUDSystem::~HUDSystem()
+{
+    // ハートテクスチャの解放
+    if (heartTextures.full != -1) DeleteGraph(heartTextures.full);
+    if (heartTextures.half != -1) DeleteGraph(heartTextures.half);
+    if (heartTextures.empty != -1) DeleteGraph(heartTextures.empty);
+
+    // プレイヤーアイコンテクスチャの解放
+    if (playerIconTextures.beige != -1) DeleteGraph(playerIconTextures.beige);
+    if (playerIconTextures.green != -1) DeleteGraph(playerIconTextures.green);
+    if (playerIconTextures.pink != -1) DeleteGraph(playerIconTextures.pink);
+    if (playerIconTextures.purple != -1) DeleteGraph(playerIconTextures.purple);
+    if (playerIconTextures.yellow != -1) DeleteGraph(playerIconTextures.yellow);
+
+    // コインテクスチャの解放
+    if (coinTextures.coin != -1) DeleteGraph(coinTextures.coin);
+
+    for (int i = 0; i < 10; i++) {
+        if (coinTextures.numbers[i] != -1) {
+            DeleteGraph(coinTextures.numbers[i]);
+        }
+    }
+}
+
+void HUDSystem::Initialize()
+{
+    LoadTextures();
+}
+
+void HUDSystem::LoadTextures()
+{
+    // ハートテクスチャの読み込み
+    heartTextures.full = LoadGraph("Sprites/Tiles/hud_heart.png");
+    heartTextures.half = LoadGraph("Sprites/Tiles/hud_heart_half.png");
+    heartTextures.empty = LoadGraph("Sprites/Tiles/hud_heart_empty.png");
+
+    // プレイヤーアイコンテクスチャの読み込み
+    playerIconTextures.beige = LoadGraph("Sprites/Tiles/hud_player_beige.png");
+    playerIconTextures.green = LoadGraph("Sprites/Tiles/hud_player_green.png");
+    playerIconTextures.pink = LoadGraph("Sprites/Tiles/hud_player_pink.png");
+    playerIconTextures.purple = LoadGraph("Sprites/Tiles/hud_player_purple.png");
+    playerIconTextures.yellow = LoadGraph("Sprites/Tiles/hud_player_yellow.png");
+
+    // コインテクスチャの読み込み
+    coinTextures.coin = LoadGraph("Sprites/Tiles/hud_coin.png");
+
+    // 数字テクスチャの読み込み (0-9)
+    for (int i = 0; i < 10; i++) {
+        std::string numberPath = "Sprites/Tiles/hud_character_" + std::to_string(i) + ".png";
+        coinTextures.numbers[i] = LoadGraph(numberPath.c_str());
+    }
+}
+
+void HUDSystem::Update()
+{
+    // 現在は特別な更新処理なし
+    // 将来的にアニメーション効果などを追加可能
+}
+
+void HUDSystem::Draw()
+{
+    if (!visible) return;
+
+    // HUD要素を順番に描画
+    DrawHearts();      // ライフハート
+    DrawPlayerIcon();  // プレイヤーアイコン
+    DrawCoins();       // コイン表示
+}
+
+void HUDSystem::DrawHearts()
+{
+    int heartsCount = 3; // 常に3つのハートを表示
+    int heartY = hudY;
+
+    for (int i = 0; i < heartsCount; i++) {
+        int heartX = hudX + (i * (HEART_SIZE + 12)); // 12ピクセルの間隔（拡大）
+        HeartState state = GetHeartState(i);
+
+        int textureHandle = -1;
+        switch (state) {
+        case HEART_FULL:
+            textureHandle = heartTextures.full;
+            break;
+        case HEART_HALF:
+            textureHandle = heartTextures.half;
+            break;
+        case HEART_EMPTY:
+            textureHandle = heartTextures.empty;
+            break;
+        }
+
+        if (textureHandle != -1) {
+            // 滑らかな拡大表示
+            DrawExtendGraph(
+                heartX, heartY,
+                heartX + HEART_SIZE, heartY + HEART_SIZE,
+                textureHandle, TRUE
+            );
+        }
+    }
+}
+
+void HUDSystem::DrawPlayerIcon()
+{
+    int iconX = hudX;
+    int iconY = hudY + HEART_SIZE + ELEMENT_SPACING; // ハートの下に配置
+
+    int iconHandle = GetPlayerIconHandle();
+    if (iconHandle != -1) {
+        // 滑らかな拡大表示
+        DrawExtendGraph(
+            iconX, iconY,
+            iconX + PLAYER_ICON_SIZE, iconY + PLAYER_ICON_SIZE,
+            iconHandle, TRUE
+        );
+    }
+}
+
+void HUDSystem::DrawCoins()
+{
+    int coinStartX = hudX + PLAYER_ICON_SIZE + ELEMENT_SPACING; // プレイヤーアイコンの右
+    int coinY = hudY + HEART_SIZE + ELEMENT_SPACING + (PLAYER_ICON_SIZE - COIN_ICON_SIZE) / 2; // 中央揃え
+
+    // コインアイコンを描画（拡大表示）
+    if (coinTextures.coin != -1) {
+        DrawExtendGraph(
+            coinStartX, coinY,
+            coinStartX + COIN_ICON_SIZE, coinY + COIN_ICON_SIZE,
+            coinTextures.coin, TRUE
+        );
+    }
+
+    // コイン数を描画
+    int numberX = coinStartX + COIN_ICON_SIZE + 12; // コインアイコンから12ピクセル右（拡大）
+    int numberY = coinY + (COIN_ICON_SIZE - NUMBER_SIZE) / 2; // 中央揃え
+
+    DrawNumber(coins, numberX, numberY);
+}
+
+void HUDSystem::DrawNumber(int number, int x, int y)
+{
+    // 数字を文字列に変換
+    std::string numberStr = std::to_string(number);
+
+    // 最低でも1桁は表示（0の場合）
+    if (numberStr.empty()) {
+        numberStr = "0";
+    }
+
+    // 各桁を描画（拡大表示）
+    for (size_t i = 0; i < numberStr.length(); i++) {
+        int digit = numberStr[i] - '0'; // 文字を数字に変換
+
+        if (digit >= 0 && digit <= 9 && coinTextures.numbers[digit] != -1) {
+            int digitX = x + (i * (NUMBER_SIZE - 6)); // 数字間の間隔を調整（拡大版）
+
+            // 滑らかな拡大表示
+            DrawExtendGraph(
+                digitX, y,
+                digitX + NUMBER_SIZE, y + NUMBER_SIZE,
+                coinTextures.numbers[digit], TRUE
+            );
+        }
+    }
+}
+
+HUDSystem::HeartState HUDSystem::GetHeartState(int heartIndex) const
+{
+    // 各ハートは2ライフ分を表す
+    int heartLife = currentLife - (heartIndex * 2);
+
+    if (heartLife >= 2) {
+        return HEART_FULL;
+    }
+    else if (heartLife == 1) {
+        return HEART_HALF;
+    }
+    else {
+        return HEART_EMPTY;
+    }
+}
+
+int HUDSystem::GetPlayerIconHandle() const
+{
+    switch (currentPlayerCharacter) {
+    case 0: return playerIconTextures.beige;
+    case 1: return playerIconTextures.green;
+    case 2: return playerIconTextures.pink;
+    case 3: return playerIconTextures.purple;
+    case 4: return playerIconTextures.yellow;
+    default: return playerIconTextures.beige;
+    }
+}
+
+std::string HUDSystem::GetCharacterColorName(int characterIndex) const
+{
+    switch (characterIndex) {
+    case 0: return "beige";
+    case 1: return "green";
+    case 2: return "pink";
+    case 3: return "purple";
+    case 4: return "yellow";
+    default: return "beige";
+    }
+}
+
+void HUDSystem::SetCurrentLife(int currentLife)
+{
+    this->currentLife = max(0, min(currentLife, maxLife));
+}
+
+void HUDSystem::AddLife(int amount)
+{
+    currentLife = min(currentLife + amount, maxLife);
+}
+
+void HUDSystem::SubtractLife(int amount)
+{
+    currentLife = max(0, currentLife - amount);
+}
+
+void HUDSystem::SetPlayerCharacter(int characterIndex)
+{
+    if (characterIndex >= 0 && characterIndex <= 4) {
+        currentPlayerCharacter = characterIndex;
+    }
+}
+
+void HUDSystem::SetPlayerCharacter(const std::string& colorName)
+{
+    if (colorName == "beige") currentPlayerCharacter = 0;
+    else if (colorName == "green") currentPlayerCharacter = 1;
+    else if (colorName == "pink") currentPlayerCharacter = 2;
+    else if (colorName == "purple") currentPlayerCharacter = 3;
+    else if (colorName == "yellow") currentPlayerCharacter = 4;
+    else currentPlayerCharacter = 0; // デフォルト
+}

@@ -18,7 +18,7 @@ struct Tile {
 class Stage {
 public:
     static const int TILE_SIZE = 64;        // タイルサイズ
-    static const int STAGE_WIDTH = 3840;    // ステージ幅（60タイル）
+    static const int STAGE_WIDTH = 7680;    // ステージ幅（60タイル → 120タイルに拡張）
     static const int STAGE_HEIGHT = 1080;   // ステージ高さ
     static const int GROUND_LEVEL = 800;    // 地面レベル
 

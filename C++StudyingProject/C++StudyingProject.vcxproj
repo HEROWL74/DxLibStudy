@@ -20,9 +20,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CharacterSelectScene.cpp" />
+    <ClCompile Include="CoinSystem.cpp" />
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="GameScene.cpp" />
+    <ClCompile Include="GoalSystem.cpp" />
     <ClCompile Include="GrassStage.cpp" />
+    <ClCompile Include="HUDSystem.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="PurpleStage.cpp" />
@@ -35,9 +38,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="CharacterSelectScene.h" />
+    <ClInclude Include="CoinSystem.h" />
     <ClInclude Include="Game.h" />
     <ClInclude Include="GameScene.h" />
+    <ClInclude Include="GoalSystem.h" />
     <ClInclude Include="GrassStage.h" />
+    <ClInclude Include="HUDSystem.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="PurpleStage.h" />
     <ClInclude Include="SandStage.h" />

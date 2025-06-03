@@ -90,31 +90,56 @@ void Player::Draw(float cameraX)
 
 void Player::UpdatePhysics(StageManager* stageManager)
 {
-    // 水平移動の処理
-    velocityX = 0.0f;
+    // **改善された水平移動処理（イージング付き）**
+    bool leftPressed = CheckHitKey(KEY_INPUT_LEFT) && currentState != DUCKING;
+    bool rightPressed = CheckHitKey(KEY_INPUT_RIGHT) && currentState != DUCKING;
 
-    if (CheckHitKey(KEY_INPUT_LEFT) && currentState != DUCKING) {
-        velocityX = -MOVE_SPEED;
+    if (leftPressed) {
+        // 左方向への加速
+        velocityX -= ACCELERATION;
+        if (velocityX < -MAX_HORIZONTAL_SPEED) {
+            velocityX = -MAX_HORIZONTAL_SPEED;
+        }
         facingRight = false;
         if (onGround) {
             currentState = WALKING;
         }
     }
-    else if (CheckHitKey(KEY_INPUT_RIGHT) && currentState != DUCKING) {
-        velocityX = MOVE_SPEED;
+    else if (rightPressed) {
+        // 右方向への加速
+        velocityX += ACCELERATION;
+        if (velocityX > MAX_HORIZONTAL_SPEED) {
+            velocityX = MAX_HORIZONTAL_SPEED;
+        }
         facingRight = true;
         if (onGround) {
             currentState = WALKING;
         }
     }
-    else if (onGround && currentState != JUMPING && currentState != FALLING) {
-        currentState = IDLE;
+    else {
+        // キー入力がない場合の自然な減速（摩擦）
+        velocityX *= FRICTION;
+
+        // 極小の速度は0にする（完全停止）
+        if (fabsf(velocityX) < 0.1f) {
+            velocityX = 0.0f;
+        }
+
+        // 地上での状態決定
+        if (onGround && currentState != JUMPING && currentState != FALLING) {
+            if (fabsf(velocityX) < 0.5f) {
+                currentState = IDLE;
+            }
+            else {
+                currentState = WALKING; // まだ滑っている
+            }
+        }
     }
 
     // しゃがみ処理
     if (CheckHitKey(KEY_INPUT_DOWN) && onGround) {
         currentState = DUCKING;
-        velocityX = 0.0f;
+        velocityX *= 0.8f; // しゃがみ時はより強い減速
     }
 
     // ジャンプ処理
@@ -543,10 +568,18 @@ void Player::DrawDebugInfo(float cameraX)
     }
     SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
 
-    // 詳細情報表示
+    // **詳細情報表示（イージング情報含む）**
     std::string debugText =
         "Pos: (" + std::to_string((int)x) + "," + std::to_string((int)y) + ") " +
         "Vel: (" + std::to_string(velocityX) + "," + std::to_string(velocityY) + ") " +
         "Ground: " + (onGround ? "YES" : "NO");
-    DrawString(screenX - 100, screenY - 120, debugText.c_str(), GetColor(255, 255, 0));
+    DrawString(screenX - 100, screenY - 140, debugText.c_str(), GetColor(255, 255, 0));
+
+    // **速度の視覚化（矢印で表示）**
+    if (fabsf(velocityX) > 0.1f || fabsf(velocityY) > 0.1f) {
+        int arrowEndX = screenX + (int)(velocityX * 5);
+        int arrowEndY = screenY + (int)(velocityY * 5);
+        DrawLine(screenX, screenY, arrowEndX, arrowEndY, GetColor(255, 0, 255));
+        DrawCircle(arrowEndX, arrowEndY, 3, GetColor(255, 0, 255), TRUE);
+    }
 }

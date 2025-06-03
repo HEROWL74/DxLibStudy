@@ -6,9 +6,17 @@ GameScene::GameScene()
     : selectedCharacterIndex(-1)
     , cameraX(0.0f)
     , targetCameraX(0.0f)
+    , cameraVelocityX(0.0f)
+    , previousPlayerX(0.0f)
     , exitRequested(false)
     , escPressed(false), escPressedPrev(false)
     , stageSelectPressed(false), stageSelectPressedPrev(false)
+    , playerLife(6)      // 初期ライフ：3ハート分
+    , playerCoins(0)     // 初期コイン数
+    , currentStageIndex(0) // 初期ステージ
+    , fadeState(FADE_NONE) // フェード状態
+    , fadeAlpha(0.0f)    // フェード透明度
+    , fadeTimer(0.0f)    // フェードタイマー
 {
 }
 
@@ -33,11 +41,43 @@ void GameScene::Initialize(int selectedCharacter)
     gamePlayer.Initialize(selectedCharacter);
 
     // ステージシステム初期化（デフォルトでGrassStage）
-    stageManager.LoadStage(StageManager::GRASS);
+    currentStageIndex = 0;
+    stageManager.LoadStage((StageManager::StageType)currentStageIndex);
 
     // カメラ初期位置
     cameraX = 0.0f;
     targetCameraX = 0.0f;
+    cameraVelocityX = 0.0f;      // カメラ速度初期化
+    previousPlayerX = gamePlayer.GetX(); // プレイヤー位置初期化
+
+    // **HUDシステム初期化**
+    InitializeHUD();
+
+    // **コインシステム初期化**
+    coinSystem.Initialize();
+    coinSystem.GenerateCoinsForStage();
+
+    // **ゴールシステム初期化**
+    goalSystem.Initialize();
+    goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
+}
+
+void GameScene::InitializeHUD()
+{
+    // HUDシステムの初期化
+    hudSystem.Initialize();
+
+    // プレイヤーキャラクターをHUDに設定
+    hudSystem.SetPlayerCharacter(selectedCharacterIndex);
+
+    // 初期ライフとコインを設定
+    hudSystem.SetMaxLife(6);        // 最大ライフ：3ハート × 2 = 6
+    hudSystem.SetCurrentLife(playerLife);
+    hudSystem.SetCoins(playerCoins);
+
+    // HUD表示位置を設定（左上から30ピクセル、拡大版）
+    hudSystem.SetPosition(30, 30);
+    hudSystem.SetVisible(true);
 }
 
 void GameScene::Update()
@@ -46,8 +86,7 @@ void GameScene::Update()
     UpdateInput();
 
     // ステージ切り替え
-    if (stageSelectPressed && !stageSelectPressedPrev) {
-        static int currentStageIndex = 0;
+    if (stageSelectPressed && !stageSelectPressedPrev && fadeState == FADE_NONE) {
         currentStageIndex = (currentStageIndex + 1) % 5;
         stageManager.LoadStage((StageManager::StageType)currentStageIndex);
 
@@ -55,10 +94,40 @@ void GameScene::Update()
         gamePlayer.ResetPosition();
         cameraX = 0.0f;
         targetCameraX = 0.0f;
+        cameraVelocityX = 0.0f;  // カメラ速度もリセット
+        previousPlayerX = gamePlayer.GetX();
+
+        // **コインとゴールを再配置**
+        coinSystem.GenerateCoinsForStage();
+        goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
     }
 
     // プレイヤー更新
     gamePlayer.Update(&stageManager);
+
+    // **コインシステム更新（スクリーン座標でHUDのコインアイコン位置を渡す）**
+    // HUDコインアイコンの正確なスクリーン座標を計算
+    float hudCoinIconScreenX = 30 + 80 + 20 + 48 / 2; // スクリーン座標（カメラの影響なし）
+    float hudCoinIconScreenY = 30 + 64 + 20 + 48 / 2; // スクリーン座標（カメラの影響なし）
+
+    // スクリーン座標をワールド座標に変換
+    float hudCoinIconWorldX = hudCoinIconScreenX + cameraX;
+    float hudCoinIconWorldY = hudCoinIconScreenY; // Y座標はカメラの影響なし
+
+    coinSystem.Update(&gamePlayer, hudCoinIconWorldX, hudCoinIconWorldY);
+
+    // **ゴールシステム更新**
+    goalSystem.Update(&gamePlayer);
+
+    // **ゴールタッチ時のフェード開始**
+    if (goalSystem.IsGoalTouched() && fadeState == FADE_NONE) {
+        fadeState = FADE_OUT;
+        fadeTimer = 0.0f;
+        fadeAlpha = 0.0f;
+    }
+
+    // **フェード処理**
+    UpdateFade();
 
     // カメラ更新
     UpdateCamera();
@@ -66,20 +135,147 @@ void GameScene::Update()
     // ステージ更新
     stageManager.Update(cameraX);
 
+    // **ゲームロジック更新**
+    UpdateGameLogic();
+
+    // **HUD更新**
+    UpdateHUD();
+
     // ESCキーでタイトルに戻る
     if (escPressed && !escPressedPrev) {
         exitRequested = true;
     }
 }
 
+void GameScene::UpdateGameLogic()
+{
+    // **コイン収集数をゲーム状態に反映（リアルタイム更新）**
+    int newCoinCount = coinSystem.GetCollectedCoinsCount();
+    if (newCoinCount != playerCoins) {
+        playerCoins = newCoinCount;
+        // コイン獲得時のサウンドやエフェクトをここに追加可能
+    }
+
+    // ここでゲームロジックを更新
+    // 例：ダメージ処理、アイテム取得など
+
+    // **テスト用：キー入力でライフを調整**
+    static bool key1Pressed = false, key1PressedPrev = false;
+    static bool key2Pressed = false, key2PressedPrev = false;
+    static bool key3Pressed = false, key3PressedPrev = false;
+
+    key1PressedPrev = key1Pressed;
+    key2PressedPrev = key2Pressed;
+    key3PressedPrev = key3Pressed;
+
+    key1Pressed = CheckHitKey(KEY_INPUT_1) != 0;
+    key2Pressed = CheckHitKey(KEY_INPUT_2) != 0;
+    key3Pressed = CheckHitKey(KEY_INPUT_3) != 0;
+
+    // テスト用操作
+    if (key1Pressed && !key1PressedPrev) {
+        // 1キーでライフ減少
+        playerLife--;
+        if (playerLife < 0) playerLife = 0;
+    }
+
+    if (key2Pressed && !key2PressedPrev) {
+        // 2キーでライフ回復
+        playerLife++;
+        if (playerLife > 6) playerLife = 6;
+    }
+
+    if (key3Pressed && !key3PressedPrev) {
+        // 3キーでコイン全配置（テスト用）
+        coinSystem.GenerateCoinsForStage();
+    }
+}
+
+void GameScene::UpdateHUD()
+{
+    // HUDシステムを更新
+    hudSystem.Update();
+
+    // ゲーム状態をHUDに反映
+    hudSystem.SetCurrentLife(playerLife);
+    hudSystem.SetCoins(playerCoins);
+}
+
+void GameScene::UpdateFade()
+{
+    const float FADE_SPEED = 0.02f; // フェード速度
+
+    switch (fadeState) {
+    case FADE_OUT:
+        fadeTimer += 0.016f; // 60FPS想定
+        fadeAlpha = fadeTimer * (1.0f / FADE_SPEED);
+
+        if (fadeAlpha >= 1.0f) {
+            fadeAlpha = 1.0f;
+            fadeState = FADE_IN;
+            fadeTimer = 0.0f;
+
+            // ステージ切り替え
+            StartNextStage();
+        }
+        break;
+
+    case FADE_IN:
+        fadeTimer += 0.016f;
+        fadeAlpha = 1.0f - (fadeTimer * (1.0f / FADE_SPEED));
+
+        if (fadeAlpha <= 0.0f) {
+            fadeAlpha = 0.0f;
+            fadeState = FADE_NONE;
+            fadeTimer = 0.0f;
+        }
+        break;
+
+    case FADE_NONE:
+    default:
+        break;
+    }
+}
+
+void GameScene::StartNextStage()
+{
+    // 次のステージに移行
+    currentStageIndex = (currentStageIndex + 1) % 5;
+
+    // ステージが最後（4番目）の場合の特別処理
+    if (currentStageIndex >= 4) {
+        // 最後のステージ - 特別な処理をここに追加可能
+        // 現在は通常通りステージを読み込む
+    }
+
+    stageManager.LoadStage((StageManager::StageType)currentStageIndex);
+
+    // プレイヤー位置をリセット
+    gamePlayer.ResetPosition();
+    cameraX = 0.0f;
+    targetCameraX = 0.0f;
+    cameraVelocityX = 0.0f;
+    previousPlayerX = gamePlayer.GetX();
+
+    // コインとゴールを再配置
+    coinSystem.GenerateCoinsForStage();
+    goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
+    goalSystem.ResetGoal(); // ゴール状態をリセット
+}
+
 void GameScene::Draw()
 {
-    // 背景描画（パララックス効果）
-    int bgX = -((int)cameraX / 4);
-    DrawExtendGraph(bgX, 0, bgX + SCREEN_W, SCREEN_H, backgroundHandle, TRUE);
+    // **背景描画（シームレスなタイリング）**
+    DrawSeamlessBackground();
 
     // ステージ描画
     stageManager.Draw(cameraX);
+
+    // **コイン描画**
+    coinSystem.Draw(cameraX);
+
+    // **ゴール描画**
+    goalSystem.Draw(cameraX);
 
     // プレイヤー描画
     gamePlayer.Draw(cameraX);
@@ -87,8 +283,51 @@ void GameScene::Draw()
     // プレイヤーの影を描画
     gamePlayer.DrawShadow(cameraX, &stageManager);
 
-    // UI描画
+    // **HUDシステム描画（最前面）**
+    hudSystem.Draw();
+
+    // UI描画（デバッグ情報など）
     DrawUI();
+
+    // **フェード描画（最前面）**
+    DrawFade();
+}
+
+void GameScene::DrawSeamlessBackground()
+{
+    // 背景画像のサイズを取得
+    int bgWidth, bgHeight;
+    GetGraphSize(backgroundHandle, &bgWidth, &bgHeight);
+
+    // パララックス効果（背景は前景より遅く移動）
+    float parallaxSpeed = 0.3f; // 背景の移動速度（0.3倍）
+    float bgOffsetX = cameraX * parallaxSpeed;
+
+    // 背景をタイル状に描画するための開始位置を計算
+    int startTileX = (int)(bgOffsetX / bgWidth) - 1; // 余裕を持って1枚前から
+    int endTileX = startTileX + (SCREEN_W / bgWidth) + 3; // 余裕を持って3枚後まで
+
+    // 背景をシームレスに描画
+    for (int tileX = startTileX; tileX <= endTileX; tileX++) {
+        float drawX = tileX * bgWidth - bgOffsetX;
+
+        // 背景画像を描画
+        DrawExtendGraph(
+            (int)drawX, 0,
+            (int)drawX + bgWidth, SCREEN_H,
+            backgroundHandle, TRUE
+        );
+    }
+}
+
+void GameScene::DrawFade()
+{
+    if (fadeState != FADE_NONE && fadeAlpha > 0.0f) {
+        int alpha = (int)(255 * fadeAlpha);
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, alpha);
+        DrawBox(0, 0, SCREEN_W, SCREEN_H, GetColor(0, 0, 0), TRUE);
+        SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+    }
 }
 
 void GameScene::UpdateInput()
@@ -104,15 +343,55 @@ void GameScene::UpdateInput()
 
 void GameScene::UpdateCamera()
 {
-    // プレイヤーを中心にカメラを追従
-    targetCameraX = gamePlayer.GetX() - SCREEN_W / 2.0f;
+    // **改善されたカメラシステム（イージング付き）**
+    float currentPlayerX = gamePlayer.GetX();
+    float playerMovement = currentPlayerX - previousPlayerX;
 
-    // カメラの移動範囲を制限
+    // プレイヤーの移動に基づいてカメラの目標位置を設定
+    targetCameraX = currentPlayerX - SCREEN_W / 2.0f;
+
+    // カメラの移動範囲を制限（拡張されたステージ用）
     if (targetCameraX < 0) targetCameraX = 0;
     if (targetCameraX > Stage::STAGE_WIDTH - SCREEN_W) targetCameraX = Stage::STAGE_WIDTH - SCREEN_W;
 
-    // 滑らかなカメラ移動
-    cameraX = Lerp(cameraX, targetCameraX, CAMERA_LERP);
+    // **イージングベースのカメラ移動**
+    float targetDistance = targetCameraX - cameraX;
+
+    // プレイヤーの動きに応じてカメラを加速
+    if (fabsf(playerMovement) > 0.1f) {
+        // プレイヤーが動いている場合、その方向にカメラを加速
+        float direction = (targetDistance > 0) ? 1.0f : -1.0f;
+        cameraVelocityX += direction * CAMERA_ACCELERATION * fabsf(playerMovement);
+    }
+
+    // カメラの最大速度を制限
+    if (cameraVelocityX > CAMERA_MAX_SPEED) cameraVelocityX = CAMERA_MAX_SPEED;
+    if (cameraVelocityX < -CAMERA_MAX_SPEED) cameraVelocityX = -CAMERA_MAX_SPEED;
+
+    // 摩擦を適用（自然な減速）
+    cameraVelocityX *= CAMERA_FRICTION;
+
+    // 目標に近づいた場合の補正
+    if (fabsf(targetDistance) < 50.0f) {
+        // 目標に近い場合はより強い補正を適用
+        cameraVelocityX += targetDistance * 0.1f;
+    }
+
+    // カメラ位置を更新
+    cameraX += cameraVelocityX;
+
+    // 範囲チェック（再度）
+    if (cameraX < 0) {
+        cameraX = 0;
+        cameraVelocityX = 0;
+    }
+    if (cameraX > Stage::STAGE_WIDTH - SCREEN_W) {
+        cameraX = Stage::STAGE_WIDTH - SCREEN_W;
+        cameraVelocityX = 0;
+    }
+
+    // 前フレームのプレイヤー位置を保存
+    previousPlayerX = currentPlayerX;
 }
 
 void GameScene::DrawUI()
@@ -129,20 +408,27 @@ void GameScene::DrawUI()
 
     // 操作説明（半透明背景付き）
     SetDrawBlendMode(DX_BLENDMODE_ALPHA, 180);
-    DrawBox(20, SCREEN_H - 180, 600, SCREEN_H - 20, GetColor(0, 0, 0), TRUE);
+    DrawBox(20, SCREEN_H - 220, 700, SCREEN_H - 20, GetColor(0, 0, 0), TRUE);
     SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
 
-    DrawStringToHandle(30, SCREEN_H - 170, "Controls:", GetColor(255, 255, 255), fontHandle);
-    DrawStringToHandle(30, SCREEN_H - 130, "Left/Right: Move, Space: Jump, Down: Duck", GetColor(200, 200, 200), fontHandle);
-    DrawStringToHandle(30, SCREEN_H - 90, "TAB: Change Stage, ESC: Return to title", GetColor(200, 200, 200), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 210, "Controls:", GetColor(255, 255, 255), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 170, "Left/Right: Move, Space: Jump, Down: Duck", GetColor(200, 200, 200), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 130, "TAB: Change Stage, ESC: Return to title", GetColor(200, 200, 200), fontHandle);
+
+    // **テスト用操作説明（拡張）**
+    DrawStringToHandle(30, SCREEN_H - 90, "Test: 1/2: Life -/+, 3: Reset Coins", GetColor(150, 150, 150), fontHandle);
 
     // デバッグ情報を強化
     string debugInfo = "=== DEBUG INFO ===";
-    DrawStringToHandle(30, SCREEN_H - 160, debugInfo.c_str(), GetColor(255, 255, 0), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 200, debugInfo.c_str(), GetColor(255, 255, 0), fontHandle);
 
     // プレイヤー位置情報
     string posInfo = "Position: (" + to_string((int)gamePlayer.GetX()) + ", " + to_string((int)gamePlayer.GetY()) + ")";
-    DrawStringToHandle(30, SCREEN_H - 130, posInfo.c_str(), GetColor(150, 150, 150), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 170, posInfo.c_str(), GetColor(150, 150, 150), fontHandle);
+
+    // **HUD状態情報とカメラデバッグ情報**
+    string hudInfo = "Life: " + to_string(playerLife) + "/6, Coins: " + to_string(playerCoins) + "/51";
+    DrawStringToHandle(30, SCREEN_H - 60, hudInfo.c_str(), GetColor(100, 200, 255), fontHandle);
 
     // 入力状態表示
     string inputInfo = "Input: ";
@@ -151,11 +437,11 @@ void GameScene::DrawUI()
     if (CheckHitKey(KEY_INPUT_SPACE)) inputInfo += "[SPACE] ";
     if (CheckHitKey(KEY_INPUT_DOWN)) inputInfo += "[DOWN] ";
     if (inputInfo == "Input: ") inputInfo += "NONE";
-    DrawStringToHandle(30, SCREEN_H - 100, inputInfo.c_str(), GetColor(200, 200, 100), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 140, inputInfo.c_str(), GetColor(200, 200, 100), fontHandle);
 
     // プレイヤーの内部状態
     string stateDetail = "OnGround: " + string(gamePlayer.GetState() != Player::JUMPING && gamePlayer.GetState() != Player::FALLING ? "YES" : "NO");
-    DrawStringToHandle(30, SCREEN_H - 70, stateDetail.c_str(), GetColor(100, 200, 100), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 110, stateDetail.c_str(), GetColor(100, 200, 100), fontHandle);
 
     // 現在の状態表示
     string stateInfo = "State: ";
@@ -172,6 +458,16 @@ void GameScene::DrawUI()
     // カメラ位置表示
     string cameraInfo = "Camera: " + to_string((int)cameraX);
     DrawStringToHandle(SCREEN_W - 500, 70, cameraInfo.c_str(), GetColor(100, 100, 100), fontHandle);
+
+    // **ゴールとステージデバッグ情報**
+    string stageInfo = "Stage: " + to_string(currentStageIndex + 1) + "/5, Coins: " + to_string(playerCoins) + "/51";
+    string goalInfo = "Goal: " + string(goalSystem.IsGoalTouched() ? "TOUCHED!" : "Active") + ", Fade: " + to_string((int)(fadeAlpha * 100)) + "%";
+    DrawStringToHandle(30, SCREEN_H - 60, stageInfo.c_str(), GetColor(255, 200, 100), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 40, goalInfo.c_str(), GetColor(100, 255, 200), fontHandle);
+
+    // **カメラデバッグ情報**
+    string cameraDebugInfo = "Camera Vel: " + to_string(cameraVelocityX) + ", Target: " + to_string((int)targetCameraX);
+    DrawStringToHandle(30, SCREEN_H - 20, cameraDebugInfo.c_str(), GetColor(255, 150, 100), fontHandle);
 }
 
 std::string GameScene::GetCharacterDisplayName(int index)

@@ -53,6 +53,11 @@ private:
     static constexpr float WALK_ANIM_SPEED = 0.15f;
     static constexpr float MAX_FALL_SPEED = 15.0f;
 
+    // **追加：イージング関連の定数**
+    static constexpr float FRICTION = 0.85f;           // 摩擦係数（横移動の減速）
+    static constexpr float ACCELERATION = 1.2f;        // 加速度
+    static constexpr float MAX_HORIZONTAL_SPEED = 8.0f; // 最大横移動速度
+
     // プレイヤー状態
     float x, y;
     float velocityX, velocityY;
