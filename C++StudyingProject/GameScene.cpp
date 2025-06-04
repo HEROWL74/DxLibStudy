@@ -18,6 +18,8 @@ GameScene::GameScene()
     , fadeTimer(0.0f)    // フェードタイマー
     , showingResult(false) // リザルト表示状態
     , goalReached(false)   // ゴール到達状態
+    , playerInvulnerable(false) // **プレイヤー無敵状態**
+    , invulnerabilityTimer(0.0f) // **無敵タイマー**
 {
     backgroundHandle = -1;
     fontHandle = -1;
@@ -69,34 +71,20 @@ void GameScene::Initialize(int selectedCharacter)
     goalSystem.Initialize();
     goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
 
+    // **敵システム初期化（新機能）**
+    enemyManager.Initialize();
+    enemyManager.GenerateEnemiesForStage(currentStageIndex);
+
     // 状態リセット
     showingResult = false;
     goalReached = false;
-}
-
-void GameScene::InitializeHUD()
-{
-    // HUDシステムの初期化
-    hudSystem.Initialize();
-
-    // プレイヤーキャラクターをHUDに設定
-    hudSystem.SetPlayerCharacter(selectedCharacterIndex);
-
-    // 初期ライフとコインを設定
-    hudSystem.SetMaxLife(6);        // 最大ライフ：3ハート × 2 = 6
-    hudSystem.SetCurrentLife(playerLife);
-    hudSystem.SetCoins(playerCoins);
-    hudSystem.SetCollectedStars(playerStars);
-    hudSystem.SetTotalStars(3);
-
-    // HUD表示位置を設定（左上から30ピクセル、拡大版）
-    hudSystem.SetPosition(30, 30);
-    hudSystem.SetVisible(true);
+    playerInvulnerable = false;
+    invulnerabilityTimer = 0.0f;
 }
 
 void GameScene::Update()
 {
-    // リザルト表示中の場合は、リザルトのみ更新
+    // リザルト表示中の場合はリザルトのみ更新
     if (showingResult) {
         UpdateResult();
         return;
@@ -115,10 +103,11 @@ void GameScene::Update()
         cameraX = 0.0f;
         previousPlayerX = gamePlayer.GetX();
 
-        // **コイン、星、ゴールを再配置（星システム対応）**
+        // **コイン、星、ゴール、敵を再配置（星システム対応）**
         coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
         starSystem.GenerateStarsForStageIndex(currentStageIndex);
         goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
+        enemyManager.GenerateEnemiesForStage(currentStageIndex);
 
         // 収集カウントをリセット
         coinSystem.ResetCollectedCount();
@@ -129,6 +118,8 @@ void GameScene::Update()
         playerCoins = 0;
         showingResult = false;
         goalReached = false;
+        playerInvulnerable = false;
+        invulnerabilityTimer = 0.0f;
 
         // **リザルトUIも完全リセット**
         resultUI.ResetState();
@@ -136,6 +127,9 @@ void GameScene::Update()
 
     // プレイヤー更新
     gamePlayer.Update(&stageManager);
+
+    // **プレイヤーの無敵状態更新**
+    UpdatePlayerInvulnerability();
 
     // **コインシステム更新（スクリーン座標でHUDのコインアイコン位置を渡す）**
     // HUDコインアイコンの正確なスクリーン座標を計算
@@ -150,6 +144,12 @@ void GameScene::Update()
 
     // **星システム更新（新機能）**
     starSystem.Update(&gamePlayer);
+
+    // **敵システム更新（新機能）**
+    enemyManager.Update(&gamePlayer, &stageManager);
+
+    // **プレイヤーと敵の相互作用更新（新機能）**
+    UpdatePlayerEnemyInteractions();
 
     // **ゴールシステム更新**
     goalSystem.Update(&gamePlayer);
@@ -181,26 +181,107 @@ void GameScene::Update()
     }
 }
 
+void GameScene::UpdatePlayerEnemyInteractions()
+{
+    // **修正: より詳細な敵との衝突処理システム**
+    if (enemyManager.CheckPlayerEnemyCollisions(&gamePlayer)) {
+        HandlePlayerEnemyCollision();
+    }
+}
+
+
+void GameScene::HandlePlayerEnemyCollision()
+{
+    // 無敵状態の場合は何もしない
+    if (playerInvulnerable) return;
+
+    // **敵との衝突を詳細に処理**
+    // より詳細な判定はEnemyManager.CheckDetailedPlayerEnemyCollision で行われる
+
+    // **プレイヤーが敵の上から踏んだかどうかの詳細判定**
+    bool playerStompedEnemy = CheckIfPlayerStompedEnemy();
+
+    if (!playerStompedEnemy) {
+        // **横からの接触によるダメージ**
+        HandlePlayerDamage(1); // 1ダメージ（ハーフハート）
+    }
+    else {
+        // **踏みつけ成功時の処理**
+        HandleSuccessfulStomp();
+    }
+}
+void GameScene::HandlePlayerDamage(int damage)
+{
+    if (playerInvulnerable) return;
+
+    // **ライフ減少処理**
+    int oldLife = playerLife;
+    playerLife -= damage;
+    if (playerLife < 0) playerLife = 0;
+
+    // **HUDシステムに即座にライフ変更を通知（ハート揺れトリガー）**
+    hudSystem.SetCurrentLife(playerLife);
+
+    // 無敵状態を開始
+    playerInvulnerable = true;
+    invulnerabilityTimer = 0.0f;
+
+    // **デバッグ出力**
+    char debugMsg[256];
+    sprintf_s(debugMsg, "GameScene: Player took %d damage! Life: %d -> %d\n",
+        damage, oldLife, playerLife);
+    OutputDebugStringA(debugMsg);
+
+    // プレイヤーが死亡した場合の処理
+    if (playerLife <= 0) {
+        // リスポーン処理
+        gamePlayer.ResetPosition();
+        playerLife = 6; // ライフを全回復
+
+        // HUDを更新
+        hudSystem.SetCurrentLife(playerLife);
+
+        // 無敵状態をリセット
+        playerInvulnerable = false;
+        invulnerabilityTimer = 0.0f;
+
+        // デバッグ出力
+        OutputDebugStringA("GameScene: Player respawned with full life!\n");
+    }
+}
+
+void GameScene::UpdatePlayerInvulnerability()
+{
+    if (playerInvulnerable) {
+        invulnerabilityTimer += 0.016f; // 60FPS想定
+
+        if (invulnerabilityTimer >= INVULNERABILITY_DURATION) {
+            playerInvulnerable = false;
+            invulnerabilityTimer = 0.0f;
+        }
+    }
+}
+
 void GameScene::UpdateGameLogic()
 {
     // **コイン収集数をゲーム状態に反映（リアルタイム更新）**
     int newCoinCount = coinSystem.GetCollectedCoinsCount();
     if (newCoinCount != playerCoins) {
         playerCoins = newCoinCount;
-        // コイン獲得時のサウンドやエフェクトをここに追加可能
+        // コイン取得時のサウンドやエフェクトをここに追加可能
     }
 
     // **星収集数をゲーム状態に反映（新機能）**
     int newStarCount = starSystem.GetCollectedStarsCount();
     if (newStarCount != playerStars) {
         playerStars = newStarCount;
-        // 星獲得時のサウンドやエフェクトをここに追加可能
+        // 星取得時のサウンドやエフェクトをここに追加可能
     }
 
     // ここでゲームロジックを更新
-    // 例：ダメージ処理、アイテム獲得など
+    // 例：ダメージ処理、アイテム取得など
 
-    // **テスト用：キー入力でライフを調整**
+    // **テスト用：キー入力でライフを操作**
     static bool key1Pressed = false, key1PressedPrev = false;
     static bool key2Pressed = false, key2PressedPrev = false;
     static bool key3Pressed = false, key3PressedPrev = false;
@@ -215,21 +296,29 @@ void GameScene::UpdateGameLogic()
 
     // テスト用操作
     if (key1Pressed && !key1PressedPrev) {
-        // 1キーでライフ減少
-        playerLife--;
-        if (playerLife < 0) playerLife = 0;
+        // 1キーでライフ減少（ハート揺れテスト）
+        if (playerLife > 0) {
+            playerLife--;
+            hudSystem.SetCurrentLife(playerLife); // HUDに即座に反映
+            OutputDebugStringA("GameScene: Manual life decrease for testing.\n");
+        }
     }
 
     if (key2Pressed && !key2PressedPrev) {
         // 2キーでライフ回復
-        playerLife++;
-        if (playerLife > 6) playerLife = 6;
+        if (playerLife < 6) {
+            playerLife++;
+            hudSystem.SetCurrentLife(playerLife); // HUDに即座に反映
+            OutputDebugStringA("GameScene: Manual life increase for testing.\n");
+        }
     }
 
     if (key3Pressed && !key3PressedPrev) {
         // 3キーでコイン・星全配置（テスト用）
         coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
         starSystem.GenerateStarsForStageIndex(currentStageIndex);
+        enemyManager.GenerateEnemiesForStage(currentStageIndex);
+        OutputDebugStringA("GameScene: Regenerated all items and enemies for testing.\n");
     }
 }
 
@@ -299,10 +388,11 @@ void GameScene::StartNextStage()
     cameraX = 0.0f;
     previousPlayerX = gamePlayer.GetX();
 
-    // コイン、星、ゴールを再配置
+    // コイン、星、ゴール、敵を再配置
     coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
     starSystem.GenerateStarsForStageIndex(currentStageIndex);
     goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
+    enemyManager.GenerateEnemiesForStage(currentStageIndex);
     goalSystem.ResetGoal(); // ゴール状態をリセット
 
     // 収集カウントをリセット
@@ -348,6 +438,7 @@ void GameScene::HandleResultButtons()
         coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
         starSystem.GenerateStarsForStageIndex(currentStageIndex);
         goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
+        enemyManager.GenerateEnemiesForStage(currentStageIndex);
         goalSystem.ResetGoal();
 
         // 収集カウントをリセット
@@ -359,8 +450,10 @@ void GameScene::HandleResultButtons()
         playerCoins = 0;
         showingResult = false;
         goalReached = false;
+        playerInvulnerable = false;
+        invulnerabilityTimer = 0.0f;
 
-        // **リザルトUIを完全にリセット**
+        // **リザルトUIを完全リセット**
         resultUI.ResetState();
         break;
 
@@ -377,6 +470,7 @@ void GameScene::HandleResultButtons()
         coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
         starSystem.GenerateStarsForStageIndex(currentStageIndex);
         goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
+        enemyManager.GenerateEnemiesForStage(currentStageIndex);
         goalSystem.ResetGoal();
 
         // 収集カウントをリセット
@@ -388,8 +482,10 @@ void GameScene::HandleResultButtons()
         playerCoins = 0;
         showingResult = false;
         goalReached = false;
+        playerInvulnerable = false;
+        invulnerabilityTimer = 0.0f;
 
-        // **リザルトUIを完全にリセット**
+        // **リザルトUIを完全リセット**
         resultUI.ResetState();
         break;
 
@@ -412,11 +508,16 @@ void GameScene::Draw()
     // **星描画（新機能）**
     starSystem.Draw(cameraX);
 
+    // **敵描画（新機能）**
+    enemyManager.Draw(cameraX);
+
     // **ゴール描画**
     goalSystem.Draw(cameraX);
 
-    // プレイヤー描画
-    gamePlayer.Draw(cameraX);
+    // プレイヤー描画（無敵状態時は点滅）
+    if (!playerInvulnerable || (int)(invulnerabilityTimer * 10) % 2 == 0) {
+        gamePlayer.Draw(cameraX);
+    }
 
     // プレイヤーの影を描画
     gamePlayer.DrawShadow(cameraX, &stageManager);
@@ -543,7 +644,7 @@ void GameScene::DrawUI()
     DrawStringToHandle(30, SCREEN_H - 130, "TAB: Change Stage, ESC: Return to title", GetColor(200, 200, 200), fontHandle);
 
     // **テスト用操作説明（拡張）**
-    DrawStringToHandle(30, SCREEN_H - 90, "Test: 1/2: Life -/+, 3: Reset Items", GetColor(150, 150, 150), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 90, "Test: 1/2: Life -/+, 3: Reset Items & Enemies", GetColor(150, 150, 150), fontHandle);
 
     // デバッグ情報を強化
     string debugInfo = "=== DEBUG INFO ===";
@@ -556,6 +657,16 @@ void GameScene::DrawUI()
     // **HUD状態情報とカメラデバッグ情報**
     string hudInfo = "Life: " + to_string(playerLife) + "/6, Coins: " + to_string(playerCoins) + ", Stars: " + to_string(playerStars) + "/3";
     DrawStringToHandle(30, SCREEN_H - 60, hudInfo.c_str(), GetColor(100, 200, 255), fontHandle);
+
+    // **敵の状態情報（新機能）**
+    string enemyInfo = "Enemies: " + to_string(enemyManager.GetActiveEnemyCount()) + " active, " + to_string(enemyManager.GetDeadEnemyCount()) + " defeated";
+    DrawStringToHandle(30, SCREEN_H - 40, enemyInfo.c_str(), GetColor(255, 150, 150), fontHandle);
+
+    // **無敵状態表示（新機能）**
+    if (playerInvulnerable) {
+        string invulInfo = "INVULNERABLE: " + to_string(INVULNERABILITY_DURATION - invulnerabilityTimer).substr(0, 3) + "s";
+        DrawStringToHandle(30, SCREEN_H - 20, invulInfo.c_str(), GetColor(255, 100, 100), fontHandle);
+    }
 
     // 入力状態表示
     string inputInfo = "Input: ";
@@ -591,6 +702,29 @@ void GameScene::DrawUI()
     string goalInfo = "Goal: " + string(goalSystem.IsGoalTouched() ? "TOUCHED!" : "Active") + ", Result: " + string(showingResult ? "SHOWING" : "HIDDEN");
     DrawStringToHandle(30, SCREEN_H - 40, stageInfo.c_str(), GetColor(255, 200, 100), fontHandle);
     DrawStringToHandle(30, SCREEN_H - 20, goalInfo.c_str(), GetColor(100, 255, 200), fontHandle);
+
+    // **F2キーでの敵デバッグ情報切り替えヒント**
+    DrawStringToHandle(SCREEN_W - 500, 110, "F2: Toggle Enemy Debug", GetColor(150, 150, 150), fontHandle);
+}
+
+void GameScene::InitializeHUD()
+{
+    // HUDシステムの初期化
+    hudSystem.Initialize();
+
+    // プレイヤーキャラクターをHUDに設定
+    hudSystem.SetPlayerCharacter(selectedCharacterIndex);
+
+    // 初期ライフとコインを設定
+    hudSystem.SetMaxLife(6);        // 最大ライフ：3ハート × 2 = 6
+    hudSystem.SetCurrentLife(playerLife);
+    hudSystem.SetCoins(playerCoins);
+    hudSystem.SetCollectedStars(playerStars);
+    hudSystem.SetTotalStars(3);
+
+    // HUD表示位置を設定（左上から30ピクセル、拡大版）
+    hudSystem.SetPosition(30, 30);
+    hudSystem.SetVisible(true);
 }
 
 std::string GameScene::GetCharacterDisplayName(int index)
@@ -623,4 +757,89 @@ float GameScene::SmoothLerp(float current, float target, float speed)
     // イージングアウト効果
     float t = 1.0f - powf(1.0f - speed, 60.0f * 0.016f); // 60FPS想定
     return current + distance * t;
+}
+
+// **新機能: プレイヤーが敵を踏んだかの詳細判定**
+bool GameScene::CheckIfPlayerStompedEnemy()
+{
+    float playerX = gamePlayer.GetX();
+    float playerY = gamePlayer.GetY();
+    float playerVelY = gamePlayer.GetVelocityY();
+
+    // **アクティブな敵をチェック**
+    const auto& enemies = enemyManager.GetEnemies(); // EnemyManagerのGetEnemies()を使用
+
+    for (const auto& enemy : enemies) {
+        if (!enemy || !enemy->IsActive() || enemy->IsDead()) continue;
+
+        float enemyX = enemy->GetX();
+        float enemyY = enemy->GetY();
+
+        // **基本的な重なり判定**
+        const float PLAYER_WIDTH = 80.0f;
+        const float PLAYER_HEIGHT = 100.0f;
+        const float ENEMY_WIDTH = 48.0f;
+        const float ENEMY_HEIGHT = 56.0f;
+
+        bool isOverlapping = (playerX - PLAYER_WIDTH / 2 < enemyX + ENEMY_WIDTH / 2 &&
+            playerX + PLAYER_WIDTH / 2 > enemyX - ENEMY_WIDTH / 2 &&
+            playerY - PLAYER_HEIGHT / 2 < enemyY + ENEMY_HEIGHT / 2 &&
+            playerY + PLAYER_HEIGHT / 2 > enemyY - ENEMY_HEIGHT / 2);
+
+        if (!isOverlapping) continue;
+
+        // **踏みつけ判定**
+        bool isStompFromAbove = (playerVelY > 0 &&
+            playerY < enemyY &&
+            playerY + PLAYER_HEIGHT / 2 >= enemyY - ENEMY_HEIGHT / 2);
+
+        if (isStompFromAbove) {
+            // **敵の種類による処理分岐**
+            if (enemy->GetType() == EnemyBase::NORMAL_SLIME) {
+                // **NormalSlime: 踏みつけ成功**
+                ApplyStompBounce(); // プレイヤーに跳ね返り効果
+
+                // デバッグ出力
+                OutputDebugStringA("GameScene: Successfully stomped NormalSlime!\n");
+                return true;
+            }
+            else if (enemy->GetType() == EnemyBase::SPIKE_SLIME) {
+                // **SpikeSlime: トゲが出ているかでダメージが決まる**
+                SpikeSlime* spikeSlime = static_cast<SpikeSlime*>(enemy.get());
+
+                // **トゲが出ている場合は踏んでもダメージ**
+                if (spikeSlime->AreSpikesOut()) {
+                    // **トゲが出ている場合は踏み失敗（ダメージを受ける）**
+                    return false; // 踏みつけ失敗（ダメージを受ける）
+                }
+                else {
+                    // **トゲが出ていない場合は踏みつけ成功（敵がスタン）**
+                    ApplyStompBounce(); // プレイヤーに跳ね返り効果
+
+                    // デバッグ出力
+                    OutputDebugStringA("GameScene: Successfully stomped SpikeSlime (spikes retracted)!\n");
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false; // 踏みつけは発生していない
+}
+// **新機能: 踏みつけ成功時の処理**
+void GameScene::HandleSuccessfulStomp()
+{
+    // **プレイヤーに跳ね返り効果を与える**
+    ApplyStompBounce();
+
+    // **効果音やエフェクトの再生**
+    // PlaySoundEffect("enemy_stomp");
+    // SpawnStompEffect(gamePlayer.GetX(), gamePlayer.GetY());
+}
+
+// **新機能: 踏みつけ時の跳ね返り効果**
+void GameScene::ApplyStompBounce()
+{
+    // **プレイヤーに上向きの速度を与える（小さなジャンプ効果）**
+    gamePlayer.ApplyStompBounce(-8.0f); // 上向きの速度を設定
 }

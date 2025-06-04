@@ -7,6 +7,7 @@
 #include "GoalSystem.h"   // ゴールシステムを追加
 #include "StarSystem.h"   // **星システムを追加（新機能）**
 #include "ResultUISystem.h" // **リザルトUIシステムを追加（新機能）**
+#include "EnemyManager.h" // **敵管理システムを追加（新機能）**
 #include <string>
 
 class GameScene
@@ -38,12 +39,13 @@ private:
     GoalSystem goalSystem;      // ゴールシステムを追加
     StarSystem starSystem;      // **星システムを追加（新機能）**
     ResultUISystem resultUI;    // **リザルトUIシステムを追加（新機能）**
+    EnemyManager enemyManager;  // **敵管理システムを追加（新機能）**
 
     // キャラクター情報
     int selectedCharacterIndex;
     std::string characterName;
 
-    // カメラシステム（滑らかな追従用に簡素化）
+    // カメラシステム（滑らかな追従用に簡単化）
     float cameraX;              // カメラのX座標
     float previousPlayerX;      // 前フレームのプレイヤーX座標
 
@@ -73,6 +75,11 @@ private:
     bool showingResult;
     bool goalReached;
 
+    // **敵との相互作用管理（新機能）**
+    bool playerInvulnerable;     // プレイヤーの無敵状態
+    float invulnerabilityTimer;  // 無敵時間タイマー
+    static constexpr float INVULNERABILITY_DURATION = 2.0f; // 無敵時間
+
     // ヘルパー関数
     std::string GetCharacterDisplayName(int index);
     void UpdateInput();
@@ -82,19 +89,29 @@ private:
     void DrawUI();
     void DrawSeamlessBackground(); // シームレス背景描画を追加
 
-    // **追加：フェード関連の関数**
+    // **追加：フェード関数**
     void UpdateFade();
     void DrawFade();
     void StartNextStage();
 
-    // **追加：HUD関連の関数**
+    // **追加：HUD関連関数**
     void InitializeHUD();
     void UpdateHUD();
 
-    // **追加：リザルト関連の関数（新機能）**
+    // **追加：リザルト関連関数（新機能）**
     void UpdateResult();
     void ShowStageResult();
     void HandleResultButtons();
+
+    // **追加：敵との相互作用関数（新機能）**
+    void UpdatePlayerEnemyInteractions();
+    void HandlePlayerDamage(int damage);
+    void HandlePlayerEnemyCollision();
+    void UpdatePlayerInvulnerability();
+
+    bool CheckIfPlayerStompedEnemy();
+    void HandleSuccessfulStomp();
+    void ApplyStompBounce();
 
     // ユーティリティ
     float Lerp(float a, float b, float t);

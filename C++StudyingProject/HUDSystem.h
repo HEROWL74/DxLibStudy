@@ -89,6 +89,16 @@ private:
     int hudX, hudY;     // HUDの基準位置
     bool visible;       // HUD表示フラグ
 
+    // **新追加：ハート揺れアニメーション用変数**
+    int previousLife;           // 前フレームのライフ（ダメージ検出用）
+    float heartShakeTimer;      // ハート揺れタイマー
+    float heartShakeIntensity;  // ハート揺れ強度 (0.0f～1.0f)
+    float heartShakePhase;      // ハート揺れ位相
+
+    // **ハート揺れ関連定数**
+    static constexpr float HEART_SHAKE_DURATION = 1.0f;  // 揺れ持続時間（秒）
+    static constexpr float HEART_SHAKE_AMOUNT = 3.0f;    // 揺れの強度（ピクセル）
+
     // レイアウト定数（拡張版）
     static const int HEART_SIZE = 64;           // 32 → 64に拡大
     static const int PLAYER_ICON_SIZE = 80;     // 48 → 80に拡大

@@ -11,7 +11,8 @@ public:
         WALKING,
         JUMPING,
         FALLING,
-        DUCKING
+        DUCKING,
+        HIT  // **新追加: ダメージ状態**
     };
 
     // プレイヤーサイズ定数（128x128に対応）
@@ -41,6 +42,17 @@ public:
     void SetPosition(float newX, float newY);
     void ResetPosition();
 
+    // **新機能: 踏みつけ後の小ジャンプ効果**
+    void ApplyStompBounce(float bounceVelocity = -8.0f);
+
+    // **新機能: ダメージシステム**
+    void TakeDamage(int damage, float knockbackDirection = 0.0f);
+    bool IsInvulnerable() const { return invulnerabilityTimer > 0.0f; }
+    float GetInvulnerabilityTimer() const { return invulnerabilityTimer; }
+
+    // **デバッグ用: 敵踏みつけ状態の取得**
+    bool IsStomping() const { return wasStomping; }
+
 private:
     // キャラクタースプライト構造体
     struct CharacterSprites {
@@ -59,6 +71,12 @@ private:
     static constexpr float ACCELERATION = 1.2f;        // 加速度
     static constexpr float MAX_HORIZONTAL_SPEED = 8.0f; // 最大横移動速度
 
+    // **新追加: ダメージシステム定数**
+    static constexpr float HIT_DURATION = 0.8f;        // ダメージ状態の持続時間
+    static constexpr float INVULNERABILITY_DURATION = 2.0f;  // 無敵時間
+    static constexpr float KNOCKBACK_FORCE = 6.0f;     // ノックバック力
+    static constexpr float KNOCKBACK_VERTICAL = -4.0f; // ノックバック時の縦方向速度
+
     // プレイヤー状態
     float x, y;
     float velocityX, velocityY;
@@ -76,6 +94,16 @@ private:
     CharacterSprites sprites;
     std::string characterColorName;
 
+    // **踏みつけ状態管理用**
+    bool wasStomping;           // 前フレームで踏みつけを行ったか
+    float stompCooldown;        // 踏みつけのクールダウン
+    static constexpr float STOMP_COOLDOWN_DURATION = 0.2f; // 踏みつけクールダウン持続
+
+    // **新追加: ダメージシステム変数**
+    float hitTimer;             // ダメージ状態タイマー
+    float invulnerabilityTimer; // 無敵タイマー
+    float knockbackDecay;       // ノックバック減衰
+
     // ===== 基本的なヘルパー関数 =====
     void UpdatePhysics(StageManager* stageManager);
     void UpdateAnimation();
@@ -83,6 +111,10 @@ private:
     int GetCurrentSprite();
     void LoadCharacterSprites(int characterIndex);
     std::string GetCharacterColorName(int index);
+
+    // **新追加: ダメージシステム関数**
+    void UpdateDamageState();
+    void UpdateInvulnerability();
 
     // ===== 詳細な衝突判定システム =====
 
@@ -100,15 +132,14 @@ private:
     float FindPreciseGroundY(float playerX, float playerY, float width, StageManager* stageManager);
     float FindPreciseCeilingY(float playerX, float playerY, float width, StageManager* stageManager);
 
-    // ===== 上位互換性のための旧関数 =====
+    // ===== 上位互換のための旧関数 =====
     bool CheckCollision(float newX, float newY, StageManager* stageManager);
     float GetGroundY(float checkX, StageManager* stageManager);
     bool CheckCollisionRect(float x, float y, float width, float height, StageManager* stageManager);
     int FindGroundTileY(float playerX, float playerY, float playerWidth, StageManager* stageManager);
     int FindCeilingTileY(float playerX, float playerY, float playerWidth, StageManager* stageManager);
 
-
-   // 基本的な地面検出（高速）
+    // 基本的な地面検出（高速）
     float FindNearestGroundForShadow(float playerX, float playerY, StageManager* stageManager);
 
     // 高精度な地面検出（詳細）

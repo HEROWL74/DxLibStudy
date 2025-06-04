@@ -1,7 +1,8 @@
 #include "HUDSystem.h"
 #include <algorithm>
+#include <math.h>
 
-// HUDSystem.cppのコンストラクタに追加
+// HUDSystem.cpp のコンストラクタに追加
 HUDSystem::HUDSystem()
     : maxLife(6)          // 3ハート × 2 = 6ライフ
     , currentLife(6)      // 初期値は満タン
@@ -12,6 +13,10 @@ HUDSystem::HUDSystem()
     , hudX(30)            // 左上から30ピクセル（少し余裕を持たせる）
     , hudY(30)            // 上から30ピクセル（少し余裕を持たせる）
     , visible(true)       // 初期状態で表示
+    , previousLife(6)     // **前フレームのライフ（ダメージ検出用）**
+    , heartShakeTimer(0.0f) // **ハート揺れタイマー**
+    , heartShakeIntensity(0.0f) // **ハート揺れ強度**
+    , heartShakePhase(0.0f)     // **ハート揺れ位相**
 {
     // テクスチャハンドルを初期化
     heartTextures.full = heartTextures.half = heartTextures.empty = -1;
@@ -26,6 +31,7 @@ HUDSystem::HUDSystem()
         coinTextures.numbers[i] = -1;
     }
 }
+
 HUDSystem::~HUDSystem()
 {
     // ハートテクスチャの解放
@@ -90,8 +96,33 @@ void HUDSystem::LoadTextures()
 
 void HUDSystem::Update()
 {
-    // 現在は特別な更新処理なし
-    // 将来的にアニメーション効果などを追加可能
+    // **ダメージ検出とハート揺れ開始**
+    if (currentLife < previousLife) {
+        // ライフが減った場合、ハート揺れを開始
+        heartShakeTimer = 0.0f;
+        heartShakeIntensity = 1.0f;
+        heartShakePhase = 0.0f;
+
+        // デバッグ出力
+        OutputDebugStringA("HUDSystem: Player took damage! Starting heart shake animation.\n");
+    }
+
+    // 前フレームのライフを更新
+    previousLife = currentLife;
+
+    // **ハート揺れアニメーションの更新**
+    if (heartShakeIntensity > 0.0f) {
+        heartShakeTimer += 0.016f; // 60FPS想定
+        heartShakePhase += 0.4f;   // 揺れの速度
+
+        // 揺れ強度の減衰（1秒で完全に停止）
+        heartShakeIntensity = max(0.0f, 1.0f - (heartShakeTimer / HEART_SHAKE_DURATION));
+
+        if (heartShakeIntensity <= 0.0f) {
+            heartShakeTimer = 0.0f;
+            heartShakePhase = 0.0f;
+        }
+    }
 }
 
 // Draw関数に星描画を追加
@@ -100,7 +131,7 @@ void HUDSystem::Draw()
     if (!visible) return;
 
     // HUD要素を順番に描画
-    DrawHearts();      // ライフハート
+    DrawHearts();      // ライフハート（揺れ機能付き）
     DrawPlayerIcon();  // プレイヤーアイコン
     DrawCoins();       // コイン表示
     DrawStars();       // **星表示（新機能）**
@@ -129,12 +160,52 @@ void HUDSystem::DrawHearts()
         }
 
         if (textureHandle != -1) {
-            // 滑らかな拡大表示
+            // **ハート揺れエフェクトの計算**
+            float shakeOffsetX = 0.0f;
+            float shakeOffsetY = 0.0f;
+
+            if (heartShakeIntensity > 0.0f) {
+                // 複数方向のランダムな揺れ
+                float shakeAmount = heartShakeIntensity * HEART_SHAKE_AMOUNT;
+
+                // X軸の揺れ（高周波）
+                shakeOffsetX = sinf(heartShakePhase * 18.0f + i * 0.5f) * shakeAmount;
+
+                // Y軸の揺れ（少し低い周波数）
+                shakeOffsetY = cosf(heartShakePhase * 15.0f + i * 0.3f) * shakeAmount * 0.7f;
+
+                // 揺れのバリエーションを各ハートで少し変える
+                if (i == 1) {
+                    shakeOffsetX *= 1.2f;
+                    shakeOffsetY *= 0.8f;
+                }
+                else if (i == 2) {
+                    shakeOffsetX *= 0.9f;
+                    shakeOffsetY *= 1.1f;
+                }
+            }
+
+            // 滑らかな拡大表示（揺れ位置を適用）
+            int finalHeartX = heartX + (int)shakeOffsetX;
+            int finalHeartY = heartY + (int)shakeOffsetY;
+
             DrawExtendGraph(
-                heartX, heartY,
-                heartX + HEART_SIZE, heartY + HEART_SIZE,
+                finalHeartX, finalHeartY,
+                finalHeartX + HEART_SIZE, finalHeartY + HEART_SIZE,
                 textureHandle, TRUE
             );
+
+            // **ダメージ時の追加エフェクト（オプション）**
+            if (heartShakeIntensity > 0.5f && state != HEART_EMPTY) {
+                // 赤い光のエフェクト
+                SetDrawBlendMode(DX_BLENDMODE_ADD, (int)(50 * heartShakeIntensity));
+                DrawExtendGraph(
+                    finalHeartX - 2, finalHeartY - 2,
+                    finalHeartX + HEART_SIZE + 2, finalHeartY + HEART_SIZE + 2,
+                    textureHandle, TRUE
+                );
+                SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+            }
         }
     }
 }

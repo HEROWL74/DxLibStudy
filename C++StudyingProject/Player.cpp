@@ -15,6 +15,8 @@ Player::Player()
     , walkAnimFrame(false)
     , bobPhase(0.0f)
     , characterIndex(0)
+    , wasStomping(false)        // **追加**
+    , stompCooldown(0.0f)       // **追加**
 {
     // スプライトハンドルを初期化
     sprites.front = sprites.idle = sprites.walk_a = sprites.walk_b = -1;
@@ -49,6 +51,20 @@ void Player::Initialize(int characterIndex)
 
 void Player::Update(StageManager* stageManager)
 {
+    // **踏みつけクールダウンの更新**
+    if (stompCooldown > 0.0f) {
+        stompCooldown -= 0.016f; // 60FPS想定
+        if (stompCooldown <= 0.0f) {
+            wasStomping = false;
+        }
+    }
+
+    // **ダメージ状態の更新**
+    UpdateDamageState();
+
+    // **無敵時間の更新**
+    UpdateInvulnerability();
+
     // 物理演算更新
     UpdatePhysics(stageManager);
 
@@ -59,6 +75,7 @@ void Player::Update(StageManager* stageManager)
     UpdateAnimation();
 }
 
+/// **Draw関数の修正: 無敵時間中の点滅効果とHITスプライト**
 void Player::Draw(float cameraX)
 {
     int currentSprite = GetCurrentSprite();
@@ -66,30 +83,38 @@ void Player::Draw(float cameraX)
 
     // 安全な位置制約
     float safeY = y;
-    if (safeY < -200) safeY = -200;    // 上限制約
-    if (safeY > 1500) safeY = 1500;    // 下限制約
+    if (safeY < -200) safeY = -200;
+    if (safeY > 1500) safeY = 1500;
 
     // アイドル時の上下揺れ効果（安全な範囲で）
     float bobOffset = 0.0f;
     if (currentState == IDLE && onGround) {
-        bobOffset = sinf(bobPhase) * 2.0f; // 揺れ幅を制限
+        bobOffset = sinf(bobPhase) * 2.0f;
+    }
+
+    // **ダメージ時の自然なノックバック振動効果**
+    float hitShake = 0.0f;
+    if (currentState == HIT && hitTimer < HIT_DURATION * 0.7f) {
+        // より自然な振動パターン
+        float shakeProgress = hitTimer / (HIT_DURATION * 0.7f);
+        float shakeIntensity = (1.0f - shakeProgress) * 2.5f; // 徐々に減衰
+        hitShake = sinf(hitTimer * 35.0f) * shakeIntensity;
     }
 
     // 安全な画面座標計算
-    int screenX = (int)(x - cameraX);
+    int screenX = (int)(x - cameraX + hitShake);
     int screenY = (int)(safeY + bobOffset);
 
-    // 画面外に出すぎた場合の制限
-    if (screenX < -500 || screenX > 2500) return; // 描画をスキップ
-    if (screenY < -500 || screenY > 1500) return; // 描画をスキップ
+    // 画面外チェック
+    if (screenX < -500 || screenX > 2500) return;
+    if (screenY < -500 || screenY > 1500) return;
 
     // キャラクターサイズ取得
     int spriteWidth, spriteHeight;
     GetGraphSize(currentSprite, &spriteWidth, &spriteHeight);
 
-    // 安全なサイズ制限
     if (spriteWidth <= 0 || spriteHeight <= 0) return;
-    if (spriteWidth > 1000 || spriteHeight > 1000) return; // 異常なサイズを防ぐ
+    if (spriteWidth > 1000 || spriteHeight > 1000) return;
 
     // 中央揃えで描画位置調整
     screenX -= spriteWidth / 2;
@@ -99,113 +124,145 @@ void Player::Draw(float cameraX)
     if (screenX < -1000 || screenX > 3000) return;
     if (screenY < -1000 || screenY > 2000) return;
 
-    // 左右反転描画
-    if (facingRight) {
-        DrawGraph(screenX, screenY, currentSprite, TRUE);
+    // **無敵時間中の点滅効果**
+    bool shouldDraw = true;
+    if (invulnerabilityTimer > 0.0f) {
+        // 点滅間隔を調整（速い点滅）
+        float blinkSpeed = 12.0f;
+        shouldDraw = ((int)(invulnerabilityTimer * blinkSpeed) % 2 == 0);
     }
-    else {
-        DrawTurnGraph(screenX, screenY, currentSprite, TRUE);
+
+    if (shouldDraw) {
+        // **ダメージ時の赤色効果（より自然に）**
+        if (currentState == HIT && hitTimer < HIT_DURATION * 0.4f) {
+            float flashProgress = hitTimer / (HIT_DURATION * 0.4f);
+            int redIntensity = (int)(255 * (1.0f - flashProgress));
+            SetDrawBright(255, 255 - redIntensity / 2, 255 - redIntensity); // 赤みがかった色
+        }
+
+        // 左右反転描画
+        if (facingRight) {
+            DrawGraph(screenX, screenY, currentSprite, TRUE);
+        }
+        else {
+            DrawTurnGraph(screenX, screenY, currentSprite, TRUE);
+        }
+
+        // 色をリセット
+        if (currentState == HIT && hitTimer < HIT_DURATION * 0.4f) {
+            SetDrawBright(255, 255, 255);
+        }
     }
 }
 
+// **UpdatePhysics関数の修正: ダメージ時の制限とノックバック改良**
 void Player::UpdatePhysics(StageManager* stageManager)
 {
+    // **ダメージ状態中は入力を制限**
+    bool canControl = (currentState != HIT || hitTimer > HIT_DURATION * 0.6f);
+
     // 改良された水平移動処理（イージング付き）
-    bool leftPressed = CheckHitKey(KEY_INPUT_LEFT) && currentState != DUCKING;
-    bool rightPressed = CheckHitKey(KEY_INPUT_RIGHT) && currentState != DUCKING;
+    bool leftPressed = canControl && CheckHitKey(KEY_INPUT_LEFT) && currentState != DUCKING;
+    bool rightPressed = canControl && CheckHitKey(KEY_INPUT_RIGHT) && currentState != DUCKING;
 
     if (leftPressed) {
-        // 左方向への加速
         velocityX -= ACCELERATION;
         if (velocityX < -MAX_HORIZONTAL_SPEED) {
             velocityX = -MAX_HORIZONTAL_SPEED;
         }
         facingRight = false;
-        if (onGround) {
+        if (onGround && currentState != HIT) {
             currentState = WALKING;
         }
     }
     else if (rightPressed) {
-        // 右方向への加速
         velocityX += ACCELERATION;
         if (velocityX > MAX_HORIZONTAL_SPEED) {
             velocityX = MAX_HORIZONTAL_SPEED;
         }
         facingRight = true;
-        if (onGround) {
+        if (onGround && currentState != HIT) {
             currentState = WALKING;
         }
     }
     else {
-        // キー入力がない場合の自然な減速（摩擦）
-        velocityX *= FRICTION;
+        // **改良されたノックバック減衰システム**
+        float currentFriction = FRICTION;
+        if (currentState == HIT && knockbackDecay > 0.0f) {
+            // ノックバック中は段階的に減衰
+            float decayStage = 1.0f - knockbackDecay;
+            if (decayStage < 0.3f) {
+                currentFriction = 0.95f; // 初期は緩やか
+            }
+            else if (decayStage < 0.7f) {
+                currentFriction = 0.88f; // 中期は標準的
+            }
+            else {
+                currentFriction = 0.82f; // 後期は早めに止める
+            }
+        }
 
-        // 極低の速度は0にする（完全停止）
+        velocityX *= currentFriction;
+
         if (fabsf(velocityX) < 0.1f) {
             velocityX = 0.0f;
         }
 
-        // 地上での状態決定
-        if (onGround && currentState != JUMPING && currentState != FALLING) {
+        if (onGround && currentState != JUMPING && currentState != FALLING && currentState != HIT) {
             if (fabsf(velocityX) < 0.5f) {
                 currentState = IDLE;
             }
             else {
-                currentState = WALKING; // まだ動いている
+                currentState = WALKING;
             }
         }
     }
 
-    // しゃがみ処理
-    if (CheckHitKey(KEY_INPUT_DOWN) && onGround) {
+    // しゃがみ処理（ダメージ中は無効）
+    if (canControl && CheckHitKey(KEY_INPUT_DOWN) && onGround && currentState != HIT) {
         currentState = DUCKING;
-        velocityX *= 0.8f; // しゃがみ時はより強い減速
+        velocityX *= 0.8f;
     }
 
-    // 修正：ジャンプ処理（連続ジャンプバグ修正）
+    // ジャンプ処理（ダメージ中は無効）
     static bool spaceWasPressedLastFrame = false;
     bool spacePressed = CheckHitKey(KEY_INPUT_SPACE) != 0;
 
-    // ジャンプは地上にいて、かつスペースキーが新しく押された時のみ
-    if (spacePressed && !spaceWasPressedLastFrame && onGround && currentState != JUMPING) {
+    if (canControl && spacePressed && !spaceWasPressedLastFrame && onGround && currentState != JUMPING && currentState != HIT) {
         velocityY = JUMP_POWER;
         currentState = JUMPING;
         onGround = false;
     }
 
-    // 前フレームのスペースキー状態を記録
     spaceWasPressedLastFrame = spacePressed;
 
-    // 修正：重力適用（安全な範囲制限付き）
+    // 重力適用
     if (!onGround) {
-        // ジャンプボタンを離した時の早期落下（より自然な操作感）
         if (currentState == JUMPING && !spacePressed && velocityY < 0) {
-            velocityY *= 0.7f; // 上昇を早めに止める
+            velocityY *= 0.7f;
         }
 
         velocityY += GRAVITY;
 
-        // 安全な速度制限
-        if (velocityY < -25.0f) {  // 上昇速度の制限
+        if (velocityY < -25.0f) {
             velocityY = -25.0f;
         }
         if (velocityY > MAX_FALL_SPEED) {
             velocityY = MAX_FALL_SPEED;
         }
 
-        // ジャンプから落下への状態変化
         if (velocityY > 0 && currentState == JUMPING) {
             currentState = FALLING;
         }
     }
     else {
-        // 地上にいる時は上昇速度をリセット
         if (velocityY < 0) {
             velocityY = 0;
         }
     }
 }
 
+// [既存のメソッドは変更なし]
 void Player::HandleCollisions(StageManager* stageManager)
 {
     // プレイヤーの当たり判定サイズ（128x128プレイヤー用に最適化）
@@ -259,7 +316,6 @@ void Player::HandleCollisions(StageManager* stageManager)
         ResetPosition();
     }
 }
-
 bool Player::CheckXCollision(float newX, float currentY, float width, float height, StageManager* stageManager)
 {
     // プレイヤーの上部、中央、下部の3点でチェック
@@ -750,6 +806,7 @@ void Player::UpdateAnimation()
     }
 }
 
+// **GetCurrentSprite関数の修正: HITスプライト対応**
 int Player::GetCurrentSprite()
 {
     switch (currentState) {
@@ -758,6 +815,7 @@ int Player::GetCurrentSprite()
     case JUMPING: return sprites.jump;
     case FALLING: return sprites.jump;
     case DUCKING: return sprites.duck;
+    case HIT: return sprites.hit;  // **新追加: HITスプライト**
     default: return sprites.idle;
     }
 }
@@ -805,6 +863,11 @@ void Player::ResetPosition()
     currentState = FALLING;
     onGround = false;
     facingRight = true;
+
+    // ダメージ関連の状態もリセット
+    hitTimer = 0.0f;
+    invulnerabilityTimer = 0.0f;
+    knockbackDecay = 0.0f;
 }
 
 void Player::DrawDebugInfo(float cameraX)
@@ -859,4 +922,101 @@ void Player::DrawDebugInfo(float cameraX)
         DrawLine(screenX, screenY, arrowEndX, arrowEndY, GetColor(255, 0, 255));
         DrawCircle(arrowEndX, arrowEndY, 3, GetColor(255, 0, 255), TRUE);
     }
+}
+
+// **踏みつけ小ジャンプ効果（マリオ風）**
+void Player::ApplyStompBounce(float bounceVelocity)
+{
+    // デフォルト値を使用してマリオ風の小ジャンプ
+    velocityY = (bounceVelocity != -8.0f) ? bounceVelocity : -12.0f; // より高いジャンプ
+    currentState = JUMPING;
+    onGround = false;
+    wasStomping = true;
+    stompCooldown = STOMP_COOLDOWN_DURATION;
+
+    // **踏みつけ効果音の再生（オプション）**
+    // PlaySoundEffect("player_stomp_bounce");
+
+    // **デバッグ出力**
+    OutputDebugStringA("Player: Stomp bounce applied!\n");
+}
+
+// **新追加: ダメージ状態更新**
+void Player::UpdateDamageState()
+{
+    if (currentState == HIT) {
+        hitTimer += 0.016f; // 60FPS想定
+
+        // ダメージ状態の終了
+        if (hitTimer >= HIT_DURATION) {
+            if (onGround) {
+                if (fabsf(velocityX) > 0.5f) {
+                    currentState = WALKING;
+                }
+                else {
+                    currentState = IDLE;
+                }
+            }
+            else {
+                currentState = FALLING;
+            }
+            hitTimer = 0.0f;
+        }
+
+        // ノックバック減衰の更新
+        if (knockbackDecay > 0.0f) {
+            knockbackDecay -= 0.016f;
+            if (knockbackDecay <= 0.0f) {
+                knockbackDecay = 0.0f;
+            }
+        }
+    }
+}
+
+// **新追加: 無敵時間更新**
+void Player::UpdateInvulnerability()
+{
+    if (invulnerabilityTimer > 0.0f) {
+        invulnerabilityTimer -= 0.016f; // 60FPS想定
+        if (invulnerabilityTimer <= 0.0f) {
+            invulnerabilityTimer = 0.0f;
+        }
+    }
+}
+
+// **新追加: ダメージ処理（改良版）**
+void Player::TakeDamage(int damage, float knockbackDirection)
+{
+    if (invulnerabilityTimer > 0.0f) return; // 無敵時間中はダメージを受けない
+
+    // ダメージ状態に変更
+    currentState = HIT;
+    hitTimer = 0.0f;
+    invulnerabilityTimer = INVULNERABILITY_DURATION;
+    knockbackDecay = 1.0f;
+
+    // **改良されたノックバック効果**
+    if (knockbackDirection != 0.0f) {
+        // ノックバック強度を調整
+        float knockbackForce = KNOCKBACK_FORCE;
+
+        // 地上にいる場合はより強いノックバック
+        if (onGround) {
+            knockbackForce *= 1.2f;
+            velocityY = KNOCKBACK_VERTICAL; // 少し浮かせる
+            onGround = false;
+        }
+        else {
+            // 空中の場合は水平方向のみ
+            knockbackForce *= 0.8f;
+        }
+
+        velocityX = knockbackDirection * knockbackForce;
+
+        // ノックバック方向に応じて向きを変更
+        facingRight = (knockbackDirection > 0.0f);
+    }
+
+    // **デバッグ出力**
+    OutputDebugStringA("Player: Taking damage with improved knockback!\n");
 }
