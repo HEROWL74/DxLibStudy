@@ -14,7 +14,7 @@ public:
         DUCKING
     };
 
-    // プレイヤーサイズ定数
+    // プレイヤーサイズ定数（128x128に対応）
     static const int PLAYER_WIDTH = 128;
     static const int PLAYER_HEIGHT = 128;
 
@@ -25,6 +25,7 @@ public:
     void Update(StageManager* stageManager);
     void Draw(float cameraX);
     void DrawShadow(float cameraX, StageManager* stageManager);
+    void DrawShadowDebugInfo(float cameraX, int shadowX, int shadowY, float distanceToGround, float normalizedDistance);
     void DrawDebugInfo(float cameraX);
 
     // ゲッター
@@ -46,20 +47,17 @@ private:
         int front, idle, walk_a, walk_b, jump, duck, hit, climb_a, climb_b;
     };
 
-    // 物理定数（ふわっとしたジャンプに調整）
-    static constexpr float GRAVITY = 0.6f;             // 重力を弱く
-    static constexpr float JUMP_POWER = -16.0f;        // ジャンプ力を少し弱く
+    // 物理定数（128x128プレイヤー用に最適化）
+    static constexpr float GRAVITY = 0.8f;             // 重力を少し強めに調整
+    static constexpr float JUMP_POWER = -20.0f;        // ジャンプ力を128x128プレイヤーに合わせて調整
     static constexpr float MOVE_SPEED = 8.0f;
     static constexpr float WALK_ANIM_SPEED = 0.15f;
-    static constexpr float MAX_FALL_SPEED = 12.0f;     // 最大落下速度を抑制
+    static constexpr float MAX_FALL_SPEED = 16.0f;     // 最大落下速度
 
-    // **追加：イージング関数の定数**
+    // 改良：イージング関数の定数
     static constexpr float FRICTION = 0.85f;           // 摩擦係数（横移動の減速）
     static constexpr float ACCELERATION = 1.2f;        // 加速度
     static constexpr float MAX_HORIZONTAL_SPEED = 8.0f; // 最大横移動速度
-
-    // ジャンプの空気抵抗（ふわっと感を演出）
-    static constexpr float AIR_RESISTANCE = 0.98f;     // 空中での速度減衰
 
     // プレイヤー状態
     float x, y;
@@ -108,4 +106,23 @@ private:
     bool CheckCollisionRect(float x, float y, float width, float height, StageManager* stageManager);
     int FindGroundTileY(float playerX, float playerY, float playerWidth, StageManager* stageManager);
     int FindCeilingTileY(float playerX, float playerY, float playerWidth, StageManager* stageManager);
+
+
+   // 基本的な地面検出（高速）
+    float FindNearestGroundForShadow(float playerX, float playerY, StageManager* stageManager);
+
+    // 高精度な地面検出（詳細）
+    float FindPreciseGroundForShadow(float playerX, float playerY, StageManager* stageManager);
+
+    // 適応的地面検出（複雑な地形対応）
+    float FindAdaptiveGroundForShadow(float playerX, float playerY, StageManager* stageManager);
+
+    // 最適な地面検出（状況に応じて最適な方法を選択）
+    float FindOptimalGroundForShadow(float playerX, float playerY, StageManager* stageManager);
+
+    // 影描画の定数
+    static constexpr float MAX_SHADOW_DISTANCE = 200.0f; // 影が表示される最大距離
+    static constexpr float BASE_SHADOW_SIZE_X = 40.0f;   // 基本影サイズ（幅）
+    static constexpr float BASE_SHADOW_SIZE_Y = 16.0f;   // 基本影サイズ（高さ）
+    static constexpr int BASE_SHADOW_ALPHA = 150;        // 基本影の透明度
 };

@@ -2,9 +2,11 @@
 #include "DxLib.h"
 #include "StageManager.h"
 #include "Player.h"
-#include "HUDSystem.h"  // HUDシステムを追加
-#include "CoinSystem.h" // コインシステムを追加
-#include "GoalSystem.h" // ゴールシステムを追加
+#include "HUDSystem.h"    // HUDシステムを追加
+#include "CoinSystem.h"   // コインシステムを追加
+#include "GoalSystem.h"   // ゴールシステムを追加
+#include "StarSystem.h"   // **星システムを追加（新機能）**
+#include "ResultUISystem.h" // **リザルトUIシステムを追加（新機能）**
 #include <string>
 
 class GameScene
@@ -19,7 +21,6 @@ public:
 
     bool IsExitRequested() const { return exitRequested; }
 
-
 private:
     // 画面サイズ
     static const int SCREEN_W = 1920;
@@ -32,9 +33,11 @@ private:
     // ゲームオブジェクト
     StageManager stageManager;
     Player gamePlayer;
-    HUDSystem hudSystem;  // HUDシステムを追加
-    CoinSystem coinSystem; // コインシステムを追加
-    GoalSystem goalSystem; // ゴールシステムを追加
+    HUDSystem hudSystem;        // HUDシステムを追加
+    CoinSystem coinSystem;      // コインシステムを追加
+    GoalSystem goalSystem;      // ゴールシステムを追加
+    StarSystem starSystem;      // **星システムを追加（新機能）**
+    ResultUISystem resultUI;    // **リザルトUIシステムを追加（新機能）**
 
     // キャラクター情報
     int selectedCharacterIndex;
@@ -57,6 +60,7 @@ private:
     // **追加：ゲーム状態管理**
     int playerLife;      // プレイヤーのライフ
     int playerCoins;     // プレイヤーのコイン数
+    int playerStars;     // **プレイヤーの星数（新機能）**
     int currentStageIndex; // 現在のステージインデックス
 
     // **追加：フェード演出**
@@ -64,6 +68,10 @@ private:
     FadeState fadeState;
     float fadeAlpha;
     float fadeTimer;
+
+    // **リザルト表示制御（新機能）**
+    bool showingResult;
+    bool goalReached;
 
     // ヘルパー関数
     std::string GetCharacterDisplayName(int index);
@@ -82,6 +90,11 @@ private:
     // **追加：HUD関連の関数**
     void InitializeHUD();
     void UpdateHUD();
+
+    // **追加：リザルト関連の関数（新機能）**
+    void UpdateResult();
+    void ShowStageResult();
+    void HandleResultButtons();
 
     // ユーティリティ
     float Lerp(float a, float b, float t);

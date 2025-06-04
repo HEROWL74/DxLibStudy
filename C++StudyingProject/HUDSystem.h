@@ -37,6 +37,12 @@ public:
     void SubtractCoins(int amount) { coins = max(0, coins - amount); }
     int GetCoins() const { return coins; }
 
+    // **星管理（新機能）**
+    void SetCollectedStars(int collected) { this->collectedStars = collected; }
+    void SetTotalStars(int total) { this->totalStars = total; }
+    int GetCollectedStars() const { return collectedStars; }
+    int GetTotalStars() const { return totalStars; }
+
     // HUD表示設定
     void SetPosition(int x, int y) { hudX = x; hudY = y; }
     void SetVisible(bool visible) { this->visible = visible; }
@@ -63,21 +69,32 @@ private:
         int numbers[10]; // 0-9の数字
     } coinTextures;
 
+    // **星テクスチャ（新機能）**
+    struct StarTextures {
+        int starOutline;    // star_outline_depth.png
+        int starFilled;     // star.png
+    } starTextures;
+
     // ゲーム状態
     int maxLife;        // 最大ライフ (通常は6 = 3ハート × 2)
     int currentLife;    // 現在のライフ
     int coins;          // コイン数
     int currentPlayerCharacter; // 現在のプレイヤーキャラクター
 
+    // **星の状態（新機能）**
+    int collectedStars; // 収集済み星数
+    int totalStars;     // 総星数（通常は3）
+
     // HUD表示設定
     int hudX, hudY;     // HUDの基準位置
     bool visible;       // HUD表示フラグ
 
-    // レイアウト定数（拡大版）
+    // レイアウト定数（拡張版）
     static const int HEART_SIZE = 64;           // 32 → 64に拡大
     static const int PLAYER_ICON_SIZE = 80;     // 48 → 80に拡大
     static const int COIN_ICON_SIZE = 48;       // 32 → 48に拡大
     static const int NUMBER_SIZE = 36;          // 24 → 36に拡大
+    static const int STAR_SIZE = 48;            // 星のサイズ（新機能）
     static const int ELEMENT_SPACING = 20;      // 16 → 20に拡大
 
     // ヘルパー関数
@@ -85,6 +102,7 @@ private:
     void DrawHearts();
     void DrawPlayerIcon();
     void DrawCoins();
+    void DrawStars();  // **星描画関数（新機能）**
     void DrawNumber(int number, int x, int y);
     HeartState GetHeartState(int heartIndex) const;
     int GetPlayerIconHandle() const;

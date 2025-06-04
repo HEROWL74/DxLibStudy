@@ -29,10 +29,12 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="PurpleStage.cpp" />
+    <ClCompile Include="ResultUISystem.cpp" />
     <ClCompile Include="SandStage.cpp" />
     <ClCompile Include="SnowStage.cpp" />
     <ClCompile Include="Stage.cpp" />
     <ClCompile Include="StageManager.cpp" />
+    <ClCompile Include="StarSystem.cpp" />
     <ClCompile Include="StoneStage.cpp" />
     <ClCompile Include="TitleScene.cpp" />
   </ItemGroup>
@@ -46,10 +48,12 @@
     <ClInclude Include="HUDSystem.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="PurpleStage.h" />
+    <ClInclude Include="ResultUISystem.h" />
     <ClInclude Include="SandStage.h" />
     <ClInclude Include="SnowStage.h" />
     <ClInclude Include="Stage.h" />
     <ClInclude Include="StageManager.h" />
+    <ClInclude Include="StarSystem.h" />
     <ClInclude Include="StoneStage.h" />
     <ClInclude Include="TitleScene.h" />
   </ItemGroup>

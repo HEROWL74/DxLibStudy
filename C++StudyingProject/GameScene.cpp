@@ -11,10 +11,13 @@ GameScene::GameScene()
     , stageSelectPressed(false), stageSelectPressedPrev(false)
     , playerLife(6)      // 初期ライフ：3ハート分
     , playerCoins(0)     // 初期コイン数
+    , playerStars(0)     // 初期星数
     , currentStageIndex(0) // 初期ステージ
     , fadeState(FADE_NONE) // フェード状態
     , fadeAlpha(0.0f)    // フェード透明度
     , fadeTimer(0.0f)    // フェードタイマー
+    , showingResult(false) // リザルト表示状態
+    , goalReached(false)   // ゴール到達状態
 {
     backgroundHandle = -1;
     fontHandle = -1;
@@ -46,7 +49,7 @@ void GameScene::Initialize(int selectedCharacter)
 
     // カメラ初期位置
     cameraX = 0.0f;
-    previousPlayerX = gamePlayer.GetX(); // プレイヤー位置初期化
+    previousPlayerX = gamePlayer.GetX();
 
     // **HUDシステム初期化**
     InitializeHUD();
@@ -55,9 +58,20 @@ void GameScene::Initialize(int selectedCharacter)
     coinSystem.Initialize();
     coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
 
+    // **星システム初期化（新機能）**
+    starSystem.Initialize();
+    starSystem.GenerateStarsForStageIndex(currentStageIndex);
+
+    // **リザルトUI初期化（新機能）**
+    resultUI.Initialize();
+
     // **ゴールシステム初期化**
     goalSystem.Initialize();
     goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
+
+    // 状態リセット
+    showingResult = false;
+    goalReached = false;
 }
 
 void GameScene::InitializeHUD()
@@ -72,6 +86,8 @@ void GameScene::InitializeHUD()
     hudSystem.SetMaxLife(6);        // 最大ライフ：3ハート × 2 = 6
     hudSystem.SetCurrentLife(playerLife);
     hudSystem.SetCoins(playerCoins);
+    hudSystem.SetCollectedStars(playerStars);
+    hudSystem.SetTotalStars(3);
 
     // HUD表示位置を設定（左上から30ピクセル、拡大版）
     hudSystem.SetPosition(30, 30);
@@ -80,11 +96,17 @@ void GameScene::InitializeHUD()
 
 void GameScene::Update()
 {
+    // リザルト表示中の場合は、リザルトのみ更新
+    if (showingResult) {
+        UpdateResult();
+        return;
+    }
+
     // 入力更新
     UpdateInput();
 
-    // ステージ切り替え
-    if (stageSelectPressed && !stageSelectPressedPrev && fadeState == FADE_NONE) {
+    // ステージ切り替え（リザルト非表示時のみ）
+    if (stageSelectPressed && !stageSelectPressedPrev && fadeState == FADE_NONE && !showingResult) {
         currentStageIndex = (currentStageIndex + 1) % 5;
         stageManager.LoadStage((StageManager::StageType)currentStageIndex);
 
@@ -93,9 +115,23 @@ void GameScene::Update()
         cameraX = 0.0f;
         previousPlayerX = gamePlayer.GetX();
 
-        // **コインとゴールを再配置（ステージ特化版）**
+        // **コイン、星、ゴールを再配置（星システム対応）**
         coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
+        starSystem.GenerateStarsForStageIndex(currentStageIndex);
         goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
+
+        // 収集カウントをリセット
+        coinSystem.ResetCollectedCount();
+        starSystem.ResetCollectedCount();
+
+        // 状態を完全リセット
+        playerStars = 0;
+        playerCoins = 0;
+        showingResult = false;
+        goalReached = false;
+
+        // **リザルトUIも完全リセット**
+        resultUI.ResetState();
     }
 
     // プレイヤー更新
@@ -112,14 +148,16 @@ void GameScene::Update()
 
     coinSystem.Update(&gamePlayer, hudCoinIconWorldX, hudCoinIconWorldY);
 
+    // **星システム更新（新機能）**
+    starSystem.Update(&gamePlayer);
+
     // **ゴールシステム更新**
     goalSystem.Update(&gamePlayer);
 
-    // **ゴールタッチ時のフェード開始**
-    if (goalSystem.IsGoalTouched() && fadeState == FADE_NONE) {
-        fadeState = FADE_OUT;
-        fadeTimer = 0.0f;
-        fadeAlpha = 0.0f;
+    // **ゴールタッチ時のリザルト表示（変更）**
+    if (goalSystem.IsGoalTouched() && !goalReached) {
+        goalReached = true;
+        ShowStageResult();
     }
 
     // **フェード処理**
@@ -152,6 +190,13 @@ void GameScene::UpdateGameLogic()
         // コイン獲得時のサウンドやエフェクトをここに追加可能
     }
 
+    // **星収集数をゲーム状態に反映（新機能）**
+    int newStarCount = starSystem.GetCollectedStarsCount();
+    if (newStarCount != playerStars) {
+        playerStars = newStarCount;
+        // 星獲得時のサウンドやエフェクトをここに追加可能
+    }
+
     // ここでゲームロジックを更新
     // 例：ダメージ処理、アイテム獲得など
 
@@ -182,8 +227,9 @@ void GameScene::UpdateGameLogic()
     }
 
     if (key3Pressed && !key3PressedPrev) {
-        // 3キーでコイン全配置（テスト用）
+        // 3キーでコイン・星全配置（テスト用）
         coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
+        starSystem.GenerateStarsForStageIndex(currentStageIndex);
     }
 }
 
@@ -195,6 +241,8 @@ void GameScene::UpdateHUD()
     // ゲーム状態をHUDに反映
     hudSystem.SetCurrentLife(playerLife);
     hudSystem.SetCoins(playerCoins);
+    hudSystem.SetCollectedStars(playerStars);  // 星数を反映
+    hudSystem.SetTotalStars(3);               // 総星数を設定
 }
 
 void GameScene::UpdateFade()
@@ -251,10 +299,103 @@ void GameScene::StartNextStage()
     cameraX = 0.0f;
     previousPlayerX = gamePlayer.GetX();
 
-    // コインとゴールを再配置（ステージ特化版）
+    // コイン、星、ゴールを再配置
     coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
+    starSystem.GenerateStarsForStageIndex(currentStageIndex);
     goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
     goalSystem.ResetGoal(); // ゴール状態をリセット
+
+    // 収集カウントをリセット
+    coinSystem.ResetCollectedCount();
+    starSystem.ResetCollectedCount();
+
+    // 状態をリセット
+    playerStars = 0;
+    playerCoins = 0;
+}
+
+void GameScene::UpdateResult()
+{
+    resultUI.Update();
+
+    // **リザルトが完全に非表示になったら、通常モードに戻る**
+    if (resultUI.IsHidden()) {
+        showingResult = false;
+    }
+
+    HandleResultButtons();
+}
+
+void GameScene::ShowStageResult()
+{
+    showingResult = true;
+    playerStars = starSystem.GetCollectedStarsCount();
+    resultUI.ShowResult(playerStars, 3, currentStageIndex + 1);
+}
+
+void GameScene::HandleResultButtons()
+{
+    ResultUISystem::ButtonAction action = resultUI.GetClickedButton();
+
+    switch (action) {
+    case ResultUISystem::BUTTON_RETRY:
+        // ステージをリトライ
+        gamePlayer.ResetPosition();
+        cameraX = 0.0f;
+        previousPlayerX = gamePlayer.GetX();
+
+        // システムをリセット
+        coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
+        starSystem.GenerateStarsForStageIndex(currentStageIndex);
+        goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
+        goalSystem.ResetGoal();
+
+        // 収集カウントをリセット
+        coinSystem.ResetCollectedCount();
+        starSystem.ResetCollectedCount();
+
+        // 状態を完全リセット
+        playerStars = 0;
+        playerCoins = 0;
+        showingResult = false;
+        goalReached = false;
+
+        // **リザルトUIを完全にリセット**
+        resultUI.ResetState();
+        break;
+
+    case ResultUISystem::BUTTON_NEXT_STAGE:
+        // 次のステージへ
+        currentStageIndex = (currentStageIndex + 1) % 5;
+        stageManager.LoadStage((StageManager::StageType)currentStageIndex);
+
+        gamePlayer.ResetPosition();
+        cameraX = 0.0f;
+        previousPlayerX = gamePlayer.GetX();
+
+        // 新ステージのシステム初期化
+        coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
+        starSystem.GenerateStarsForStageIndex(currentStageIndex);
+        goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
+        goalSystem.ResetGoal();
+
+        // 収集カウントをリセット
+        coinSystem.ResetCollectedCount();
+        starSystem.ResetCollectedCount();
+
+        // 状態を完全リセット
+        playerStars = 0;
+        playerCoins = 0;
+        showingResult = false;
+        goalReached = false;
+
+        // **リザルトUIを完全にリセット**
+        resultUI.ResetState();
+        break;
+
+    default:
+        break;
+    }
 }
 
 void GameScene::Draw()
@@ -267,6 +408,9 @@ void GameScene::Draw()
 
     // **コイン描画**
     coinSystem.Draw(cameraX);
+
+    // **星描画（新機能）**
+    starSystem.Draw(cameraX);
 
     // **ゴール描画**
     goalSystem.Draw(cameraX);
@@ -281,7 +425,12 @@ void GameScene::Draw()
     hudSystem.Draw();
 
     // UI描画（デバッグ情報など）
-    DrawUI();
+    if (!showingResult) {  // リザルト表示中はデバッグ情報を隠す
+        DrawUI();
+    }
+
+    // **リザルトUI描画（新機能）**
+    resultUI.Draw();
 
     // **フェード描画（最前面）**
     DrawFade();
@@ -394,7 +543,7 @@ void GameScene::DrawUI()
     DrawStringToHandle(30, SCREEN_H - 130, "TAB: Change Stage, ESC: Return to title", GetColor(200, 200, 200), fontHandle);
 
     // **テスト用操作説明（拡張）**
-    DrawStringToHandle(30, SCREEN_H - 90, "Test: 1/2: Life -/+, 3: Reset Coins", GetColor(150, 150, 150), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 90, "Test: 1/2: Life -/+, 3: Reset Items", GetColor(150, 150, 150), fontHandle);
 
     // デバッグ情報を強化
     string debugInfo = "=== DEBUG INFO ===";
@@ -405,7 +554,7 @@ void GameScene::DrawUI()
     DrawStringToHandle(30, SCREEN_H - 170, posInfo.c_str(), GetColor(150, 150, 150), fontHandle);
 
     // **HUD状態情報とカメラデバッグ情報**
-    string hudInfo = "Life: " + to_string(playerLife) + "/6, Coins: " + to_string(playerCoins);
+    string hudInfo = "Life: " + to_string(playerLife) + "/6, Coins: " + to_string(playerCoins) + ", Stars: " + to_string(playerStars) + "/3";
     DrawStringToHandle(30, SCREEN_H - 60, hudInfo.c_str(), GetColor(100, 200, 255), fontHandle);
 
     // 入力状態表示
@@ -438,8 +587,8 @@ void GameScene::DrawUI()
     DrawStringToHandle(SCREEN_W - 500, 70, cameraInfo.c_str(), GetColor(100, 100, 100), fontHandle);
 
     // **ゴールとステージデバッグ情報**
-    string stageInfo = "Stage: " + to_string(currentStageIndex + 1) + "/5, Coins: " + to_string(playerCoins);
-    string goalInfo = "Goal: " + string(goalSystem.IsGoalTouched() ? "TOUCHED!" : "Active") + ", Fade: " + to_string((int)(fadeAlpha * 100)) + "%";
+    string stageInfo = "Stage: " + to_string(currentStageIndex + 1) + "/5";
+    string goalInfo = "Goal: " + string(goalSystem.IsGoalTouched() ? "TOUCHED!" : "Active") + ", Result: " + string(showingResult ? "SHOWING" : "HIDDEN");
     DrawStringToHandle(30, SCREEN_H - 40, stageInfo.c_str(), GetColor(255, 200, 100), fontHandle);
     DrawStringToHandle(30, SCREEN_H - 20, goalInfo.c_str(), GetColor(100, 255, 200), fontHandle);
 }

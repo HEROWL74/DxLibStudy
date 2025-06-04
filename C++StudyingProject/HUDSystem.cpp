@@ -1,10 +1,13 @@
 #include "HUDSystem.h"
 #include <algorithm>
 
+// HUDSystem.cppのコンストラクタに追加
 HUDSystem::HUDSystem()
     : maxLife(6)          // 3ハート × 2 = 6ライフ
     , currentLife(6)      // 初期値は満タン
     , coins(0)            // 初期コイン数
+    , collectedStars(0)   // **初期星数（新機能）**
+    , totalStars(3)       // **総星数（新機能）**
     , currentPlayerCharacter(0) // デフォルトはbeige
     , hudX(30)            // 左上から30ピクセル（少し余裕を持たせる）
     , hudY(30)            // 上から30ピクセル（少し余裕を持たせる）
@@ -16,11 +19,13 @@ HUDSystem::HUDSystem()
     playerIconTextures.purple = playerIconTextures.yellow = -1;
     coinTextures.coin = -1;
 
+    // **星テクスチャ初期化（新機能）**
+    starTextures.starOutline = starTextures.starFilled = -1;
+
     for (int i = 0; i < 10; i++) {
         coinTextures.numbers[i] = -1;
     }
 }
-
 HUDSystem::~HUDSystem()
 {
     // ハートテクスチャの解放
@@ -38,6 +43,10 @@ HUDSystem::~HUDSystem()
     // コインテクスチャの解放
     if (coinTextures.coin != -1) DeleteGraph(coinTextures.coin);
 
+    // **星テクスチャの解放（新機能）**
+    if (starTextures.starOutline != -1) DeleteGraph(starTextures.starOutline);
+    if (starTextures.starFilled != -1) DeleteGraph(starTextures.starFilled);
+
     for (int i = 0; i < 10; i++) {
         if (coinTextures.numbers[i] != -1) {
             DeleteGraph(coinTextures.numbers[i]);
@@ -50,6 +59,7 @@ void HUDSystem::Initialize()
     LoadTextures();
 }
 
+// LoadTextures関数に追加
 void HUDSystem::LoadTextures()
 {
     // ハートテクスチャの読み込み
@@ -67,6 +77,10 @@ void HUDSystem::LoadTextures()
     // コインテクスチャの読み込み
     coinTextures.coin = LoadGraph("Sprites/Tiles/hud_coin.png");
 
+    // **星テクスチャの読み込み（新機能）**
+    starTextures.starOutline = LoadGraph("UI/PNG/Yellow/star_outline_depth.png");
+    starTextures.starFilled = LoadGraph("UI/PNG/Yellow/star.png");
+
     // 数字テクスチャの読み込み (0-9)
     for (int i = 0; i < 10; i++) {
         std::string numberPath = "Sprites/Tiles/hud_character_" + std::to_string(i) + ".png";
@@ -80,6 +94,7 @@ void HUDSystem::Update()
     // 将来的にアニメーション効果などを追加可能
 }
 
+// Draw関数に星描画を追加
 void HUDSystem::Draw()
 {
     if (!visible) return;
@@ -88,6 +103,7 @@ void HUDSystem::Draw()
     DrawHearts();      // ライフハート
     DrawPlayerIcon();  // プレイヤーアイコン
     DrawCoins();       // コイン表示
+    DrawStars();       // **星表示（新機能）**
 }
 
 void HUDSystem::DrawHearts()
@@ -257,4 +273,27 @@ void HUDSystem::SetPlayerCharacter(const std::string& colorName)
     else if (colorName == "purple") currentPlayerCharacter = 3;
     else if (colorName == "yellow") currentPlayerCharacter = 4;
     else currentPlayerCharacter = 0; // デフォルト
+}
+
+void HUDSystem::DrawStars()
+{
+    int starStartX = hudX + PLAYER_ICON_SIZE + ELEMENT_SPACING +
+        COIN_ICON_SIZE + 60 + ELEMENT_SPACING; // コインの右側
+    int starY = hudY + HEART_SIZE + ELEMENT_SPACING + (PLAYER_ICON_SIZE - STAR_SIZE) / 2; // 中央揃え
+
+    for (int i = 0; i < totalStars; i++) {
+        int starX = starStartX + i * (STAR_SIZE + 8); // 8ピクセル間隔
+
+        // 星のテクスチャ選択
+        int starTexture = (i < collectedStars) ? starTextures.starFilled : starTextures.starOutline;
+
+        if (starTexture != -1) {
+            // 滑らかな拡大表示
+            DrawExtendGraph(
+                starX, starY,
+                starX + STAR_SIZE, starY + STAR_SIZE,
+                starTexture, TRUE
+            );
+        }
+    }
 }
