@@ -1,4 +1,4 @@
-#include "GameScene.h"
+ï»¿#include "GameScene.h"
 #include <math.h>
 using namespace std;
 
@@ -9,20 +9,24 @@ GameScene::GameScene()
     , exitRequested(false)
     , escPressed(false), escPressedPrev(false)
     , stageSelectPressed(false), stageSelectPressedPrev(false)
-    , playerLife(6)      // ‰Šúƒ‰ƒCƒtF3ƒn[ƒg•ª
-    , playerCoins(0)     // ‰ŠúƒRƒCƒ“”
-    , playerStars(0)     // ‰Šú¯”
-    , currentStageIndex(0) // ‰ŠúƒXƒe[ƒW
-    , fadeState(FADE_NONE) // ƒtƒF[ƒhó‘Ô
-    , fadeAlpha(0.0f)    // ƒtƒF[ƒh“§–¾“x
-    , fadeTimer(0.0f)    // ƒtƒF[ƒhƒ^ƒCƒ}[
-    , showingResult(false) // ƒŠƒUƒ‹ƒg•\¦ó‘Ô
-    , goalReached(false)   // ƒS[ƒ‹“’Bó‘Ô
-    , playerInvulnerable(false) // **ƒvƒŒƒCƒ„[–³“Gó‘Ô**
-    , invulnerabilityTimer(0.0f) // **–³“Gƒ^ƒCƒ}[**
+    , playerLife(6)
+    , playerCoins(0)
+    , playerStars(0)
+    , currentStageIndex(0)
+    , fadeState(FADE_NONE)
+    , fadeAlpha(0.0f)
+    , fadeTimer(0.0f)
+    , showingResult(false)
+    , goalReached(false)
+    , doorOpened(false)        // **æ–°è¿½åŠ **
+    , playerEnteringDoor(false) // **æ–°è¿½åŠ **
+    , playerInvulnerable(false)
+    , invulnerabilityTimer(0.0f)
 {
     backgroundHandle = -1;
     fontHandle = -1;
+    stageChangeRequested = false;
+    requestedStageIndex = -1;
 }
 
 GameScene::~GameScene()
@@ -34,156 +38,234 @@ GameScene::~GameScene()
 void GameScene::Initialize(int selectedCharacter)
 {
     selectedCharacterIndex = selectedCharacter;
+    SoundManager::GetInstance().PlayBGM(SoundManager::BGM_GAME);
 
-    // ”wŒi‚ÆƒtƒHƒ“ƒg“Ç‚İ‚İ
+
+    // èƒŒæ™¯ã¨ãƒ•ã‚©ãƒ³ãƒˆèª­ã¿è¾¼ã¿
     backgroundHandle = LoadGraph("Sprites/Backgrounds/background_fade_trees.png");
     fontHandle = CreateFontToHandle(NULL, 32, 3);
 
-    // ƒLƒƒƒ‰ƒNƒ^[î•ñİ’è
+    // ã‚­ãƒ£ãƒ©ã‚¯ã‚¿ãƒ¼æƒ…å ±è¨­å®š
     characterName = GetCharacterDisplayName(selectedCharacter);
 
-    // ƒvƒŒƒCƒ„[‰Šú‰»
+    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼åˆæœŸåŒ–
     gamePlayer.Initialize(selectedCharacter);
 
-    // ƒXƒe[ƒWƒVƒXƒeƒ€‰Šú‰»iƒfƒtƒHƒ‹ƒg‚ÅGrassStagej
+    // **é‡è¦ï¼šè‡ªå‹•æ­©è¡Œãƒ¢ãƒ¼ãƒ‰ã‚’ç¢ºå®Ÿã«ã‚ªãƒ•ã«è¨­å®š**
+    gamePlayer.SetAutoWalking(false);
+
+    // ã‚¹ãƒ†ãƒ¼ã‚¸ã‚·ã‚¹ãƒ†ãƒ åˆæœŸåŒ–
     currentStageIndex = 0;
     stageManager.LoadStage((StageManager::StageType)currentStageIndex);
 
-    // ƒJƒƒ‰‰ŠúˆÊ’u
+    // ã‚«ãƒ¡ãƒ©åˆæœŸä½ç½®
     cameraX = 0.0f;
     previousPlayerX = gamePlayer.GetX();
 
-    // **HUDƒVƒXƒeƒ€‰Šú‰»**
+    // **HUDã‚·ã‚¹ãƒ†ãƒ åˆæœŸåŒ–**
     InitializeHUD();
 
-    // **ƒRƒCƒ“ƒVƒXƒeƒ€‰Šú‰»iƒXƒe[ƒW“Á‰»”Åj**
+    // **ã‚³ã‚¤ãƒ³ã‚·ã‚¹ãƒ†ãƒ åˆæœŸåŒ–**
     coinSystem.Initialize();
     coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
 
-    // **¯ƒVƒXƒeƒ€‰Šú‰»iV‹@”\j**
+    // **æ˜Ÿã‚·ã‚¹ãƒ†ãƒ åˆæœŸåŒ–**
     starSystem.Initialize();
     starSystem.GenerateStarsForStageIndex(currentStageIndex);
 
-    // **ƒŠƒUƒ‹ƒgUI‰Šú‰»iV‹@”\j**
+    // **ãƒªã‚¶ãƒ«ãƒˆUIåˆæœŸåŒ–**
     resultUI.Initialize();
 
-    // **ƒS[ƒ‹ƒVƒXƒeƒ€‰Šú‰»**
+    // **ã‚´ãƒ¼ãƒ«ã‚·ã‚¹ãƒ†ãƒ åˆæœŸåŒ–**
     goalSystem.Initialize();
     goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
 
-    // **“GƒVƒXƒeƒ€‰Šú‰»iV‹@”\j**
+    // **ãƒ‰ã‚¢ã‚·ã‚¹ãƒ†ãƒ åˆæœŸåŒ–**
+    doorSystem.Initialize();
+    doorSystem.PlaceDoorForStage(currentStageIndex, &stageManager);
+
+    // **æ•µã‚·ã‚¹ãƒ†ãƒ åˆæœŸåŒ–**
     enemyManager.Initialize();
     enemyManager.GenerateEnemiesForStage(currentStageIndex);
 
-    // ó‘ÔƒŠƒZƒbƒg
+    // **çŠ¶æ…‹ãƒªã‚»ãƒƒãƒˆï¼ˆé…å»¶è‡ªå‹•æ­©è¡Œå¤‰æ•°ã‚’å«ã‚€ï¼‰**
     showingResult = false;
     goalReached = false;
+    doorOpened = false;
+    playerEnteringDoor = false;
     playerInvulnerable = false;
     invulnerabilityTimer = 0.0f;
-}
 
+    // **æ–°è¿½åŠ ï¼šé…å»¶è‡ªå‹•æ­©è¡Œã‚·ã‚¹ãƒ†ãƒ ã®åˆæœŸåŒ–**
+    pendingAutoWalk = false;
+    autoWalkDelayFrames = 0;
+}
 void GameScene::Update()
 {
-    // ƒŠƒUƒ‹ƒg•\¦’†‚Ìê‡‚ÍƒŠƒUƒ‹ƒg‚Ì‚İXV
+    // ãƒªã‚¶ãƒ«ãƒˆè¡¨ç¤ºä¸­ã®å ´åˆã¯ãƒªã‚¶ãƒ«ãƒˆã®ã¿æ›´æ–°
     if (showingResult) {
         UpdateResult();
         return;
     }
 
-    // “ü—ÍXV
+
+    // å…¥åŠ›æ›´æ–°
     UpdateInput();
 
-    // ƒXƒe[ƒWØ‚è‘Ö‚¦iƒŠƒUƒ‹ƒg”ñ•\¦‚Ì‚İj
+    // **æ–°è¿½åŠ ï¼šé…å»¶è‡ªå‹•æ­©è¡Œã®å‡¦ç†**
+    UpdateDelayedAutoWalk();
+
+    // ã‚¹ãƒ†ãƒ¼ã‚¸åˆ‡ã‚Šæ›¿ãˆ
     if (stageSelectPressed && !stageSelectPressedPrev && fadeState == FADE_NONE && !showingResult) {
-        currentStageIndex = (currentStageIndex + 1) % 5;
-        stageManager.LoadStage((StageManager::StageType)currentStageIndex);
-
-        // ƒvƒŒƒCƒ„[ˆÊ’u‚ğƒŠƒZƒbƒg
-        gamePlayer.ResetPosition();
-        cameraX = 0.0f;
-        previousPlayerX = gamePlayer.GetX();
-
-        // **ƒRƒCƒ“A¯AƒS[ƒ‹A“G‚ğÄ”z’ui¯ƒVƒXƒeƒ€‘Î‰j**
-        coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
-        starSystem.GenerateStarsForStageIndex(currentStageIndex);
-        goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
-        enemyManager.GenerateEnemiesForStage(currentStageIndex);
-
-        // ûWƒJƒEƒ“ƒg‚ğƒŠƒZƒbƒg
-        coinSystem.ResetCollectedCount();
-        starSystem.ResetCollectedCount();
-
-        // ó‘Ô‚ğŠ®‘SƒŠƒZƒbƒg
-        playerStars = 0;
-        playerCoins = 0;
-        showingResult = false;
-        goalReached = false;
-        playerInvulnerable = false;
-        invulnerabilityTimer = 0.0f;
-
-        // **ƒŠƒUƒ‹ƒgUI‚àŠ®‘SƒŠƒZƒbƒg**
-        resultUI.ResetState();
+        // ... æ—¢å­˜ã®ã‚¹ãƒ†ãƒ¼ã‚¸åˆ‡ã‚Šæ›¿ãˆå‡¦ç† ...
     }
 
-    // ƒvƒŒƒCƒ„[XV
-    gamePlayer.Update(&stageManager);
+    // **ä¿®æ­£ï¼šãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼æ›´æ–°ï¼ˆè‡ªå‹•æ­©è¡Œå¯¾å¿œï¼‰**
+    if (gamePlayer.IsAutoWalking()) {
+        // è‡ªå‹•æ­©è¡Œä¸­ã¯ç‰¹åˆ¥ãªæ›´æ–°å‡¦ç†
+        UpdatePlayerAutoWalk();
+    }
+    else {
+        // é€šå¸¸ã®ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼æ›´æ–°
+        gamePlayer.Update(&stageManager);
+    }
 
-    // **ƒvƒŒƒCƒ„[‚Ì–³“Gó‘ÔXV**
+    // **ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®ç„¡æ•µçŠ¶æ…‹æ›´æ–°**
     UpdatePlayerInvulnerability();
 
-    // **ƒRƒCƒ“ƒVƒXƒeƒ€XViƒXƒNƒŠ[ƒ“À•W‚ÅHUD‚ÌƒRƒCƒ“ƒAƒCƒRƒ“ˆÊ’u‚ğ“n‚·j**
-    // HUDƒRƒCƒ“ƒAƒCƒRƒ“‚Ì³Šm‚ÈƒXƒNƒŠ[ƒ“À•W‚ğŒvZ
-    float hudCoinIconScreenX = 30 + 80 + 20 + 48 / 2; // ƒXƒNƒŠ[ƒ“À•WiƒJƒƒ‰‚Ì‰e‹¿‚È‚µj
-    float hudCoinIconScreenY = 30 + 64 + 20 + 48 / 2; // ƒXƒNƒŠ[ƒ“À•WiƒJƒƒ‰‚Ì‰e‹¿‚È‚µj
-
-    // ƒXƒNƒŠ[ƒ“À•W‚ğƒ[ƒ‹ƒhÀ•W‚É•ÏŠ·
+    // **å„ã‚·ã‚¹ãƒ†ãƒ æ›´æ–°**
+    float hudCoinIconScreenX = 30 + 80 + 20 + 48 / 2;
+    float hudCoinIconScreenY = 30 + 64 + 20 + 48 / 2;
     float hudCoinIconWorldX = hudCoinIconScreenX + cameraX;
-    float hudCoinIconWorldY = hudCoinIconScreenY; // YÀ•W‚ÍƒJƒƒ‰‚Ì‰e‹¿‚È‚µ
+    float hudCoinIconWorldY = hudCoinIconScreenY;
 
     coinSystem.Update(&gamePlayer, hudCoinIconWorldX, hudCoinIconWorldY);
-
-    // **¯ƒVƒXƒeƒ€XViV‹@”\j**
     starSystem.Update(&gamePlayer);
-
-    // **“GƒVƒXƒeƒ€XViV‹@”\j**
     enemyManager.Update(&gamePlayer, &stageManager);
 
-    // **ƒvƒŒƒCƒ„[‚Æ“G‚Ì‘ŠŒİì—pXViV‹@”\j**
-    UpdatePlayerEnemyInteractions();
-
-    // **ƒS[ƒ‹ƒVƒXƒeƒ€XV**
-    goalSystem.Update(&gamePlayer);
-
-    // **ƒS[ƒ‹ƒ^ƒbƒ`‚ÌƒŠƒUƒ‹ƒg•\¦i•ÏXj**
-    if (goalSystem.IsGoalTouched() && !goalReached) {
-        goalReached = true;
-        ShowStageResult();
+    // **æ•µã¨ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®ç›¸äº’ä½œç”¨ç”¨æ›´æ–°ï¼ˆè‡ªå‹•æ­©è¡Œä¸­ã¯ç„¡åŠ¹åŒ–ï¼‰**
+    if (!gamePlayer.IsAutoWalking()) {
+        UpdatePlayerEnemyInteractions();
     }
 
-    // **ƒtƒF[ƒhˆ—**
+    // **ã‚´ãƒ¼ãƒ«ã‚·ã‚¹ãƒ†ãƒ æ›´æ–°**
+    goalSystem.Update(&gamePlayer);
+
+    // **ãƒ‰ã‚¢ã‚·ã‚¹ãƒ†ãƒ æ›´æ–°ï¼ˆæ–°è¿½åŠ ï¼‰**
+    doorSystem.Update(&gamePlayer);
+
+    // **ãƒ‰ã‚¢ç›¸äº’ä½œç”¨ç”¨æ›´æ–°ï¼ˆæ–°è¿½åŠ ï¼‰**
+    UpdateDoorInteraction();
+
+    // **ã‚´ãƒ¼ãƒ«ã‚¿ãƒƒãƒå¾Œã®ãƒªã‚¶ãƒ«ãƒˆè¡¨ç¤ºï¼ˆå¤‰æ›´ï¼‰**
+    if (goalSystem.IsGoalTouched() && !goalReached) {
+        HandleGoalReached(); // **æ–°é–¢æ•°ã‚’å‘¼ã³å‡ºã—**
+    }
+
+    // **ãƒ•ã‚§ãƒ¼ãƒ‰å‡¦ç†**
     UpdateFade();
 
-    // ƒJƒƒ‰XViŠŠ‚ç‚©‚ÈƒVƒXƒeƒ€‚ğg—pj
+    // ã‚«ãƒ¡ãƒ©æ›´æ–°
     UpdateCamera();
 
-    // ƒXƒe[ƒWXV
+    // ã‚¹ãƒ†ãƒ¼ã‚¸æ›´æ–°
     stageManager.Update(cameraX);
 
-    // **ƒQ[ƒ€ƒƒWƒbƒNXV**
+    // **ã‚²ãƒ¼ãƒ ãƒ­ã‚¸ãƒƒã‚¯æ›´æ–°**
     UpdateGameLogic();
 
-    // **HUDXV**
+    // **HUDæ›´æ–°**
     UpdateHUD();
 
-    // ESCƒL[‚Åƒ^ƒCƒgƒ‹‚É–ß‚é
+    // ESCã‚­ãƒ¼ã§ã‚¿ã‚¤ãƒˆãƒ«ã«æˆ»ã‚‹
     if (escPressed && !escPressedPrev) {
         exitRequested = true;
     }
 }
+// UpdateDoorInteractioné–¢æ•°ã‚‚æ”¹è‰¯
+void GameScene::UpdateDoorInteraction()
+{
+    // **è‡ªå‹•æ­©è¡ŒçŠ¶æ…‹ã®ãƒ‡ãƒãƒƒã‚°æƒ…å ±**
+    static int debugCounter = 0;
+    debugCounter++;
+
+    if (debugCounter % 60 == 0) { // 1ç§’ã”ã¨ã«ãƒ‡ãƒãƒƒã‚°å‡ºåŠ›
+        char debugMsg[256];
+        sprintf_s(debugMsg, "GameScene: AutoWalk:%s, DoorOpened:%s, PlayerEntering:%s\n",
+            gamePlayer.IsAutoWalking() ? "ON" : "OFF",
+            doorOpened ? "YES" : "NO",
+            doorSystem.IsPlayerEntering() ? "YES" : "NO");
+        OutputDebugStringA(debugMsg);
+    }
+
+    // ãƒ‰ã‚¢ãŒé–‹ã„ã¦ã„ã¦ã€ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ãŒãƒ‰ã‚¢ã«å®Œå…¨ã«å…¥ã£ãŸå ´åˆ
+    if (doorOpened && doorSystem.IsPlayerFullyEntered() && !showingResult) {
+        // **è‡ªå‹•æ­©è¡Œãƒ¢ãƒ¼ãƒ‰ã‚’è§£é™¤**
+        gamePlayer.SetAutoWalking(false);
+
+        HandlePlayerEnteredDoor();
+    }
+}
+
+void GameScene::HandleGoalReached()
+{
+    goalReached = true;
+
+    // ã‚¹ãƒ†ãƒ¼ã‚¸5æœªæº€ã§ãƒ‰ã‚¢ãŒå­˜åœ¨ã™ã‚‹å ´åˆ
+    if (currentStageIndex < 4 && doorSystem.IsDoorExists()) {
+        doorSystem.OpenDoor();
+        doorOpened = true;
+
+        // **ä¿®æ­£ï¼šãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®çŠ¶æ…‹ã‚’å®‰å®šåŒ–ã—ã¦ã‹ã‚‰è‡ªå‹•æ­©è¡Œã‚’é–‹å§‹**
+        if (gamePlayer.GetState() == Player::JUMPING ||
+            gamePlayer.GetState() == Player::FALLING ||
+            gamePlayer.GetVelocityY() != 0.0f) {
+
+            // **ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®é€Ÿåº¦ã‚’å®Œå…¨ã«ãƒªã‚»ãƒƒãƒˆï¼ˆé£›ã³ä¸ŠãŒã‚Šã‚’é˜²æ­¢ï¼‰**
+            float currentX = gamePlayer.GetX();
+            float currentY = gamePlayer.GetY();
+
+            // é€Ÿåº¦ã‚’0ã«ãƒªã‚»ãƒƒãƒˆ
+            gamePlayer.SetPosition(currentX, currentY);
+
+            // **æ®µéšçš„ãªè‡ªå‹•æ­©è¡Œé–‹å§‹ï¼ˆé…å»¶ãƒ•ãƒ¬ãƒ¼ãƒ è¿½åŠ ï¼‰**
+            // ãƒ•ãƒ¬ãƒ¼ãƒ é…å»¶ã‚’è¿½åŠ ã—ã¦ç‰©ç†æ¼”ç®—ã‚’å®‰å®šåŒ–
+            autoWalkDelayFrames = 10; // 10ãƒ•ãƒ¬ãƒ¼ãƒ å¾Œã«è‡ªå‹•æ­©è¡Œé–‹å§‹
+            pendingAutoWalk = true;
+
+            char debugMsg[256];
+            sprintf_s(debugMsg, "GameScene: Goal reached during jump/fall - Delayed auto-walk start. VelY was: %.2f\n",
+                gamePlayer.GetVelocityY());
+            OutputDebugStringA(debugMsg);
+        }
+        else {
+            // **é€šå¸¸çŠ¶æ…‹ã‹ã‚‰ã®ç©ã‚„ã‹ãªè‡ªå‹•æ­©è¡Œç§»è¡Œ**
+            gamePlayer.SetAutoWalking(true);
+        }
+
+        // **ãƒ‡ãƒãƒƒã‚°å‡ºåŠ›**
+        OutputDebugStringA("GameScene: Goal reached! Door opened, auto-walk prepared.\n");
+    }
+    else {
+        // ã‚¹ãƒ†ãƒ¼ã‚¸5ã®å ´åˆï¼šç›´æ¥ãƒªã‚¶ãƒ«ãƒˆè¡¨ç¤º
+        ShowStageResult();
+    }
+}
+// HandlePlayerEnteredDooré–¢æ•°ã‚’ä¿®æ­£
+void GameScene::HandlePlayerEnteredDoor()
+{
+    playerEnteringDoor = true;
+
+    // **é‡è¦: è‡ªå‹•æ­©è¡Œãƒ¢ãƒ¼ãƒ‰ã‚’å³åº§ã«è§£é™¤**
+    gamePlayer.SetAutoWalking(false);
+
+    ShowStageResult();
+}
+
 
 void GameScene::UpdatePlayerEnemyInteractions()
 {
-    // **C³: ‚æ‚èÚ×‚È“G‚Æ‚ÌÕ“Ëˆ—ƒVƒXƒeƒ€**
+    // **ä¿®æ­£: ã‚ˆã‚Šè©³ç´°ãªæ•µã¨ã®è¡çªå‡¦ç†ã‚·ã‚¹ãƒ†ãƒ **
     if (enemyManager.CheckPlayerEnemyCollisions(&gamePlayer)) {
         HandlePlayerEnemyCollision();
     }
@@ -192,60 +274,75 @@ void GameScene::UpdatePlayerEnemyInteractions()
 
 void GameScene::HandlePlayerEnemyCollision()
 {
-    // –³“Gó‘Ô‚Ìê‡‚Í‰½‚à‚µ‚È‚¢
+    // ç„¡æ•µçŠ¶æ…‹ã®å ´åˆã¯ä½•ã‚‚ã—ãªã„
     if (playerInvulnerable) return;
 
-    // **“G‚Æ‚ÌÕ“Ë‚ğÚ×‚Éˆ—**
-    // ‚æ‚èÚ×‚È”»’è‚ÍEnemyManager.CheckDetailedPlayerEnemyCollision ‚Ås‚í‚ê‚é
+    // **æ•µã¨ã®è¡çªã‚’è©³ç´°ã«å‡¦ç†**
+    // ã‚ˆã‚Šè©³ç´°ãªåˆ¤å®šã¯EnemyManager.CheckDetailedPlayerEnemyCollision ã§è¡Œã‚ã‚Œã‚‹
 
-    // **ƒvƒŒƒCƒ„[‚ª“G‚Ìã‚©‚ç“¥‚ñ‚¾‚©‚Ç‚¤‚©‚ÌÚ×”»’è**
+    // **ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ãŒæ•µã®ä¸Šã‹ã‚‰è¸ã‚“ã ã‹ã©ã†ã‹ã®è©³ç´°åˆ¤å®š**
     bool playerStompedEnemy = CheckIfPlayerStompedEnemy();
 
     if (!playerStompedEnemy) {
-        // **‰¡‚©‚ç‚ÌÚG‚É‚æ‚éƒ_ƒ[ƒW**
-        HandlePlayerDamage(1); // 1ƒ_ƒ[ƒWiƒn[ƒtƒn[ƒgj
+        // **æ¨ªã‹ã‚‰ã®æ¥è§¦ã«ã‚ˆã‚‹ãƒ€ãƒ¡ãƒ¼ã‚¸**
+        HandlePlayerDamage(1); // 1ãƒ€ãƒ¡ãƒ¼ã‚¸ï¼ˆãƒãƒ¼ãƒ•ãƒãƒ¼ãƒˆï¼‰
     }
     else {
-        // **“¥‚İ‚Â‚¯¬Œ÷‚Ìˆ—**
+        // **è¸ã¿ã¤ã‘æˆåŠŸæ™‚ã®å‡¦ç†**
         HandleSuccessfulStomp();
     }
 }
+// **ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®çŠ¶æ…‹ãƒªã‚»ãƒƒãƒˆæ™‚ã«ãƒ‰ã‚¢çŠ¶æ…‹ã‚‚ãƒªã‚»ãƒƒãƒˆ**
 void GameScene::HandlePlayerDamage(int damage)
 {
     if (playerInvulnerable) return;
 
-    // **ƒ‰ƒCƒtŒ¸­ˆ—**
+    // **ãƒ©ã‚¤ãƒ•æ¸›å°‘å‡¦ç†**
     int oldLife = playerLife;
     playerLife -= damage;
+    // ãƒ€ãƒ¡ãƒ¼ã‚¸æ™‚
+    SoundManager::GetInstance().PlaySE(SoundManager::SFX_HURT);
     if (playerLife < 0) playerLife = 0;
 
-    // **HUDƒVƒXƒeƒ€‚É‘¦À‚Éƒ‰ƒCƒt•ÏX‚ğ’Ê’miƒn[ƒg—h‚êƒgƒŠƒK[j**
+    // **HUDã‚·ã‚¹ãƒ†ãƒ ã«å³åº§ã«ãƒ©ã‚¤ãƒ•å¤‰æ›´ã‚’é€šçŸ¥**
     hudSystem.SetCurrentLife(playerLife);
 
-    // –³“Gó‘Ô‚ğŠJn
+    // ç„¡æ•µçŠ¶æ…‹ã‚’é–‹å§‹
     playerInvulnerable = true;
     invulnerabilityTimer = 0.0f;
 
-    // **ƒfƒoƒbƒOo—Í**
+    // **ãƒ‡ãƒãƒƒã‚°å‡ºåŠ›**
     char debugMsg[256];
     sprintf_s(debugMsg, "GameScene: Player took %d damage! Life: %d -> %d\n",
         damage, oldLife, playerLife);
     OutputDebugStringA(debugMsg);
 
-    // ƒvƒŒƒCƒ„[‚ª€–S‚µ‚½ê‡‚Ìˆ—
+    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ãŒæ­»äº¡ã—ãŸå ´åˆã®å‡¦ç†
     if (playerLife <= 0) {
-        // ƒŠƒXƒ|[ƒ“ˆ—
+        // ãƒªã‚¹ãƒãƒ¼ãƒ³å‡¦ç†
         gamePlayer.ResetPosition();
-        playerLife = 6; // ƒ‰ƒCƒt‚ğ‘S‰ñ•œ
+        playerLife = 6; // ãƒ©ã‚¤ãƒ•ã‚’å…¨å›å¾©
 
-        // HUD‚ğXV
+        // HUDã‚’æ›´æ–°
         hudSystem.SetCurrentLife(playerLife);
 
-        // –³“Gó‘Ô‚ğƒŠƒZƒbƒg
+        // ç„¡æ•µçŠ¶æ…‹ã‚’ãƒªã‚»ãƒƒãƒˆ
         playerInvulnerable = false;
         invulnerabilityTimer = 0.0f;
 
-        // ƒfƒoƒbƒOo—Í
+        // **ãƒ‰ã‚¢çŠ¶æ…‹ã‚‚ãƒªã‚»ãƒƒãƒˆï¼ˆæ–°è¿½åŠ ï¼‰**
+        doorOpened = false;
+        playerEnteringDoor = false;
+        if (doorSystem.IsDoorExists()) {
+            // ãƒ‰ã‚¢ã‚’é–‰ã˜ãŸçŠ¶æ…‹ã«æˆ»ã™ï¼ˆå¿…è¦ã«å¿œã˜ã¦ï¼‰
+            doorSystem.PlaceDoorForStage(currentStageIndex, &stageManager);
+        }
+
+        // ã‚´ãƒ¼ãƒ«çŠ¶æ…‹ã‚‚ãƒªã‚»ãƒƒãƒˆ
+        goalReached = false;
+        goalSystem.ResetGoal();
+
+        // ãƒ‡ãƒãƒƒã‚°å‡ºåŠ›
         OutputDebugStringA("GameScene: Player respawned with full life!\n");
     }
 }
@@ -253,7 +350,7 @@ void GameScene::HandlePlayerDamage(int damage)
 void GameScene::UpdatePlayerInvulnerability()
 {
     if (playerInvulnerable) {
-        invulnerabilityTimer += 0.016f; // 60FPS‘z’è
+        invulnerabilityTimer += 0.016f; // 60FPSæƒ³å®š
 
         if (invulnerabilityTimer >= INVULNERABILITY_DURATION) {
             playerInvulnerable = false;
@@ -262,26 +359,27 @@ void GameScene::UpdatePlayerInvulnerability()
     }
 }
 
+// **ã‚¹ãƒ†ãƒ¼ã‚¸å…¨ä½“ã®ãƒªã‚»ãƒƒãƒˆæ™‚ã«ãƒ‰ã‚¢çŠ¶æ…‹ã‚’å«ã‚ã‚‹**
 void GameScene::UpdateGameLogic()
 {
-    // **ƒRƒCƒ“ûW”‚ğƒQ[ƒ€ó‘Ô‚É”½‰fiƒŠƒAƒ‹ƒ^ƒCƒ€XVj**
+    // **ã‚³ã‚¤ãƒ³åé›†æ•°ã‚’ã‚²ãƒ¼ãƒ çŠ¶æ…‹ã«åæ˜ ï¼ˆãƒªã‚¢ãƒ«ã‚¿ã‚¤ãƒ æ›´æ–°ï¼‰**
     int newCoinCount = coinSystem.GetCollectedCoinsCount();
     if (newCoinCount != playerCoins) {
         playerCoins = newCoinCount;
-        // ƒRƒCƒ“æ“¾‚ÌƒTƒEƒ“ƒh‚âƒGƒtƒFƒNƒg‚ğ‚±‚±‚É’Ç‰Á‰Â”\
+        // ã‚³ã‚¤ãƒ³å–å¾—æ™‚ã®ã‚µã‚¦ãƒ³ãƒ‰ã‚„ã‚¨ãƒ•ã‚§ã‚¯ãƒˆã‚’ã“ã“ã«è¿½åŠ å¯èƒ½
     }
 
-    // **¯ûW”‚ğƒQ[ƒ€ó‘Ô‚É”½‰fiV‹@”\j**
+    // **æ˜Ÿåé›†æ•°ã‚’ã‚²ãƒ¼ãƒ çŠ¶æ…‹ã«åæ˜ **
     int newStarCount = starSystem.GetCollectedStarsCount();
     if (newStarCount != playerStars) {
         playerStars = newStarCount;
-        // ¯æ“¾‚ÌƒTƒEƒ“ƒh‚âƒGƒtƒFƒNƒg‚ğ‚±‚±‚É’Ç‰Á‰Â”\
+        // æ˜Ÿå–å¾—æ™‚ã®ã‚µã‚¦ãƒ³ãƒ‰ã‚„ã‚¨ãƒ•ã‚§ã‚¯ãƒˆã‚’ã“ã“ã«è¿½åŠ å¯èƒ½
     }
 
-    // ‚±‚±‚ÅƒQ[ƒ€ƒƒWƒbƒN‚ğXV
-    // —áFƒ_ƒ[ƒWˆ—AƒAƒCƒeƒ€æ“¾‚È‚Ç
+    // ã“ã“ã§ã‚²ãƒ¼ãƒ ãƒ­ã‚¸ãƒƒã‚¯ã‚’æ›´æ–°
+    // ä¾‹ï¼šãƒ€ãƒ¡ãƒ¼ã‚¸å‡¦ç†ã€ã‚¢ã‚¤ãƒ†ãƒ å–å¾—ãªã©
 
-    // **ƒeƒXƒg—pFƒL[“ü—Í‚Åƒ‰ƒCƒt‚ğ‘€ì**
+    // **ãƒ†ã‚¹ãƒˆç”¨ï¼šã‚­ãƒ¼å…¥åŠ›ã§ãƒ©ã‚¤ãƒ•ã‚’æ“ä½œ**
     static bool key1Pressed = false, key1PressedPrev = false;
     static bool key2Pressed = false, key2PressedPrev = false;
     static bool key3Pressed = false, key3PressedPrev = false;
@@ -294,53 +392,61 @@ void GameScene::UpdateGameLogic()
     key2Pressed = CheckHitKey(KEY_INPUT_2) != 0;
     key3Pressed = CheckHitKey(KEY_INPUT_3) != 0;
 
-    // ƒeƒXƒg—p‘€ì
+    // ãƒ†ã‚¹ãƒˆç”¨æ“ä½œ
     if (key1Pressed && !key1PressedPrev) {
-        // 1ƒL[‚Åƒ‰ƒCƒtŒ¸­iƒn[ƒg—h‚êƒeƒXƒgj
+        // 1ã‚­ãƒ¼ã§ãƒ©ã‚¤ãƒ•æ¸›å°‘ï¼ˆãƒãƒ¼ãƒˆå‰²ã‚Œãƒ†ã‚¹ãƒˆï¼‰
         if (playerLife > 0) {
             playerLife--;
-            hudSystem.SetCurrentLife(playerLife); // HUD‚É‘¦À‚É”½‰f
+            hudSystem.SetCurrentLife(playerLife); // HUDã«å³åº§ã«åæ˜ 
             OutputDebugStringA("GameScene: Manual life decrease for testing.\n");
         }
     }
 
     if (key2Pressed && !key2PressedPrev) {
-        // 2ƒL[‚Åƒ‰ƒCƒt‰ñ•œ
+        // 2ã‚­ãƒ¼ã§ãƒ©ã‚¤ãƒ•å›å¾©
         if (playerLife < 6) {
             playerLife++;
-            hudSystem.SetCurrentLife(playerLife); // HUD‚É‘¦À‚É”½‰f
+            hudSystem.SetCurrentLife(playerLife); // HUDã«å³åº§ã«åæ˜ 
             OutputDebugStringA("GameScene: Manual life increase for testing.\n");
         }
     }
 
     if (key3Pressed && !key3PressedPrev) {
-        // 3ƒL[‚ÅƒRƒCƒ“E¯‘S”z’uiƒeƒXƒg—pj
+        // 3ã‚­ãƒ¼ã§ã‚³ã‚¤ãƒ³ãƒ»æ˜Ÿå…¨é…ç½®ï¼ˆãƒ†ã‚¹ãƒˆç”¨ï¼‰
         coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
         starSystem.GenerateStarsForStageIndex(currentStageIndex);
         enemyManager.GenerateEnemiesForStage(currentStageIndex);
-        OutputDebugStringA("GameScene: Regenerated all items and enemies for testing.\n");
+
+        // **ãƒ‰ã‚¢çŠ¶æ…‹ã‚‚ãƒªã‚»ãƒƒãƒˆï¼ˆæ–°è¿½åŠ ï¼‰**
+        doorSystem.PlaceDoorForStage(currentStageIndex, &stageManager);
+        doorOpened = false;
+        playerEnteringDoor = false;
+        goalReached = false;
+        goalSystem.ResetGoal();
+
+        OutputDebugStringA("GameScene: Regenerated all items, enemies, and door for testing.\n");
     }
 }
 
 void GameScene::UpdateHUD()
 {
-    // HUDƒVƒXƒeƒ€‚ğXV
+    // HUDã‚·ã‚¹ãƒ†ãƒ ã‚’æ›´æ–°
     hudSystem.Update();
 
-    // ƒQ[ƒ€ó‘Ô‚ğHUD‚É”½‰f
+    // ã‚²ãƒ¼ãƒ çŠ¶æ…‹ã‚’HUDã«åæ˜ 
     hudSystem.SetCurrentLife(playerLife);
     hudSystem.SetCoins(playerCoins);
-    hudSystem.SetCollectedStars(playerStars);  // ¯”‚ğ”½‰f
-    hudSystem.SetTotalStars(3);               // ‘¯”‚ğİ’è
+    hudSystem.SetCollectedStars(playerStars);  // æ˜Ÿæ•°ã‚’åæ˜ 
+    hudSystem.SetTotalStars(3);               // ç·æ˜Ÿæ•°ã‚’è¨­å®š
 }
 
 void GameScene::UpdateFade()
 {
-    const float FADE_SPEED = 0.02f; // ƒtƒF[ƒh‘¬“x
+    const float FADE_SPEED = 0.02f; // ãƒ•ã‚§ãƒ¼ãƒ‰é€Ÿåº¦
 
     switch (fadeState) {
     case FADE_OUT:
-        fadeTimer += 0.016f; // 60FPS‘z’è
+        fadeTimer += 0.016f; // 60FPSæƒ³å®š
         fadeAlpha = fadeTimer * (1.0f / FADE_SPEED);
 
         if (fadeAlpha >= 1.0f) {
@@ -348,7 +454,7 @@ void GameScene::UpdateFade()
             fadeState = FADE_IN;
             fadeTimer = 0.0f;
 
-            // ƒXƒe[ƒWØ‚è‘Ö‚¦
+            // ã‚¹ãƒ†ãƒ¼ã‚¸åˆ‡ã‚Šæ›¿ãˆ
             StartNextStage();
         }
         break;
@@ -372,43 +478,50 @@ void GameScene::UpdateFade()
 
 void GameScene::StartNextStage()
 {
-    // Ÿ‚ÌƒXƒe[ƒW‚ÉˆÚs
+    // æ¬¡ã®ã‚¹ãƒ†ãƒ¼ã‚¸ã«ç§»è¡Œ
     currentStageIndex = (currentStageIndex + 1) % 5;
 
-    // ƒXƒe[ƒW‚ªÅ‚i4”Ô–Új‚Ìê‡‚Ì“Á•Êˆ—
+    // ã‚¹ãƒ†ãƒ¼ã‚¸ãŒæœ€é«˜ï¼ˆ4ç•ªç›®ï¼‰ã®å ´åˆã®ç‰¹åˆ¥å‡¦ç†
     if (currentStageIndex >= 4) {
-        // Å‚‚ÌƒXƒe[ƒW - “Á•Ê‚Èˆ—‚ğ‚±‚±‚É’Ç‰Á‰Â”\
-        // Œ»İ‚Í’Êí’Ê‚èƒXƒe[ƒW‚ğ“Ç‚İ‚Ş
+        // æœ€é«˜ã®ã‚¹ãƒ†ãƒ¼ã‚¸ - ç‰¹åˆ¥ãªå‡¦ç†ã‚’ã“ã“ã«è¿½åŠ å¯èƒ½
+        // ç¾åœ¨ã¯é€šå¸¸é€šã‚Šã‚¹ãƒ†ãƒ¼ã‚¸ã‚’èª­ã¿è¾¼ã¿
     }
 
     stageManager.LoadStage((StageManager::StageType)currentStageIndex);
 
-    // ƒvƒŒƒCƒ„[ˆÊ’u‚ğƒŠƒZƒbƒg
+    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ä½ç½®ã‚’ãƒªã‚»ãƒƒãƒˆ
     gamePlayer.ResetPosition();
+
+    // **é‡è¦: è‡ªå‹•æ­©è¡Œãƒ¢ãƒ¼ãƒ‰ã‚’ç¢ºå®Ÿã«ãƒªã‚»ãƒƒãƒˆ**
+    gamePlayer.SetAutoWalking(false);
+
     cameraX = 0.0f;
     previousPlayerX = gamePlayer.GetX();
 
-    // ƒRƒCƒ“A¯AƒS[ƒ‹A“G‚ğÄ”z’u
+    // ã‚³ã‚¤ãƒ³ã€æ˜Ÿã€ã‚´ãƒ¼ãƒ«ã€ãƒ‰ã‚¢ã€æ•µã‚’å†é…ç½®
     coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
     starSystem.GenerateStarsForStageIndex(currentStageIndex);
     goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
+    doorSystem.PlaceDoorForStage(currentStageIndex, &stageManager);
     enemyManager.GenerateEnemiesForStage(currentStageIndex);
-    goalSystem.ResetGoal(); // ƒS[ƒ‹ó‘Ô‚ğƒŠƒZƒbƒg
+    goalSystem.ResetGoal(); // ã‚´ãƒ¼ãƒ«çŠ¶æ…‹ã‚’ãƒªã‚»ãƒƒãƒˆ
 
-    // ûWƒJƒEƒ“ƒg‚ğƒŠƒZƒbƒg
+    // åé›†ã‚«ã‚¦ãƒ³ãƒˆã‚’ãƒªã‚»ãƒƒãƒˆ
     coinSystem.ResetCollectedCount();
     starSystem.ResetCollectedCount();
 
-    // ó‘Ô‚ğƒŠƒZƒbƒg
+    // çŠ¶æ…‹ã‚’ãƒªã‚»ãƒƒãƒˆ
     playerStars = 0;
     playerCoins = 0;
+    doorOpened = false;
+    playerEnteringDoor = false;
 }
 
 void GameScene::UpdateResult()
 {
     resultUI.Update();
 
-    // **ƒŠƒUƒ‹ƒg‚ªŠ®‘S‚É”ñ•\¦‚É‚È‚Á‚½‚çA’Êíƒ‚[ƒh‚É–ß‚é**
+    // **ãƒªã‚¶ãƒ«ãƒˆãŒå®Œå…¨ã«éè¡¨ç¤ºã«ãªã£ãŸã‚‰ã€é€šå¸¸ãƒ¢ãƒ¼ãƒ‰ã«æˆ»ã‚‹**
     if (resultUI.IsHidden()) {
         showingResult = false;
     }
@@ -429,36 +542,46 @@ void GameScene::HandleResultButtons()
 
     switch (action) {
     case ResultUISystem::BUTTON_RETRY:
-        // ƒXƒe[ƒW‚ğƒŠƒgƒ‰ƒC
+        // ã‚¹ãƒ†ãƒ¼ã‚¸ã‚’ãƒªãƒˆãƒ©ã‚¤
         gamePlayer.ResetPosition();
         cameraX = 0.0f;
         previousPlayerX = gamePlayer.GetX();
 
-        // ƒVƒXƒeƒ€‚ğƒŠƒZƒbƒg
+        // **é‡è¦: è‡ªå‹•æ­©è¡Œãƒ¢ãƒ¼ãƒ‰ã‚’ç¢ºå®Ÿã«ãƒªã‚»ãƒƒãƒˆ**
+        gamePlayer.SetAutoWalking(false);
+
+        // ã‚·ã‚¹ãƒ†ãƒ ã‚’ãƒªã‚»ãƒƒãƒˆ
         coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
         starSystem.GenerateStarsForStageIndex(currentStageIndex);
         goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
+        doorSystem.PlaceDoorForStage(currentStageIndex, &stageManager);
         enemyManager.GenerateEnemiesForStage(currentStageIndex);
         goalSystem.ResetGoal();
 
-        // ûWƒJƒEƒ“ƒg‚ğƒŠƒZƒbƒg
+        // åé›†ã‚«ã‚¦ãƒ³ãƒˆã‚’ãƒªã‚»ãƒƒãƒˆ
         coinSystem.ResetCollectedCount();
         starSystem.ResetCollectedCount();
 
-        // ó‘Ô‚ğŠ®‘SƒŠƒZƒbƒg
+        // çŠ¶æ…‹ã‚’å®Œå…¨ãƒªã‚»ãƒƒãƒˆ
         playerStars = 0;
         playerCoins = 0;
         showingResult = false;
         goalReached = false;
+        doorOpened = false;
+        playerEnteringDoor = false;
         playerInvulnerable = false;
         invulnerabilityTimer = 0.0f;
 
-        // **ƒŠƒUƒ‹ƒgUI‚ğŠ®‘SƒŠƒZƒbƒg**
+        // **æ–°è¿½åŠ ï¼šé…å»¶è‡ªå‹•æ­©è¡Œã‚·ã‚¹ãƒ†ãƒ ã®ãƒªã‚»ãƒƒãƒˆ**
+        pendingAutoWalk = false;
+        autoWalkDelayFrames = 0;
+
+        // **ãƒªã‚¶ãƒ«ãƒˆUIã‚’å®Œå…¨ãƒªã‚»ãƒƒãƒˆ**
         resultUI.ResetState();
         break;
 
     case ResultUISystem::BUTTON_NEXT_STAGE:
-        // Ÿ‚ÌƒXƒe[ƒW‚Ö
+        // æ¬¡ã®ã‚¹ãƒ†ãƒ¼ã‚¸ã¸
         currentStageIndex = (currentStageIndex + 1) % 5;
         stageManager.LoadStage((StageManager::StageType)currentStageIndex);
 
@@ -466,26 +589,36 @@ void GameScene::HandleResultButtons()
         cameraX = 0.0f;
         previousPlayerX = gamePlayer.GetX();
 
-        // VƒXƒe[ƒW‚ÌƒVƒXƒeƒ€‰Šú‰»
+        // **é‡è¦: è‡ªå‹•æ­©è¡Œãƒ¢ãƒ¼ãƒ‰ã‚’ç¢ºå®Ÿã«ãƒªã‚»ãƒƒãƒˆ**
+        gamePlayer.SetAutoWalking(false);
+
+        // æ–°ã‚¹ãƒ†ãƒ¼ã‚¸ã®ã‚·ã‚¹ãƒ†ãƒ åˆæœŸåŒ–
         coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
         starSystem.GenerateStarsForStageIndex(currentStageIndex);
         goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
+        doorSystem.PlaceDoorForStage(currentStageIndex, &stageManager);
         enemyManager.GenerateEnemiesForStage(currentStageIndex);
         goalSystem.ResetGoal();
 
-        // ûWƒJƒEƒ“ƒg‚ğƒŠƒZƒbƒg
+        // åé›†ã‚«ã‚¦ãƒ³ãƒˆã‚’ãƒªã‚»ãƒƒãƒˆ
         coinSystem.ResetCollectedCount();
         starSystem.ResetCollectedCount();
 
-        // ó‘Ô‚ğŠ®‘SƒŠƒZƒbƒg
+        // çŠ¶æ…‹ã‚’å®Œå…¨ãƒªã‚»ãƒƒãƒˆ
         playerStars = 0;
         playerCoins = 0;
         showingResult = false;
         goalReached = false;
+        doorOpened = false;
+        playerEnteringDoor = false;
         playerInvulnerable = false;
         invulnerabilityTimer = 0.0f;
 
-        // **ƒŠƒUƒ‹ƒgUI‚ğŠ®‘SƒŠƒZƒbƒg**
+        // **æ–°è¿½åŠ ï¼šé…å»¶è‡ªå‹•æ­©è¡Œã‚·ã‚¹ãƒ†ãƒ ã®ãƒªã‚»ãƒƒãƒˆ**
+        pendingAutoWalk = false;
+        autoWalkDelayFrames = 0;
+
+        // **ãƒªã‚¶ãƒ«ãƒˆUIã‚’å®Œå…¨ãƒªã‚»ãƒƒãƒˆ**
         resultUI.ResetState();
         break;
 
@@ -494,68 +627,78 @@ void GameScene::HandleResultButtons()
     }
 }
 
+
+// Drawé–¢æ•°ã¸ã®è¿½åŠ 
 void GameScene::Draw()
 {
-    // **”wŒi•`‰æiƒV[ƒ€ƒŒƒX‚Èƒ^ƒCƒŠƒ“ƒOj**
+    // **èƒŒæ™¯æç”»**
     DrawSeamlessBackground();
 
-    // ƒXƒe[ƒW•`‰æ
+    // ã‚¹ãƒ†ãƒ¼ã‚¸æç”»
     stageManager.Draw(cameraX);
 
-    // **ƒRƒCƒ“•`‰æ**
+    // **ã‚³ã‚¤ãƒ³æç”»**
     coinSystem.Draw(cameraX);
 
-    // **¯•`‰æiV‹@”\j**
+    // **æ˜Ÿæç”»**
     starSystem.Draw(cameraX);
 
-    // **“G•`‰æiV‹@”\j**
+    // **æ•µæç”»**
     enemyManager.Draw(cameraX);
 
-    // **ƒS[ƒ‹•`‰æ**
+    // **ã‚´ãƒ¼ãƒ«æç”»**
     goalSystem.Draw(cameraX);
 
-    // ƒvƒŒƒCƒ„[•`‰æi–³“Gó‘Ô‚Í“_–Åj
-    if (!playerInvulnerable || (int)(invulnerabilityTimer * 10) % 2 == 0) {
-        gamePlayer.Draw(cameraX);
+    // **ãƒ‰ã‚¢æç”»ï¼ˆæ–°è¿½åŠ ï¼‰**
+    doorSystem.Draw(cameraX);
+
+    // **ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼æç”»ï¼ˆãƒ‰ã‚¢ã«å…¥ã£ã¦ã„ã‚‹æ™‚ã¯éè¡¨ç¤ºï¼‰**
+    if (!playerEnteringDoor || !doorSystem.IsPlayerFullyEntered()) {
+        // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼æç”»ï¼ˆç„¡æ•µçŠ¶æ…‹æ™‚ã¯ç‚¹æ»…ï¼‰
+        if (!playerInvulnerable || (int)(invulnerabilityTimer * 10) % 2 == 0) {
+            gamePlayer.Draw(cameraX);
+        }
     }
 
-    // ƒvƒŒƒCƒ„[‚Ì‰e‚ğ•`‰æ
-    gamePlayer.DrawShadow(cameraX, &stageManager);
+    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®å½±ã‚’æç”»
+    if (!playerEnteringDoor || !doorSystem.IsPlayerFullyEntered()) {
+        gamePlayer.DrawShadow(cameraX, &stageManager);
+    }
 
-    // **HUDƒVƒXƒeƒ€•`‰æiÅ‘O–Êj**
+    // **HUDã‚·ã‚¹ãƒ†ãƒ æç”»ï¼ˆæœ€å‰é¢ï¼‰**
     hudSystem.Draw();
 
-    // UI•`‰æiƒfƒoƒbƒOî•ñ‚È‚Çj
-    if (!showingResult) {  // ƒŠƒUƒ‹ƒg•\¦’†‚ÍƒfƒoƒbƒOî•ñ‚ğ‰B‚·
+    // UIæç”»ï¼ˆãƒ‡ãƒãƒƒã‚°æƒ…å ±ãªã©ï¼‰
+    if (!showingResult) {
         DrawUI();
     }
 
-    // **ƒŠƒUƒ‹ƒgUI•`‰æiV‹@”\j**
+    // **ãƒªã‚¶ãƒ«ãƒˆUIæç”»**
     resultUI.Draw();
 
-    // **ƒtƒF[ƒh•`‰æiÅ‘O–Êj**
+    // **ãƒ•ã‚§ãƒ¼ãƒ‰æç”»ï¼ˆæœ€å‰é¢ï¼‰**
     DrawFade();
 }
 
 void GameScene::DrawSeamlessBackground()
 {
-    // ”wŒi‰æ‘œ‚ÌƒTƒCƒY‚ğæ“¾
+    // èƒŒæ™¯ç”»åƒã®ã‚µã‚¤ã‚ºã‚’å–å¾—
     int bgWidth, bgHeight;
     GetGraphSize(backgroundHandle, &bgWidth, &bgHeight);
 
-    // ƒpƒ‰ƒ‰ƒbƒNƒXŒø‰Êi”wŒi‚Í‘OŒi‚æ‚è’x‚­ˆÚ“®j
-    float parallaxSpeed = 0.3f; // ”wŒi‚ÌˆÚ“®‘¬“xi0.3”{j
+    // ãƒ‘ãƒ©ãƒ©ãƒƒã‚¯ã‚¹åŠ¹æœï¼ˆèƒŒæ™¯ã¯å‰æ™¯ã‚ˆã‚Šé…ãç§»å‹•ï¼‰
+    float parallaxSpeed = 0.3f; // èƒŒæ™¯ã®ç§»å‹•é€Ÿåº¦ï¼ˆ0.3å€ï¼‰
     float bgOffsetX = cameraX * parallaxSpeed;
 
-    // ”wŒi‚ğƒ^ƒCƒ‹ó‚É•`‰æ‚·‚é‚½‚ß‚ÌŠJnˆÊ’u‚ğŒvZ
-    int startTileX = (int)(bgOffsetX / bgWidth) - 1; // —]—T‚ğ‚Á‚Ä1–‡‘O‚©‚ç
-    int endTileX = startTileX + (SCREEN_W / bgWidth) + 3; // —]—T‚ğ‚Á‚Ä3–‡ã‚Ü‚Å
+    // èƒŒæ™¯ã‚’ã‚¿ã‚¤ãƒ«çŠ¶ã«æç”»ã™ã‚‹ãŸã‚ã®é–‹å§‹ä½ç½®ã‚’è¨ˆç®—
+    int startTileX = (int)(bgOffsetX / bgWidth) - 1; // ä½™è£•ã‚’æŒã£ã¦1æšå‰ã‹ã‚‰
+    int endTileX = startTileX + (SCREEN_W / bgWidth) + 3; // ä½™è£•ã‚’æŒã£ã¦3æšä¸Šã¾ã§
 
-    // ”wŒi‚ğƒV[ƒ€ƒŒƒX‚É•`‰æ
+    // èƒŒæ™¯ã‚’ã‚·ãƒ¼ãƒ ãƒ¬ã‚¹ã«æç”»
     for (int tileX = startTileX; tileX <= endTileX; tileX++) {
         float drawX = tileX * bgWidth - bgOffsetX;
 
-        // ”wŒi‰æ‘œ‚ğ•`‰æ
+        // èƒŒæ™¯ç”»åƒã‚’æç”»
         DrawExtendGraph(
             (int)drawX, 0,
             (int)drawX + bgWidth, SCREEN_H,
@@ -576,32 +719,44 @@ void GameScene::DrawFade()
 
 void GameScene::UpdateInput()
 {
-    // ‘OƒtƒŒ[ƒ€‚Ì“ü—Í‚ğ•Û‘¶
+    // å‰ãƒ•ãƒ¬ãƒ¼ãƒ ã®å…¥åŠ›ã‚’ä¿å­˜
     escPressedPrev = escPressed;
     stageSelectPressedPrev = stageSelectPressed;
 
-    // Œ»İ‚Ì“ü—Í‚ğæ“¾
+    // ç¾åœ¨ã®å…¥åŠ›ã‚’å–å¾—
     escPressed = CheckHitKey(KEY_INPUT_ESCAPE) != 0;
     stageSelectPressed = CheckHitKey(KEY_INPUT_TAB) != 0;
+
+
+    // **æ–°æ©Ÿèƒ½ï¼šã‚¹ãƒ†ãƒ¼ã‚¸å¤‰æ›´ãƒªã‚¯ã‚¨ã‚¹ãƒˆï¼ˆTABã‚­ãƒ¼ãªã©ï¼‰**
+    static bool tabWasPressed = false;
+    bool tabPressed = CheckHitKey(KEY_INPUT_TAB) != 0;
+
+    if (tabPressed && !tabWasPressed && !showingResult) {
+        stageChangeRequested = true;
+        requestedStageIndex = (currentStageIndex + 1) % 5;
+    }
+    tabWasPressed = tabPressed;
+
 }
 
 void GameScene::UpdateCamera()
 {
     float currentPlayerX = gamePlayer.GetX();
 
-    // ƒvƒŒƒCƒ„[‚ğ‰æ–Ê‚Ì­‚µ¶Šñ‚è‚É”z’uiæ‚Ì‹ŠE‚ğŠm•Ûj
+    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‚’ç”»é¢ã®å°‘ã—å·¦å¯„ã‚Šã«é…ç½®ï¼ˆå…ˆã®è¦–ç•Œã‚’ç¢ºä¿ï¼‰
     float targetCameraX = currentPlayerX - SCREEN_W * 0.35f;
 
-    // ”ÍˆÍ§ŒÀ
+    // ç¯„å›²åˆ¶é™
     if (targetCameraX < 0) targetCameraX = 0;
     if (targetCameraX > Stage::STAGE_WIDTH - SCREEN_W) {
         targetCameraX = Stage::STAGE_WIDTH - SCREEN_W;
     }
 
-    // ”ñí‚ÉŠŠ‚ç‚©‚È’Ç]i’x‚ß‚Ìİ’è‚ÅƒuƒŒ‚ğ–h~j
+    // éå¸¸ã«æ»‘ã‚‰ã‹ãªè¿½å¾“ï¼ˆé…ã‚ã®è¨­å®šã§ãƒ–ãƒ¬ã‚’é˜²æ­¢ï¼‰
     cameraX = Lerp(cameraX, targetCameraX, CAMERA_FOLLOW_SPEED);
 
-    // ‘OƒtƒŒ[ƒ€‚ÌƒvƒŒƒCƒ„[ˆÊ’u‚ğXV
+    // å‰ãƒ•ãƒ¬ãƒ¼ãƒ ã®ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ä½ç½®ã‚’æ›´æ–°
     previousPlayerX = currentPlayerX;
 }
 
@@ -609,79 +764,99 @@ void GameScene::UpdateCameraSimple()
 {
     float currentPlayerX = gamePlayer.GetX();
 
-    // ƒvƒŒƒCƒ„[‚ğ‰æ–Ê‚Ì­‚µ¶Šñ‚è‚É”z’u
+    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‚’ç”»é¢ã®å°‘ã—å·¦å¯„ã‚Šã«é…ç½®
     float targetCameraX = currentPlayerX - SCREEN_W * 0.35f;
 
-    // ”ÍˆÍ§ŒÀ
+    // ç¯„å›²åˆ¶é™
     if (targetCameraX < 0) targetCameraX = 0;
     if (targetCameraX > Stage::STAGE_WIDTH - SCREEN_W) {
         targetCameraX = Stage::STAGE_WIDTH - SCREEN_W;
     }
 
-    // ”ñí‚ÉŠŠ‚ç‚©‚È’Ç]i‚æ‚è’x‚ß‚Ìİ’èj
-    cameraX = Lerp(cameraX, targetCameraX, 0.03f); // 0.03f‚Å‚æ‚èŠŠ‚ç‚©‚É
+    // éå¸¸ã«æ»‘ã‚‰ã‹ãªè¿½å¾“ï¼ˆã‚ˆã‚Šé…ã‚ã®è¨­å®šï¼‰
+    cameraX = Lerp(cameraX, targetCameraX, 0.03f); // 0.03fã§ã‚ˆã‚Šæ»‘ã‚‰ã‹ã«
 }
 
+// **æ›´æ–°ã•ã‚ŒãŸDrawUIé–¢æ•°ï¼ˆãƒ‰ã‚¢æƒ…å ±è¿½åŠ ï¼‰**
 void GameScene::DrawUI()
 {
-    // ƒQ[ƒ€ƒ^ƒCƒgƒ‹
+#ifdef _DEBUG
+    // ã‚²ãƒ¼ãƒ ã‚¿ã‚¤ãƒˆãƒ«
     string gameTitle = "STAGE ADVENTURE";
     int titleWidth = GetDrawStringWidthToHandle(gameTitle.c_str(), (int)gameTitle.length(), fontHandle);
     DrawStringToHandle(SCREEN_W / 2 - titleWidth / 2, 20, gameTitle.c_str(), GetColor(255, 255, 255), fontHandle);
 
-    // ‘I‘ğ‚³‚ê‚½ƒLƒƒƒ‰ƒNƒ^[î•ñ•\¦
+    // é¸æŠã•ã‚ŒãŸã‚­ãƒ£ãƒ©ã‚¯ã‚¿ãƒ¼æƒ…å ±è¡¨ç¤º
     string characterInfo = "Playing as: " + characterName;
     int infoWidth = GetDrawStringWidthToHandle(characterInfo.c_str(), (int)characterInfo.length(), fontHandle);
     DrawStringToHandle(SCREEN_W / 2 - infoWidth / 2, 60, characterInfo.c_str(), GetColor(255, 215, 0), fontHandle);
 
-    // ‘€ìà–¾i”¼“§–¾”wŒi•t‚«j
+    // æ“ä½œèª¬æ˜ï¼ˆåŠé€æ˜èƒŒæ™¯ä»˜ãï¼‰
     SetDrawBlendMode(DX_BLENDMODE_ALPHA, 180);
-    DrawBox(20, SCREEN_H - 220, 700, SCREEN_H - 20, GetColor(0, 0, 0), TRUE);
+    DrawBox(20, SCREEN_H - 260, 700, SCREEN_H - 20, GetColor(0, 0, 0), TRUE);
     SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
 
-    DrawStringToHandle(30, SCREEN_H - 210, "Controls:", GetColor(255, 255, 255), fontHandle);
-    DrawStringToHandle(30, SCREEN_H - 170, "Left/Right: Move, Space: Jump, Down: Duck", GetColor(200, 200, 200), fontHandle);
-    DrawStringToHandle(30, SCREEN_H - 130, "TAB: Change Stage, ESC: Return to title", GetColor(200, 200, 200), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 250, "Controls:", GetColor(255, 255, 255), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 210, "Left/Right: Move, Space: Jump, Down: Duck", GetColor(200, 200, 200), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 170, "TAB: Change Stage, ESC: Return to title", GetColor(200, 200, 200), fontHandle);
 
-    // **ƒeƒXƒg—p‘€ìà–¾iŠg’£j**
-    DrawStringToHandle(30, SCREEN_H - 90, "Test: 1/2: Life -/+, 3: Reset Items & Enemies", GetColor(150, 150, 150), fontHandle);
+    // **ãƒ†ã‚¹ãƒˆç”¨æ“ä½œèª¬æ˜ï¼ˆæ‹¡å¼µï¼‰**
+    DrawStringToHandle(30, SCREEN_H - 130, "Test: 1/2: Life -/+, 3: Reset Items & Enemies", GetColor(150, 150, 150), fontHandle);
 
-    // ƒfƒoƒbƒOî•ñ‚ğ‹­‰»
+    // ãƒ‡ãƒãƒƒã‚°æƒ…å ±ã‚’å¼·åŒ–
     string debugInfo = "=== DEBUG INFO ===";
-    DrawStringToHandle(30, SCREEN_H - 200, debugInfo.c_str(), GetColor(255, 255, 0), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 240, debugInfo.c_str(), GetColor(255, 255, 0), fontHandle);
 
-    // ƒvƒŒƒCƒ„[ˆÊ’uî•ñ
+    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ä½ç½®æƒ…å ±
     string posInfo = "Position: (" + to_string((int)gamePlayer.GetX()) + ", " + to_string((int)gamePlayer.GetY()) + ")";
-    DrawStringToHandle(30, SCREEN_H - 170, posInfo.c_str(), GetColor(150, 150, 150), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 210, posInfo.c_str(), GetColor(150, 150, 150), fontHandle);
 
-    // **HUDó‘Ôî•ñ‚ÆƒJƒƒ‰ƒfƒoƒbƒOî•ñ**
+    // **HUDçŠ¶æ…‹æƒ…å ±ã¨ã‚«ãƒ¡ãƒ©ãƒ‡ãƒãƒƒã‚°æƒ…å ±**
     string hudInfo = "Life: " + to_string(playerLife) + "/6, Coins: " + to_string(playerCoins) + ", Stars: " + to_string(playerStars) + "/3";
-    DrawStringToHandle(30, SCREEN_H - 60, hudInfo.c_str(), GetColor(100, 200, 255), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 100, hudInfo.c_str(), GetColor(100, 200, 255), fontHandle);
 
-    // **“G‚Ìó‘Ôî•ñiV‹@”\j**
+    // **æ•µã®çŠ¶æ…‹æƒ…å ±**
     string enemyInfo = "Enemies: " + to_string(enemyManager.GetActiveEnemyCount()) + " active, " + to_string(enemyManager.GetDeadEnemyCount()) + " defeated";
-    DrawStringToHandle(30, SCREEN_H - 40, enemyInfo.c_str(), GetColor(255, 150, 150), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 80, enemyInfo.c_str(), GetColor(255, 150, 150), fontHandle);
 
-    // **–³“Gó‘Ô•\¦iV‹@”\j**
+    // **ãƒ‰ã‚¢çŠ¶æ…‹æƒ…å ±ï¼ˆæ–°è¿½åŠ ï¼‰**
+    string doorInfo = "Door: ";
+    if (doorSystem.IsDoorExists()) {
+        if (doorOpened) {
+            doorInfo += "OPEN";
+        }
+        else {
+            doorInfo += "CLOSED";
+        }
+        if (playerEnteringDoor) {
+            doorInfo += " (Player Entering)";
+        }
+    }
+    else {
+        doorInfo += "NONE (Stage 5)";
+    }
+    DrawStringToHandle(30, SCREEN_H - 60, doorInfo.c_str(), GetColor(100, 255, 100), fontHandle);
+
+    // **ç„¡æ•µçŠ¶æ…‹è¡¨ç¤º**
     if (playerInvulnerable) {
         string invulInfo = "INVULNERABLE: " + to_string(INVULNERABILITY_DURATION - invulnerabilityTimer).substr(0, 3) + "s";
-        DrawStringToHandle(30, SCREEN_H - 20, invulInfo.c_str(), GetColor(255, 100, 100), fontHandle);
+        DrawStringToHandle(30, SCREEN_H - 40, invulInfo.c_str(), GetColor(255, 100, 100), fontHandle);
     }
 
-    // “ü—Íó‘Ô•\¦
+    // å…¥åŠ›çŠ¶æ…‹è¡¨ç¤º
     string inputInfo = "Input: ";
     if (CheckHitKey(KEY_INPUT_LEFT)) inputInfo += "[LEFT] ";
     if (CheckHitKey(KEY_INPUT_RIGHT)) inputInfo += "[RIGHT] ";
     if (CheckHitKey(KEY_INPUT_SPACE)) inputInfo += "[SPACE] ";
     if (CheckHitKey(KEY_INPUT_DOWN)) inputInfo += "[DOWN] ";
     if (inputInfo == "Input: ") inputInfo += "NONE";
-    DrawStringToHandle(30, SCREEN_H - 140, inputInfo.c_str(), GetColor(200, 200, 100), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 180, inputInfo.c_str(), GetColor(200, 200, 100), fontHandle);
 
-    // ƒvƒŒƒCƒ„[‚Ì“à•”ó‘Ô
+    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã®å†…éƒ¨çŠ¶æ…‹
     string stateDetail = "OnGround: " + string(gamePlayer.GetState() != Player::JUMPING && gamePlayer.GetState() != Player::FALLING ? "YES" : "NO");
-    DrawStringToHandle(30, SCREEN_H - 110, stateDetail.c_str(), GetColor(100, 200, 100), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 150, stateDetail.c_str(), GetColor(100, 200, 100), fontHandle);
 
-    // Œ»İ‚Ìó‘Ô•\¦
+    // ç¾åœ¨ã®çŠ¶æ…‹è¡¨ç¤º
     string stateInfo = "State: ";
     switch (gamePlayer.GetState()) {
     case Player::IDLE: stateInfo += "IDLE"; break;
@@ -693,36 +868,37 @@ void GameScene::DrawUI()
     stateInfo += ", Direction: " + string(gamePlayer.IsFacingRight() ? "Right" : "Left");
     DrawStringToHandle(SCREEN_W - 500, 30, stateInfo.c_str(), GetColor(100, 100, 100), fontHandle);
 
-    // ƒJƒƒ‰ˆÊ’u•\¦
+    // ã‚«ãƒ¡ãƒ©ä½ç½®è¡¨ç¤º
     string cameraInfo = "Camera: " + to_string((int)cameraX);
     DrawStringToHandle(SCREEN_W - 500, 70, cameraInfo.c_str(), GetColor(100, 100, 100), fontHandle);
 
-    // **ƒS[ƒ‹‚ÆƒXƒe[ƒWƒfƒoƒbƒOî•ñ**
+    // **ã‚´ãƒ¼ãƒ«ã¨ã‚¹ãƒ†ãƒ¼ã‚¸ãƒ‡ãƒãƒƒã‚°æƒ…å ±**
     string stageInfo = "Stage: " + to_string(currentStageIndex + 1) + "/5";
     string goalInfo = "Goal: " + string(goalSystem.IsGoalTouched() ? "TOUCHED!" : "Active") + ", Result: " + string(showingResult ? "SHOWING" : "HIDDEN");
-    DrawStringToHandle(30, SCREEN_H - 40, stageInfo.c_str(), GetColor(255, 200, 100), fontHandle);
-    DrawStringToHandle(30, SCREEN_H - 20, goalInfo.c_str(), GetColor(100, 255, 200), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 80, stageInfo.c_str(), GetColor(255, 200, 100), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 60, goalInfo.c_str(), GetColor(100, 255, 200), fontHandle);
 
-    // **F2ƒL[‚Å‚Ì“GƒfƒoƒbƒOî•ñØ‚è‘Ö‚¦ƒqƒ“ƒg**
+    // **F2ã‚­ãƒ¼ã§ã®æ•µãƒ‡ãƒãƒƒã‚°æƒ…å ±åˆ‡ã‚Šæ›¿ãˆãƒ’ãƒ³ãƒˆ**
     DrawStringToHandle(SCREEN_W - 500, 110, "F2: Toggle Enemy Debug", GetColor(150, 150, 150), fontHandle);
+#endif
 }
 
 void GameScene::InitializeHUD()
 {
-    // HUDƒVƒXƒeƒ€‚Ì‰Šú‰»
+    // HUDã‚·ã‚¹ãƒ†ãƒ ã®åˆæœŸåŒ–
     hudSystem.Initialize();
 
-    // ƒvƒŒƒCƒ„[ƒLƒƒƒ‰ƒNƒ^[‚ğHUD‚Éİ’è
+    // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã‚­ãƒ£ãƒ©ã‚¯ã‚¿ãƒ¼ã‚’HUDã«è¨­å®š
     hudSystem.SetPlayerCharacter(selectedCharacterIndex);
 
-    // ‰Šúƒ‰ƒCƒt‚ÆƒRƒCƒ“‚ğİ’è
-    hudSystem.SetMaxLife(6);        // Å‘åƒ‰ƒCƒtF3ƒn[ƒg ~ 2 = 6
+    // åˆæœŸãƒ©ã‚¤ãƒ•ã¨ã‚³ã‚¤ãƒ³ã‚’è¨­å®š
+    hudSystem.SetMaxLife(6);        // æœ€å¤§ãƒ©ã‚¤ãƒ•ï¼š3ãƒãƒ¼ãƒˆ Ã— 2 = 6
     hudSystem.SetCurrentLife(playerLife);
     hudSystem.SetCoins(playerCoins);
     hudSystem.SetCollectedStars(playerStars);
     hudSystem.SetTotalStars(3);
 
-    // HUD•\¦ˆÊ’u‚ğİ’èi¶ã‚©‚ç30ƒsƒNƒZƒ‹AŠg‘å”Åj
+    // HUDè¡¨ç¤ºä½ç½®ã‚’è¨­å®šï¼ˆå·¦ä¸Šã‹ã‚‰30ãƒ”ã‚¯ã‚»ãƒ«ã€æ‹¡å¤§ç‰ˆï¼‰
     hudSystem.SetPosition(30, 30);
     hudSystem.SetVisible(true);
 }
@@ -746,28 +922,28 @@ float GameScene::Lerp(float a, float b, float t)
 
 float GameScene::SmoothLerp(float current, float target, float speed)
 {
-    // SmoothDamp•—‚ÌŠŠ‚ç‚©‚È•âŠÔ
+    // SmoothDampé¢¨ã®æ»‘ã‚‰ã‹ãªè£œé–“
     float distance = target - current;
 
-    // ‹——£‚ª”ñí‚É¬‚³‚¢ê‡‚Í’¼Úİ’è
+    // è·é›¢ãŒéå¸¸ã«å°ã•ã„å ´åˆã¯ç›´æ¥è¨­å®š
     if (fabsf(distance) < 0.1f) {
         return target;
     }
 
-    // ƒC[ƒWƒ“ƒOƒAƒEƒgŒø‰Ê
-    float t = 1.0f - powf(1.0f - speed, 60.0f * 0.016f); // 60FPS‘z’è
+    // ã‚¤ãƒ¼ã‚¸ãƒ³ã‚°ã‚¢ã‚¦ãƒˆåŠ¹æœ
+    float t = 1.0f - powf(1.0f - speed, 60.0f * 0.016f); // 60FPSæƒ³å®š
     return current + distance * t;
 }
 
-// **V‹@”\: ƒvƒŒƒCƒ„[‚ª“G‚ğ“¥‚ñ‚¾‚©‚ÌÚ×”»’è**
+// **æ–°æ©Ÿèƒ½: ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ãŒæ•µã‚’è¸ã‚“ã ã‹ã®è©³ç´°åˆ¤å®š**
 bool GameScene::CheckIfPlayerStompedEnemy()
 {
     float playerX = gamePlayer.GetX();
     float playerY = gamePlayer.GetY();
     float playerVelY = gamePlayer.GetVelocityY();
 
-    // **ƒAƒNƒeƒBƒu‚È“G‚ğƒ`ƒFƒbƒN**
-    const auto& enemies = enemyManager.GetEnemies(); // EnemyManager‚ÌGetEnemies()‚ğg—p
+    // **ã‚¢ã‚¯ãƒ†ã‚£ãƒ–ãªæ•µã‚’ãƒã‚§ãƒƒã‚¯**
+    const auto& enemies = enemyManager.GetEnemies(); // EnemyManagerã®GetEnemies()ã‚’ä½¿ç”¨
 
     for (const auto& enemy : enemies) {
         if (!enemy || !enemy->IsActive() || enemy->IsDead()) continue;
@@ -775,7 +951,7 @@ bool GameScene::CheckIfPlayerStompedEnemy()
         float enemyX = enemy->GetX();
         float enemyY = enemy->GetY();
 
-        // **Šî–{“I‚Èd‚È‚è”»’è**
+        // **åŸºæœ¬çš„ãªé‡ãªã‚Šåˆ¤å®š**
         const float PLAYER_WIDTH = 80.0f;
         const float PLAYER_HEIGHT = 100.0f;
         const float ENEMY_WIDTH = 48.0f;
@@ -788,35 +964,35 @@ bool GameScene::CheckIfPlayerStompedEnemy()
 
         if (!isOverlapping) continue;
 
-        // **“¥‚İ‚Â‚¯”»’è**
+        // **è¸ã¿ã¤ã‘åˆ¤å®š**
         bool isStompFromAbove = (playerVelY > 0 &&
             playerY < enemyY &&
             playerY + PLAYER_HEIGHT / 2 >= enemyY - ENEMY_HEIGHT / 2);
 
         if (isStompFromAbove) {
-            // **“G‚Ìí—Ş‚É‚æ‚éˆ—•ªŠò**
+            // **æ•µã®ç¨®é¡ã«ã‚ˆã‚‹å‡¦ç†åˆ†å²**
             if (enemy->GetType() == EnemyBase::NORMAL_SLIME) {
-                // **NormalSlime: “¥‚İ‚Â‚¯¬Œ÷**
-                ApplyStompBounce(); // ƒvƒŒƒCƒ„[‚É’µ‚Ë•Ô‚èŒø‰Ê
+                // **NormalSlime: è¸ã¿ã¤ã‘æˆåŠŸ**
+                ApplyStompBounce(); // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã«è·³ã­è¿”ã‚ŠåŠ¹æœ
 
-                // ƒfƒoƒbƒOo—Í
+                // ãƒ‡ãƒãƒƒã‚°å‡ºåŠ›
                 OutputDebugStringA("GameScene: Successfully stomped NormalSlime!\n");
                 return true;
             }
             else if (enemy->GetType() == EnemyBase::SPIKE_SLIME) {
-                // **SpikeSlime: ƒgƒQ‚ªo‚Ä‚¢‚é‚©‚Åƒ_ƒ[ƒW‚ªŒˆ‚Ü‚é**
+                // **SpikeSlime: ãƒˆã‚²ãŒå‡ºã¦ã„ã‚‹ã‹ã§ãƒ€ãƒ¡ãƒ¼ã‚¸ãŒæ±ºã¾ã‚‹**
                 SpikeSlime* spikeSlime = static_cast<SpikeSlime*>(enemy.get());
 
-                // **ƒgƒQ‚ªo‚Ä‚¢‚éê‡‚Í“¥‚ñ‚Å‚àƒ_ƒ[ƒW**
+                // **ãƒˆã‚²ãŒå‡ºã¦ã„ã‚‹å ´åˆã¯è¸ã‚“ã§ã‚‚ãƒ€ãƒ¡ãƒ¼ã‚¸**
                 if (spikeSlime->AreSpikesOut()) {
-                    // **ƒgƒQ‚ªo‚Ä‚¢‚éê‡‚Í“¥‚İ¸”siƒ_ƒ[ƒW‚ğó‚¯‚éj**
-                    return false; // “¥‚İ‚Â‚¯¸”siƒ_ƒ[ƒW‚ğó‚¯‚éj
+                    // **ãƒˆã‚²ãŒå‡ºã¦ã„ã‚‹å ´åˆã¯è¸ã¿å¤±æ•—ï¼ˆãƒ€ãƒ¡ãƒ¼ã‚¸ã‚’å—ã‘ã‚‹ï¼‰**
+                    return false; // è¸ã¿ã¤ã‘å¤±æ•—ï¼ˆãƒ€ãƒ¡ãƒ¼ã‚¸ã‚’å—ã‘ã‚‹ï¼‰
                 }
                 else {
-                    // **ƒgƒQ‚ªo‚Ä‚¢‚È‚¢ê‡‚Í“¥‚İ‚Â‚¯¬Œ÷i“G‚ªƒXƒ^ƒ“j**
-                    ApplyStompBounce(); // ƒvƒŒƒCƒ„[‚É’µ‚Ë•Ô‚èŒø‰Ê
+                    // **ãƒˆã‚²ãŒå‡ºã¦ã„ãªã„å ´åˆã¯è¸ã¿ã¤ã‘æˆåŠŸï¼ˆæ•µãŒã‚¹ã‚¿ãƒ³ï¼‰**
+                    ApplyStompBounce(); // ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã«è·³ã­è¿”ã‚ŠåŠ¹æœ
 
-                    // ƒfƒoƒbƒOo—Í
+                    // ãƒ‡ãƒãƒƒã‚°å‡ºåŠ›
                     OutputDebugStringA("GameScene: Successfully stomped SpikeSlime (spikes retracted)!\n");
                     return true;
                 }
@@ -824,22 +1000,58 @@ bool GameScene::CheckIfPlayerStompedEnemy()
         }
     }
 
-    return false; // “¥‚İ‚Â‚¯‚Í”­¶‚µ‚Ä‚¢‚È‚¢
+    return false; // è¸ã¿ã¤ã‘ã¯ç™ºç”Ÿã—ã¦ã„ãªã„
 }
-// **V‹@”\: “¥‚İ‚Â‚¯¬Œ÷‚Ìˆ—**
+// **æ–°æ©Ÿèƒ½: è¸ã¿ã¤ã‘æˆåŠŸæ™‚ã®å‡¦ç†**
 void GameScene::HandleSuccessfulStomp()
 {
-    // **ƒvƒŒƒCƒ„[‚É’µ‚Ë•Ô‚èŒø‰Ê‚ğ—^‚¦‚é**
+    // **ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã«è·³ã­è¿”ã‚ŠåŠ¹æœã‚’ä¸ãˆã‚‹**
     ApplyStompBounce();
 
-    // **Œø‰Ê‰¹‚âƒGƒtƒFƒNƒg‚ÌÄ¶**
+    // **åŠ¹æœéŸ³ã‚„ã‚¨ãƒ•ã‚§ã‚¯ãƒˆã®å†ç”Ÿ**
     // PlaySoundEffect("enemy_stomp");
     // SpawnStompEffect(gamePlayer.GetX(), gamePlayer.GetY());
 }
 
-// **V‹@”\: “¥‚İ‚Â‚¯‚Ì’µ‚Ë•Ô‚èŒø‰Ê**
+// **æ–°æ©Ÿèƒ½: è¸ã¿ã¤ã‘æ™‚ã®è·³ã­è¿”ã‚ŠåŠ¹æœ**
 void GameScene::ApplyStompBounce()
 {
-    // **ƒvƒŒƒCƒ„[‚ÉãŒü‚«‚Ì‘¬“x‚ğ—^‚¦‚éi¬‚³‚ÈƒWƒƒƒ“ƒvŒø‰Êj**
-    gamePlayer.ApplyStompBounce(-8.0f); // ãŒü‚«‚Ì‘¬“x‚ğİ’è
+    // **ãƒ—ãƒ¬ã‚¤ãƒ¤ãƒ¼ã«ä¸Šå‘ãã®é€Ÿåº¦ã‚’ä¸ãˆã‚‹ï¼ˆå°ã•ãªã‚¸ãƒ£ãƒ³ãƒ—åŠ¹æœï¼‰**
+    gamePlayer.ApplyStompBounce(-8.0f); // ä¸Šå‘ãã®é€Ÿåº¦ã‚’è¨­å®š
+}
+
+// **æ–°è¿½åŠ : è‡ªå‹•æ­©è¡Œå°‚ç”¨ã®æ›´æ–°é–¢æ•°**
+void GameScene::UpdatePlayerAutoWalk()
+{
+    // **è‡ªå‹•æ­©è¡Œç”¨ã®ç‰©ç†å‡¦ç†ã®ã¿å®Ÿè¡Œ**
+    gamePlayer.UpdateAutoWalkPhysics(&stageManager);
+
+    // **ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³æ›´æ–°**
+    gamePlayer.UpdateAnimationOnly();
+
+    // **ãƒ‡ãƒãƒƒã‚°å‡ºåŠ›ï¼ˆ60ãƒ•ãƒ¬ãƒ¼ãƒ ã«1å›ï¼‰**
+    static int debugCounter = 0;
+    debugCounter++;
+    if (debugCounter % 60 == 0) {
+        char debugMsg[256];
+        sprintf_s(debugMsg, "GameScene: Auto-walking - Player X:%.1f, VelX:%.1f\n",
+            gamePlayer.GetX(), gamePlayer.GetVelocityX());
+        OutputDebugStringA(debugMsg);
+    }
+}
+
+// **æ–°æ©Ÿèƒ½ï¼šé…å»¶è‡ªå‹•æ­©è¡Œã®å‡¦ç†**
+void GameScene::UpdateDelayedAutoWalk()
+{
+    if (pendingAutoWalk && autoWalkDelayFrames > 0) {
+        autoWalkDelayFrames--;
+
+        if (autoWalkDelayFrames <= 0) {
+            // **ç©ã‚„ã‹ãªè‡ªå‹•æ­©è¡Œé–‹å§‹**
+            gamePlayer.SetAutoWalking(true);
+            pendingAutoWalk = false;
+
+            OutputDebugStringA("GameScene: Delayed auto-walk started!\n");
+        }
+    }
 }

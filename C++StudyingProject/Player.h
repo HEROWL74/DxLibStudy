@@ -47,11 +47,24 @@ public:
 
     // **新機能: ダメージシステム**
     void TakeDamage(int damage, float knockbackDirection = 0.0f);
+    void ApplyGravityOnly(StageManager* stageManager);
+    void HandleGroundCollisionOnly(StageManager* stageManager);
+    void UpdateAnimationOnly();
     bool IsInvulnerable() const { return invulnerabilityTimer > 0.0f; }
     float GetInvulnerabilityTimer() const { return invulnerabilityTimer; }
 
     // **デバッグ用: 敵踏みつけ状態の取得**
     bool IsStomping() const { return wasStomping; }
+
+    // **新追加: 自動歩行用メソッド**
+    void SetFacingRight(bool facing) { facingRight = facing; }
+
+    // **デバッグ用: プレイヤーの内部状態を確認**
+    void SetAutoWalking(bool autoWalk) { isAutoWalking = autoWalk; }
+    bool IsAutoWalking() const { return isAutoWalking; }
+
+    // **新追加: 自動歩行専用の物理処理**
+    void UpdateAutoWalkPhysics(StageManager* stageManager);
 
 private:
     // キャラクタースプライト構造体
@@ -112,6 +125,8 @@ private:
     void LoadCharacterSprites(int characterIndex);
     std::string GetCharacterColorName(int index);
 
+    
+
     // **新追加: ダメージシステム関数**
     void UpdateDamageState();
     void UpdateInvulnerability();
@@ -156,4 +171,7 @@ private:
     static constexpr float BASE_SHADOW_SIZE_X = 40.0f;   // 基本影サイズ（幅）
     static constexpr float BASE_SHADOW_SIZE_Y = 16.0f;   // 基本影サイズ（高さ）
     static constexpr int BASE_SHADOW_ALPHA = 150;        // 基本影の透明度
+
+    //プレイヤーが自動歩行できてるか検知するためのやつ
+    bool isAutoWalking = false;
 };

@@ -1,6 +1,7 @@
 ﻿#include "StarSystem.h"
 #include <math.h>
 #include <algorithm>
+#include "SoundManager.h"
 
 using namespace std;
 
@@ -81,7 +82,8 @@ void StarSystem::UpdateStar(Star& star, float playerX, float playerY)
             star.attractTimer = 0.0f;
             star.collected = true;
             collectedStarsCount++;
-
+            // 星収集時
+            SoundManager::GetInstance().PlaySE(SoundManager::SFX_DISAPPEAR);
             // **収集時の初期エフェクト設定**
             star.collectionPhase = 0.0f;
             star.burstIntensity = 1.0f;

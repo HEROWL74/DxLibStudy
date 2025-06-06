@@ -1,6 +1,7 @@
 #include "CoinSystem.h"
 #include <math.h>
 #include <algorithm>
+#include "SoundManager.h"
 
 using namespace std;
 
@@ -73,6 +74,8 @@ void CoinSystem::UpdateCoin(Coin& coin, float playerX, float playerY, float hudC
         if (playerDistance <= COLLECTION_DISTANCE) {
             coin.state = COIN_COLLECTED;
             coin.attractTimer = 0.0f;
+          
+            SoundManager::GetInstance().PlaySE(SoundManager::SFX_COIN);;
             collectedCoinsCount++;
         }
         break;

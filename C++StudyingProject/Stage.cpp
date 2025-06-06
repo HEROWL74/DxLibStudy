@@ -3,14 +3,17 @@
 #include <cmath>
 
 Stage::Stage() {
-    // テクスチャハンドルを初期化
+    // メインテクスチャハンドルを初期化
     textures.bottom = textures.bottom_left = textures.bottom_right = -1;
     textures.center = textures.left = textures.right = -1;
     textures.top = textures.top_left = textures.top_right = -1;
+
+    // **プラットフォームテクスチャハンドルを初期化**
+    platformBlockTexture = -1;
 }
 
 Stage::~Stage() {
-    // テクスチャハンドルを削除
+    // メインテクスチャハンドルを削除
     if (textures.bottom != -1) DeleteGraph(textures.bottom);
     if (textures.bottom_left != -1) DeleteGraph(textures.bottom_left);
     if (textures.bottom_right != -1) DeleteGraph(textures.bottom_right);
@@ -20,6 +23,9 @@ Stage::~Stage() {
     if (textures.top != -1) DeleteGraph(textures.top);
     if (textures.top_left != -1) DeleteGraph(textures.top_left);
     if (textures.top_right != -1) DeleteGraph(textures.top_right);
+
+    // **プラットフォームテクスチャハンドルを削除**
+    if (platformBlockTexture != -1) DeleteGraph(platformBlockTexture);
 }
 
 void Stage::Update(float cameraX) {
@@ -85,6 +91,22 @@ void Stage::LoadTerrainTextures() {
     LoadTileTexture(textures.top_right, basePath + "top_right.png");
 }
 
+// **新追加：プラットフォーム専用テクスチャの読み込み**
+void Stage::LoadPlatformTexture() {
+    // ステージごとに適切なプラットフォームテクスチャを決定
+    std::string platformType = "";
+
+    if (terrainType == "grass") platformType = "grass";
+    else if (terrainType == "stone") platformType = "stone";
+    else if (terrainType == "sand") platformType = "sand";
+    else if (terrainType == "snow") platformType = "snow";
+    else if (terrainType == "purple") platformType = "purple";
+    else platformType = "dirt"; // デフォルト
+
+    std::string platformPath = "Sprites/Tiles/terrain_" + platformType + "_block.png";
+    platformBlockTexture = LoadGraph(platformPath.c_str());
+}
+
 void Stage::LoadTileTexture(int& handle, const std::string& filePath) {
     handle = LoadGraph(filePath.c_str());
 }
@@ -92,7 +114,7 @@ void Stage::LoadTileTexture(int& handle, const std::string& filePath) {
 void Stage::PlaceTile(const std::string& tileType, int gridX, int gridY) {
     int textureHandle = -1;
 
-    // タイルタイプに応じてテクスチャを選択
+    // メインテクスチャ（地面用）から選択
     if (tileType == "bottom") textureHandle = textures.bottom;
     else if (tileType == "bottom_left") textureHandle = textures.bottom_left;
     else if (tileType == "bottom_right") textureHandle = textures.bottom_right;
@@ -111,6 +133,8 @@ void Stage::PlaceTile(const std::string& tileType, int gridX, int gridY) {
         ));
     }
 }
+
+
 
 void Stage::CreatePlatform(int startX, int startY, int width, int height) {
     for (int y = 0; y < height; y++) {
@@ -149,6 +173,26 @@ void Stage::CreatePlatform(int startX, int startY, int width, int height) {
             }
 
             PlaceTile(tileType, startX + x, startY + y);
+        }
+    }
+}
+
+// **新追加：プラットフォーム専用ブロック配置関数**
+void Stage::PlacePlatformBlock(int gridX, int gridY) {
+    if (platformBlockTexture != -1) {
+        tiles.push_back(std::make_unique<Tile>(
+            platformBlockTexture,
+            gridX * TILE_SIZE,
+            gridY * TILE_SIZE
+        ));
+    }
+}
+
+// **新追加：プラットフォーム専用の作成関数**
+void Stage::CreatePlatformBlock(int startX, int startY, int width, int height) {
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            PlacePlatformBlock(startX + x, startY + y);
         }
     }
 }

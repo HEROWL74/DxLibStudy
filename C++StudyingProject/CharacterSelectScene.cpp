@@ -1,4 +1,5 @@
 #include "CharacterSelectScene.h"
+#include "SoundManager.h"
 using namespace std;
 
 CharacterSelectScene::CharacterSelectScene()
@@ -177,6 +178,7 @@ void CharacterSelectScene::Draw()
 {
     // 背景描画
     DrawExtendGraph(0, 0, SCREEN_W, SCREEN_H, backgroundHandle, TRUE);
+
 
     // タイトル描画（脈動効果付き）
     float titleScale = 1.0f + sinf(titlePulsePhase) * 0.03f;

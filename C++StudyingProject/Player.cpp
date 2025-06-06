@@ -2,6 +2,7 @@
 #include <math.h>
 #include <algorithm>
 #include <cmath>
+#include "SoundManager.h"
 
 Player::Player()
     : x(300.0f)
@@ -155,9 +156,14 @@ void Player::Draw(float cameraX)
     }
 }
 
-// **UpdatePhysics関数の修正: ダメージ時の制限とノックバック改良**
 void Player::UpdatePhysics(StageManager* stageManager)
 {
+    // **自動歩行モード専用の処理**
+    if (isAutoWalking) {
+        UpdateAutoWalkPhysics(stageManager);
+        return; // 通常の物理処理をスキップ
+    }
+
     // **ダメージ状態中は入力を制限**
     bool canControl = (currentState != HIT || hitTimer > HIT_DURATION * 0.6f);
 
@@ -232,6 +238,7 @@ void Player::UpdatePhysics(StageManager* stageManager)
         velocityY = JUMP_POWER;
         currentState = JUMPING;
         onGround = false;
+        SoundManager::GetInstance().PlaySE(SoundManager::SFX_JUMP);
     }
 
     spaceWasPressedLastFrame = spacePressed;
@@ -260,6 +267,8 @@ void Player::UpdatePhysics(StageManager* stageManager)
             velocityY = 0;
         }
     }
+
+   
 }
 
 // [既存のメソッドは変更なし]
@@ -1020,3 +1029,140 @@ void Player::TakeDamage(int damage, float knockbackDirection)
     // **デバッグ出力**
     OutputDebugStringA("Player: Taking damage with improved knockback!\n");
 }
+
+// **新追加: 重力のみ適用（自動歩行用）**
+void Player::ApplyGravityOnly(StageManager* stageManager)
+{
+    // 重力適用
+    if (!onGround) {
+        velocityY += GRAVITY;
+        if (velocityY > MAX_FALL_SPEED) {
+            velocityY = MAX_FALL_SPEED;
+        }
+    }
+
+    // Y方向の位置更新
+    y += velocityY;
+
+    // 地面との衝突判定のみ
+    HandleGroundCollisionOnly(stageManager);
+}
+
+// **新追加: 地面衝突のみ処理（自動歩行用）**
+void Player::HandleGroundCollisionOnly(StageManager* stageManager)
+{
+    const float COLLISION_WIDTH = 80.0f;
+    const float COLLISION_HEIGHT = 100.0f;
+
+    // 足元の複数点でチェック
+    float footY = y + COLLISION_HEIGHT / 2;
+    float leftFoot = x - COLLISION_WIDTH / 3;
+    float rightFoot = x + COLLISION_WIDTH / 3;
+    float centerFoot = x;
+
+    // 3点で地面チェック
+    bool leftHit = CheckPointCollision(leftFoot, footY, 8.0f, 8.0f, stageManager);
+    bool centerHit = CheckPointCollision(centerFoot, footY, 8.0f, 8.0f, stageManager);
+    bool rightHit = CheckPointCollision(rightFoot, footY, 8.0f, 8.0f, stageManager);
+
+    if (leftHit || centerHit || rightHit) {
+        // 地面に着地
+        float groundY = FindPreciseGroundY(x, y, COLLISION_WIDTH, stageManager);
+        if (groundY != -1) {
+            y = groundY - COLLISION_HEIGHT / 2;
+            velocityY = 0.0f;
+            onGround = true;
+
+            // 自動歩行中は歩行アニメーションに設定
+            if (isAutoWalking) {
+                currentState = WALKING;
+            }
+        }
+    }
+    else {
+        // 自由落下
+        if (onGround) {
+            onGround = false;
+            if (currentState != JUMPING) {
+                currentState = FALLING;
+            }
+        }
+    }
+}
+
+// **新追加: アニメーションのみ更新（自動歩行用）**
+void Player::UpdateAnimationOnly()
+{
+    if (currentState == WALKING) {
+        animationTimer += WALK_ANIM_SPEED;
+        if (animationTimer >= 1.0f) {
+            animationTimer = 0.0f;
+            walkAnimFrame = !walkAnimFrame;
+        }
+    }
+    else {
+        animationTimer = 0.0f;
+        walkAnimFrame = false;
+    }
+
+    if (currentState == IDLE) {
+        bobPhase += 0.02f;
+        if (bobPhase >= 2.0f * 3.14159265359f) {
+            bobPhase = 0.0f;
+        }
+    }
+}
+
+// **新しい関数: UpdateAutoWalkPhysics を完全に修正**
+void Player::UpdateAutoWalkPhysics(StageManager* stageManager)
+{
+    // **自動歩行中は穏やかな右方向移動**
+    const float AUTO_WALK_SPEED = 3.5f; // 速度を大幅に減少（6.0f → 3.5f）
+
+    // **段階的な加速（急激な動きを防止）**
+    if (fabsf(velocityX) < AUTO_WALK_SPEED) {
+        velocityX += 0.3f; // 徐々に加速
+    }
+    velocityX = min(velocityX, AUTO_WALK_SPEED); // 最大速度制限
+
+    facingRight = true; // 右向き
+
+    // **重力適用（地上にいる場合は無効化）**
+    if (!onGround) {
+        velocityY += GRAVITY;
+        if (velocityY > MAX_FALL_SPEED) {
+            velocityY = MAX_FALL_SPEED;
+        }
+    }
+    else {
+        // **地上にいる場合は垂直速度を完全に0に**
+        if (velocityY > 0) {
+            velocityY = 0;
+        }
+    }
+
+    // **位置更新（X方向とY方向）**
+    x += velocityX;
+    y += velocityY;
+
+    // **ステージ境界チェック**
+    if (x + 40.0f > Stage::STAGE_WIDTH) {
+        x = Stage::STAGE_WIDTH - 40.0f;
+        velocityX = 0.0f;
+    }
+
+    // **衝突判定処理（完全版）**
+    HandleCollisions(stageManager);
+
+    // **状態設定（落下中でない限り歩行アニメーション）**
+    if (onGround) {
+        currentState = WALKING;
+    }
+    else if (velocityY > 0) {
+        currentState = FALLING;
+    }
+    else {
+        currentState = JUMPING;
+    }
+}
+

@@ -9,8 +9,11 @@ SandStage::~SandStage() {
 }
 
 void SandStage::Initialize() {
-    // テクスチャ読み込み
+    // メインテクスチャ読み込み（地面用）
     LoadTerrainTextures();
+
+    // **プラットフォーム専用テクスチャ読み込み（terrain_sand_block.png）**
+    LoadPlatformTexture();
 
     // 地形生成
     CreateMainTerrain();
@@ -33,32 +36,32 @@ void SandStage::CreateMainTerrain() {
 }
 
 void SandStage::CreatePlatforms() {
-    // 砂漠のオアシス風りのプラットフォーム
-    CreatePlatform(5, 9, 4, 1);   // 小さな島
-    CreatePlatform(12, 7, 3, 1);  // ジャンプ台
-    CreatePlatform(20, 8, 5, 1);  // 中くらいの島
-    CreatePlatform(30, 6, 4, 1);  // 高い足場
+    // **砂漠のオアシス風のプラットフォーム（terrain_sand_block.pngテクスチャ使用）**
+    CreatePlatformBlock(5, 9, 4, 1);   // 小さな島
+    CreatePlatformBlock(12, 7, 3, 1);  // ジャンプ台
+    CreatePlatformBlock(20, 8, 5, 1);  // 中くらいの島
+    CreatePlatformBlock(30, 6, 4, 1);  // 高い足場
 
     // ピラミッド風の構造 - より登りやすく
-    CreatePlatform(42, 8, 1, 1);  // 頂上
-    CreatePlatform(41, 9, 3, 1);  // 2段目
-    CreatePlatform(40, 10, 5, 1); // 1段目（実際は3段目）
-    CreatePlatform(39, 11, 7, 1); // 基部
+    CreatePlatformBlock(42, 8, 1, 1);  // 頂上
+    CreatePlatformBlock(41, 9, 3, 1);  // 2段目
+    CreatePlatformBlock(40, 10, 5, 1); // 1段目（実際は3段目）
+    CreatePlatformBlock(39, 11, 7, 1); // 基部
 
     // 砂丘を表現するプラットフォーム - ジャンプしやすい配置
-    CreatePlatform(55, 7, 3, 1);  // 砂丘の頂上
-    CreatePlatform(52, 9, 2, 1);  // 砂丘の中腹
-    CreatePlatform(58, 9, 3, 1);  // 砂丘の反対側
+    CreatePlatformBlock(55, 7, 3, 1);  // 砂丘の頂上
+    CreatePlatformBlock(52, 9, 2, 1);  // 砂丘の中腹
+    CreatePlatformBlock(58, 9, 3, 1);  // 砂丘の反対側
 
     // 追加の足場
-    CreatePlatform(68, 6, 4, 1);  // 高い足場
-    CreatePlatform(75, 8, 3, 1);  // 中間の足場
-    CreatePlatform(85, 5, 3, 1);  // さらに高い足場
-    CreatePlatform(92, 9, 2, 1);  // ゴール前の足場
+    CreatePlatformBlock(68, 6, 4, 1);  // 高い足場
+    CreatePlatformBlock(75, 8, 3, 1);  // 中間の足場
+    CreatePlatformBlock(85, 5, 3, 1);  // さらに高い足場
+    CreatePlatformBlock(92, 9, 2, 1);  // ゴール前の足場
 
     // サボテンのような細い足場
-    CreatePlatform(26, 12, 1, 1);
-    CreatePlatform(47, 7, 1, 1);
-    CreatePlatform(73, 4, 1, 1);
-    CreatePlatform(98, 10, 1, 1);
+    CreatePlatformBlock(26, 12, 1, 1);
+    CreatePlatformBlock(47, 7, 1, 1);
+    CreatePlatformBlock(73, 4, 1, 1);
+    CreatePlatformBlock(98, 10, 1, 1);
 }

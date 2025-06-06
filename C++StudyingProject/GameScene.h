@@ -2,12 +2,14 @@
 #include "DxLib.h"
 #include "StageManager.h"
 #include "Player.h"
-#include "HUDSystem.h"    // HUDシステムを追加
-#include "CoinSystem.h"   // コインシステムを追加
-#include "GoalSystem.h"   // ゴールシステムを追加
-#include "StarSystem.h"   // **星システムを追加（新機能）**
-#include "ResultUISystem.h" // **リザルトUIシステムを追加（新機能）**
-#include "EnemyManager.h" // **敵管理システムを追加（新機能）**
+#include "HUDSystem.h"    
+#include "CoinSystem.h"   
+#include "GoalSystem.h"   
+#include "StarSystem.h"   
+#include "ResultUISystem.h" 
+#include "EnemyManager.h" 
+#include "DoorSystem.h"   // **新追加：ドアシステム**
+#include "SoundManager.h"
 #include <string>
 
 class GameScene
@@ -21,6 +23,8 @@ public:
     void Draw();
 
     bool IsExitRequested() const { return exitRequested; }
+    bool IsStageChangeRequested() const { return stageChangeRequested; }
+    int GetRequestedStageIndex() const { return requestedStageIndex; }
 
 private:
     // 画面サイズ
@@ -34,76 +38,88 @@ private:
     // ゲームオブジェクト
     StageManager stageManager;
     Player gamePlayer;
-    HUDSystem hudSystem;        // HUDシステムを追加
-    CoinSystem coinSystem;      // コインシステムを追加
-    GoalSystem goalSystem;      // ゴールシステムを追加
-    StarSystem starSystem;      // **星システムを追加（新機能）**
-    ResultUISystem resultUI;    // **リザルトUIシステムを追加（新機能）**
-    EnemyManager enemyManager;  // **敵管理システムを追加（新機能）**
+    HUDSystem hudSystem;
+    CoinSystem coinSystem;
+    GoalSystem goalSystem;
+    StarSystem starSystem;
+    ResultUISystem resultUI;
+    EnemyManager enemyManager;
+    DoorSystem doorSystem;      // **新追加：ドアシステム**
 
     // キャラクター情報
     int selectedCharacterIndex;
     std::string characterName;
 
-    // カメラシステム（滑らかな追従用に簡単化）
-    float cameraX;              // カメラのX座標
-    float previousPlayerX;      // 前フレームのプレイヤーX座標
+    // カメラシステム
+    float cameraX;
+    float previousPlayerX;
 
-    // **カメラの滑らか追従定数（シンプル化）**
-    static constexpr float CAMERA_FOLLOW_SPEED = 0.05f;  // カメラ追従速度（遅めで滑らか）
+    // **カメラの滑らか追従定数**
+    static constexpr float CAMERA_FOLLOW_SPEED = 0.05f;
 
     // 状態管理
     bool exitRequested;
 
     // キー入力
     bool escPressed, escPressedPrev;
-    bool stageSelectPressed, stageSelectPressedPrev; // ステージ切り替え用
+    bool stageSelectPressed, stageSelectPressedPrev;
 
-    // **追加：ゲーム状態管理**
-    int playerLife;      // プレイヤーのライフ
-    int playerCoins;     // プレイヤーのコイン数
-    int playerStars;     // **プレイヤーの星数（新機能）**
-    int currentStageIndex; // 現在のステージインデックス
+    // **ゲーム状態管理**
+    int playerLife;
+    int playerCoins;
+    int playerStars;
+    int currentStageIndex;
 
-    // **追加：フェード演出**
+    // **フェード演出**
     enum FadeState { FADE_NONE, FADE_OUT, FADE_IN };
     FadeState fadeState;
     float fadeAlpha;
     float fadeTimer;
 
-    // **リザルト表示制御（新機能）**
+    // **リザルト表示制御**
     bool showingResult;
     bool goalReached;
 
-    // **敵との相互作用管理（新機能）**
-    bool playerInvulnerable;     // プレイヤーの無敵状態
-    float invulnerabilityTimer;  // 無敵時間タイマー
-    static constexpr float INVULNERABILITY_DURATION = 2.0f; // 無敵時間
+    // **新追加：ドア関連の状態管理**
+    bool doorOpened;            // ドアが開いたか
+    bool playerEnteringDoor;    // プレイヤーがドアに入っているか
+
+
+    // **新追加：遅延自動歩行システム**
+    bool pendingAutoWalk;       // 自動歩行が待機中か
+    int autoWalkDelayFrames;    // 自動歩行開始までの遅延フレーム数
+    // **敵との相互作用用管理**
+    bool playerInvulnerable;
+    float invulnerabilityTimer;
+    static constexpr float INVULNERABILITY_DURATION = 2.0f;
+
+    // **新追加：遅延自動歩行関数の宣言**
+    void UpdateDelayedAutoWalk();
 
     // ヘルパー関数
     std::string GetCharacterDisplayName(int index);
     void UpdateInput();
     void UpdateCamera();
-    void UpdateCameraSimple();  // シンプル版カメラ（オプション）
-    void UpdateGameLogic();  // ゲームロジック更新を追加
+    void UpdateCameraSimple();
+    void UpdateGameLogic();
     void DrawUI();
-    void DrawSeamlessBackground(); // シームレス背景描画を追加
+    void DrawSeamlessBackground();
 
-    // **追加：フェード関数**
+    // **フェード関数**
     void UpdateFade();
     void DrawFade();
     void StartNextStage();
 
-    // **追加：HUD関連関数**
+    // **HUD機能関数**
     void InitializeHUD();
     void UpdateHUD();
 
-    // **追加：リザルト関連関数（新機能）**
+    // **リザルト機能関数**
     void UpdateResult();
     void ShowStageResult();
     void HandleResultButtons();
 
-    // **追加：敵との相互作用関数（新機能）**
+    // **敵との相互作用用関数**
     void UpdatePlayerEnemyInteractions();
     void HandlePlayerDamage(int damage);
     void HandlePlayerEnemyCollision();
@@ -113,7 +129,18 @@ private:
     void HandleSuccessfulStomp();
     void ApplyStompBounce();
 
+    void UpdatePlayerAutoWalk();
+
+    // **新追加：ドア関連の処理関数**
+    void UpdateDoorInteraction();
+    void HandleGoalReached();
+    void HandlePlayerEnteredDoor();
+
     // ユーティリティ
     float Lerp(float a, float b, float t);
-    float SmoothLerp(float current, float target, float speed);  // 滑らかなイージング用
+    float SmoothLerp(float current, float target, float speed);
+
+    bool stageChangeRequested;
+    int requestedStageIndex;
+
 };

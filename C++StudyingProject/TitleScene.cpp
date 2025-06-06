@@ -12,6 +12,9 @@ TitleScene::TitleScene()
     , backgroundFadeProgress(0.0f)
     , transitionFadeProgress(0.0f)
     , titlePulsePhase(0.0f)
+    , alienGlowPhase(0.0f)          // **新追加**
+    , starFieldPhase(0.0f)          // **新追加**
+    , titleColorPhase(0.0f)         // **新追加**
     , mousePressed(false)
     , mousePressedPrev(false)
     , particleSpawnTimer(0.0f)
@@ -50,23 +53,45 @@ void TitleScene::Initialize()
     int centerX = SCREEN_W / 2;
     int buttonX = centerX - BUTTON_W / 2 - 100; // 200ピクセル左に移動
 
+
+    // **BGM開始（タイトル画面とオプション画面で継続再生）**
+    SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
+
+
     buttons = {
         { buttonX, 550, BUTTON_W, BUTTON_H, "START",   NORMAL_SCALE, 0.0f, false, 0.0f, 0.0f },
         { buttonX, 690, BUTTON_W, BUTTON_H, "OPTIONS", NORMAL_SCALE, 0.0f, false, 0.0f, 0.0f },
         { buttonX, 830, BUTTON_W, BUTTON_H, "EXIT",    NORMAL_SCALE, 0.0f, false, 0.0f, 0.0f }
     };
 
-    // 改良されたスライダー設定
-    slider = {
+    // BGMスライダー設定（既存のsliderの設定の後に追加）
+    bgmSlider = {
         500, 0, 800, 24,  // x, y, w, h (yは後で動的に設定)
-        0.5f,             // value
+        0.7f,             // value (BGM初期値)
         false,            // dragging
         0.0f,             // hoverProgress
-        0.5f,             // valueDisplay
+        0.7f,             // valueDisplay
         0.0f              // glowEffect
     };
+
+    seSlider = {
+        500, 0, 800, 24,  // x, y, w, h (yは後で動的に設定)
+        0.8f,             // value (SE初期値)
+        false,            // dragging
+        0.0f,             // hoverProgress
+        0.8f,             // valueDisplay
+        0.0f              // glowEffect
+    };
+
+    // **SoundManagerの現在の音量設定を取得してスライダーに反映**
+    bgmSlider.value = SoundManager::GetInstance().GetBGMVolume();
+    bgmSlider.valueDisplay = bgmSlider.value;
+
+    seSlider.value = SoundManager::GetInstance().GetSEVolume();
+    seSlider.valueDisplay = seSlider.value;
 }
 
+// Update関数の改良版（コメント付き）
 void TitleScene::Update()
 {
     // マウス座標取得
@@ -84,6 +109,10 @@ void TitleScene::Update()
     // ボタン更新
     UpdateButtons();
 
+    // **重要：タイトルBGMの継続再生を保証**
+    // タイトル画面とオプション画面の両方でBGMが流れ続けるように管理
+    EnsureTitleBGMPlaying();
+
     // オプション開閉アニメーション（分離されたフェードとスライド）
     switch (optionState) {
     case Showing:
@@ -96,8 +125,12 @@ void TitleScene::Update()
             optionFadeProgress = 1.0f;
             optionSlideProgress = 1.0f;
             optionState = Visible;
+
+            // **オプション画面が完全に表示された**
+            OutputDebugStringA("TitleScene: Options fully visible - BGM playing\n");
         }
         break;
+
     case Hiding:
         optionAnimProgress -= ANIM_SPEED;
         optionFadeProgress -= FADE_SPEED * 1.5f; // フェードアウトは速め
@@ -108,13 +141,18 @@ void TitleScene::Update()
             optionFadeProgress = 0.0f;
             optionSlideProgress = 0.0f;
             optionState = Hidden;
+
+            // **オプション画面が完全に非表示になった**
+            OutputDebugStringA("TitleScene: Options hidden - BGM continues\n");
         }
         break;
+
     case Visible:
         optionAnimProgress = 1.0f;
         optionFadeProgress = 1.0f;
         optionSlideProgress = 1.0f;
         break;
+
     default:
         optionAnimProgress = 0.0f;
         optionFadeProgress = 0.0f;
@@ -150,11 +188,15 @@ void TitleScene::Update()
     if ((optionState == Visible || optionState == Showing) &&
         backspacePressed && !backspacePressedPrev && transitionState == None) {
         optionState = Hiding;
+
+        // **Backspaceでオプションを閉じる：BGMは継続**
+        OutputDebugStringA("TitleScene: Options closed by Backspace - BGM continues\n");
     }
 
-    // スライダー更新（画面遷移中でない場合のみ）
+    // スライダー更新（オプション画面が表示されている時のみ）
     if (optionState != Hidden && transitionState == None) {
-        UpdateSlider();
+        UpdateBGMSlider();
+        UpdateSESlider();
     }
 
     // パーティクル更新
@@ -173,107 +215,245 @@ void TitleScene::Update()
 
 void TitleScene::Draw()
 {
-    // 背景描画
+    // **1. 背景描画（最背面）**
     DrawExtendGraph(0, 0, SCREEN_W, SCREEN_H, backgroundHandle, TRUE);
 
-    // パーティクル描画（背景の上）
+    // **2. パーティクル描画（背景の上）**
     DrawParticles();
 
-    // タイトルロゴ（改良された脈動効果付き）
-    float titleScale = 1.0f + sinf(titlePulsePhase) * 0.05f;
-    int titleAlpha = (int)(255 * (0.9f + sinf(titlePulsePhase * 2) * 0.1f));
-    SetDrawBlendMode(DX_BLENDMODE_ALPHA, titleAlpha);
+    // **3. タイトルロゴ描画（ゆるふわスタイル）**
+    // ゆるやかなアニメーション効果
+    float titleScale = 1.0f + sinf(titlePulsePhase) * 0.03f; // より控えめなスケール変動
+    int titleAlpha = (int)(255 * (0.95f + sinf(titlePulsePhase * 0.8f) * 0.05f)); // 穏やかな透明度変化
 
-    string titleText = "GAME TITLE";
-    int titleWidth = (int)(titleText.length() * 24 * titleScale);
-    int titleX = SCREEN_W / 2 - titleWidth / 2;
-    int titleY = 200;
+    // **タイトル: "Alien's Days"**
+    string titleText = "Alien's Days";
 
-    // タイトルのグロー効果
-    DrawGlowEffect(titleX - 20, titleY - 10, titleWidth + 40, 60, 0.3f, GetColor(255, 215, 0));
-    DrawStringToHandle(titleX, titleY, titleText.c_str(), GetColor(255, 255, 255), largeFontHandle);
+    // 正確な幅計算でセンタリング
+    int baseWidth = GetDrawStringWidthToHandle(titleText.c_str(), (int)titleText.length(), largeFontHandle);
+    int titleWidth = (int)(baseWidth * titleScale);
+    int titleX = SCREEN_W / 2.23 - baseWidth / 2; // スケール前の幅でセンタリング
+    int titleY = 200 + (int)(sinf(titlePulsePhase * 0.6f) * 3.0f); // 穏やかな浮遊効果
 
+    // **ゆるふわな背景ボックス（角丸風）**
+    SetDrawBlendMode(DX_BLENDMODE_ALPHA, 80);
+    DrawBox(titleX - 50, titleY - 25, titleX + baseWidth + 50, titleY + 85, GetColor(255, 255, 255), TRUE);
     SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
 
-    // ボタン描画（改良版）
+    // **ソフトなグロー効果（薄いピンク系）**
+    DrawGlowEffect(titleX - 20, titleY - 10, baseWidth + 40, 70, 0.2f + sinf(titlePulsePhase) * 0.1f, GetColor(255, 200, 220));
+
+    // **メインタイトル描画（控えめなスケール）**
+    int scaledFontSize = (int)(52 * titleScale); // 適度なサイズ
+    int tempLargeFontHandle = CreateFontToHandle(NULL, scaledFontSize, 5);
+
+    // 優しい影効果
+    SetDrawBlendMode(DX_BLENDMODE_ALPHA, 100);
+    DrawStringToHandle(titleX + 3, titleY + 3, titleText.c_str(), GetColor(150, 150, 150), tempLargeFontHandle);
+
+    // メインテキスト（落ち着いた色合い）
+    SetDrawBlendMode(DX_BLENDMODE_ALPHA, titleAlpha);
+    DrawStringToHandle(titleX, titleY, titleText.c_str(), GetColor(80, 120, 160), tempLargeFontHandle); // 優しい青色
+
+    // **サブタイトル（ゆるふわテーマ）**
+    string subTitle = "~ A Gentle Adventure ~";
+    int subTitleWidth = GetDrawStringWidthToHandle(subTitle.c_str(), (int)subTitle.length(), fontHandle);
+    int subTitleX = SCREEN_W / 2.23 - subTitleWidth / 2;
+    int subTitleY = titleY + 70;
+
+    // サブタイトル描画（優しいアニメーション）
+    int subAlpha = (int)(180 * (0.8f + sinf(titlePulsePhase * 0.4f) * 0.2f));
+    SetDrawBlendMode(DX_BLENDMODE_ALPHA, subAlpha);
+    DrawStringToHandle(subTitleX, subTitleY, subTitle.c_str(), GetColor(120, 150, 100), fontHandle); // 優しい緑色
+
+    DeleteFontToHandle(tempLargeFontHandle);
+    SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+
+    // **4. ボタン描画（改良版）**
     for (const auto& btn : buttons) {
         DrawEnhancedButton(btn);
     }
 
-    // オプション画面描画
+    // **5. オプション画面描画（改良されたアニメーション）**
     if (optionState != Hidden) {
-        // スライドとフェードを分離して適用
+        // より洗練されたイージング適用
         float easedSlide = ApplyEasing(optionSlideProgress, EASE_OUT_ELASTIC);
         float easedFade = ApplyEasing(optionFadeProgress, EASE_IN_OUT_CUBIC);
 
-        // 背景オーバーレイ（ゆっくりとしたフェードイン）
-        int overlayAlpha = (int)(180 * backgroundFadeProgress);
-        SetDrawBlendMode(DX_BLENDMODE_ALPHA, overlayAlpha);
+        // **改良された背景オーバーレイ（段階的フェード）**
+        float overlayProgress = backgroundFadeProgress;
 
-        // グラデーション背景オーバーレイ
-        for (int i = 0; i < SCREEN_H; i++) {
-            float gradientRatio = (float)i / SCREEN_H;
-            int lineAlpha = (int)(overlayAlpha * (0.3f + gradientRatio * 0.7f));
-            SetDrawBlendMode(DX_BLENDMODE_ALPHA, lineAlpha);
-            DrawLine(0, i, SCREEN_W, i, GetColor(0, 0, 30), TRUE);
+        // 背景ブラー効果のシミュレーション（複数レイヤー）
+        for (int layer = 0; layer < 3; layer++) {
+            int layerAlpha = (int)(60 * overlayProgress * (1.0f - layer * 0.2f));
+            SetDrawBlendMode(DX_BLENDMODE_ALPHA, layerAlpha);
+
+            // 微妙にずらした矩形で深度感を演出
+            int offset = layer * 2;
+            DrawBox(offset, offset, SCREEN_W - offset, SCREEN_H - offset,
+                GetColor(20 + layer * 10, 20 + layer * 10, 40 + layer * 15), TRUE);
         }
 
-        // オプションウィンドウ（下からスライドイン + フェードイン）
+        // **ビネット効果（画面周辺を暗く）**
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(80 * overlayProgress));
+        for (int i = 0; i < 100; i++) {
+            float ratio = (float)i / 100.0f;
+            int alpha = (int)(80 * overlayProgress * ratio);
+            SetDrawBlendMode(DX_BLENDMODE_ALPHA, alpha);
+
+            int thickness = (int)(100 - i);
+            DrawBox(0, 0, thickness, SCREEN_H, GetColor(0, 0, 0), TRUE);                    // 左
+            DrawBox(SCREEN_W - thickness, 0, SCREEN_W, SCREEN_H, GetColor(0, 0, 0), TRUE); // 右
+            DrawBox(0, 0, SCREEN_W, thickness, GetColor(0, 0, 0), TRUE);                   // 上
+            DrawBox(0, SCREEN_H - thickness, SCREEN_W, SCREEN_H, GetColor(0, 0, 0), TRUE); // 下
+        }
+
+        // **改良されたウィンドウアニメーション**
         int windowHeight = SCREEN_H - 300;
         int targetY = 150;
-        int slideY = SCREEN_H - (int)((SCREEN_H - targetY) * easedSlide);
 
-        // ウィンドウのフェード効果
-        int windowAlpha = (int)(255 * easedFade);
-
-        // ウィンドウの影効果（フェードと連動）
-        SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(120 * easedFade));
-        DrawBox(350, slideY + 15, SCREEN_W - 350, slideY + windowHeight + 15, GetColor(0, 0, 0), TRUE);
-
-        // メインウィンドウ背景
-        SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(230 * easedFade));
-        DrawBox(400, slideY, SCREEN_W - 400, slideY + windowHeight, GetColor(45, 45, 65), TRUE);
-
-        // ウィンドウ枠
-        SetDrawBlendMode(DX_BLENDMODE_ALPHA, windowAlpha);
-        DrawBox(400, slideY, SCREEN_W - 400, slideY + windowHeight, GetColor(120, 160, 220), FALSE);
-
-        // オプションタイトル（フェードイン）
-        SetDrawBlendMode(DX_BLENDMODE_ALPHA, windowAlpha);
-        DrawStringToHandle(SCREEN_W / 2 - 80, slideY + 30, "OPTIONS", GetColor(255, 255, 255), largeFontHandle);
-
-        // 音量設定ラベル（フェードイン）
-        DrawStringToHandle(450, slideY + 120, "Master Volume", GetColor(200, 200, 200), fontHandle);
-
-        // Backspaceキーの説明テキスト
-        SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(180 * easedFade));
-        DrawStringToHandle(450, slideY + windowHeight - 60, "Press [Backspace] to return", GetColor(150, 150, 150), fontHandle);
-        SetDrawBlendMode(DX_BLENDMODE_ALPHA, windowAlpha);
-
-        // 改良されたスライダー描画（位置をスライドに合わせて更新）
-        slider.y = slideY + 160;
-        DrawEnhancedSlider();
-
-        // 音量数値表示（フェードイン）
-        int volumePercent = (int)(slider.valueDisplay * 100);
-        string volumeText = to_string(volumePercent) + "%";
-        DrawStringToHandle(slider.x + slider.w + 20, slideY + 155, volumeText.c_str(), GetColor(255, 215, 0), fontHandle);
-
-        // 閉じるボタン（改良されたホームアイコン、フェードイン）
-        int closeX = 450;
-        int closeY = slideY + 30;
-        bool closeHovered = IsMouseOver(closeX, closeY, 60, 60);
-
-        if (closeHovered && easedFade > 0.8f) { // フェードがほぼ完了してからグロー表示
-            DrawGlowEffect(closeX - 5, closeY - 5, 70, 70, 0.4f * easedFade, GetColor(255, 100, 100));
+        // より自然な移動軌道（イーズアウトバック）
+        float slideT = easedSlide;
+        float backAmount = 0.1f;
+        if (slideT > 0.8f) {
+            float overT = (slideT - 0.8f) / 0.2f;
+            slideT = 0.8f + 0.2f * (1.0f - powf(1.0f - overT, 3.0f));
         }
 
-        float closeScale = closeHovered ? 1.1f : 1.0f;
-        int closeSize = (int)(50 * closeScale);
+        int slideY = SCREEN_H - (int)((SCREEN_H - targetY) * slideT);
+
+        // **高品質な影効果（多重影）**
+        for (int shadowLayer = 0; shadowLayer < 5; shadowLayer++) {
+            int shadowOffset = (shadowLayer + 1) * 3;
+            int shadowAlpha = (int)((80 - shadowLayer * 15) * easedFade);
+
+            SetDrawBlendMode(DX_BLENDMODE_ALPHA, shadowAlpha);
+            DrawBox(400 + shadowOffset, slideY + shadowOffset,
+                SCREEN_W - 400 + shadowOffset, slideY + windowHeight + shadowOffset,
+                GetColor(0, 0, 0), TRUE);
+        }
+
+        // **ウィンドウの段階的表示（スケール効果付き）**
+        float scaleEffect = 0.9f + easedFade * 0.1f; // 小さくスタートして拡大
+        int windowW = (int)((SCREEN_W - 800) * scaleEffect);
+        int windowH = (int)(windowHeight * scaleEffect);
+        int windowX = 400 + (SCREEN_W - 800 - windowW) / 2;
+        int windowYScaled = slideY + (windowHeight - windowH) / 2;
+
+        // **グラデーション背景（高品質）**
+        for (int i = 0; i < windowH; i++) {
+            float gradientRatio = (float)i / windowH;
+            int r = (int)(45 + gradientRatio * 10);
+            int g = (int)(45 + gradientRatio * 10);
+            int b = (int)(65 + gradientRatio * 15);
+            int alpha = (int)(230 * easedFade * (0.8f + gradientRatio * 0.2f));
+
+            SetDrawBlendMode(DX_BLENDMODE_ALPHA, alpha);
+            DrawLine(windowX, windowYScaled + i, windowX + windowW, windowYScaled + i,
+                GetColor(r, g, b), TRUE);
+        }
+
+        // **光沢効果（上部ハイライト）**
+        SetDrawBlendMode(DX_BLENDMODE_ADD, (int)(40 * easedFade));
+        for (int i = 0; i < 30; i++) {
+            float highlightRatio = (float)i / 30.0f;
+            int alpha = (int)(40 * easedFade * (1.0f - highlightRatio));
+            SetDrawBlendMode(DX_BLENDMODE_ADD, alpha);
+            DrawLine(windowX, windowYScaled + i, windowX + windowW, windowYScaled + i,
+                GetColor(120, 160, 220), TRUE);
+        }
+
+        // **洗練されたウィンドウ枠（多重枠）**
+        int windowAlpha = (int)(255 * easedFade);
+
+        // 外枠（暗い）
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, windowAlpha);
+        DrawBox(windowX - 2, windowYScaled - 2, windowX + windowW + 2, windowYScaled + windowH + 2,
+            GetColor(60, 80, 120), FALSE);
+
+        // 内枠（明るい）
+        DrawBox(windowX, windowYScaled, windowX + windowW, windowYScaled + windowH,
+            GetColor(120, 160, 220), FALSE);
+
+        // **タイトルとコンテンツの段階的フェードイン**
+        float contentFade = max(0.0f, (easedFade - 0.3f) / 0.7f); // フェードが30%完了してからコンテンツ表示
+
+        // オプションタイトル（フェードイン + 軽いスケール効果）
+        float titleScale = 0.95f + contentFade * 0.05f;
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(windowAlpha * contentFade));
+
+        string optionsTitle = "OPTIONS";
+        int titleWidth = GetDrawStringWidthToHandle(optionsTitle.c_str(), (int)optionsTitle.length(), largeFontHandle);
+        int titleX = windowX + windowW / 2 - (int)(titleWidth * titleScale) / 2;
+        int titleY = windowYScaled + 30;
+
+        // タイトルの影
+        DrawStringToHandle(titleX + 2, titleY + 2, optionsTitle.c_str(), GetColor(0, 0, 0), largeFontHandle);
+        DrawStringToHandle(titleX, titleY, optionsTitle.c_str(), GetColor(255, 255, 255), largeFontHandle);
+
+        // **コンテンツエリアの計算（スケール後の座標）**
+        int contentAlpha = (int)(windowAlpha * contentFade);
+
+        // BGM/SEラベルとスライダー（段階的表示）
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, contentAlpha);
+
+        int labelStartY = windowYScaled + 100;
+        int sliderStartY = windowYScaled + 140;
+
+        // BGMセクション
+        DrawStringToHandle(windowX + 50, labelStartY, "BGM Volume", GetColor(200, 200, 200), fontHandle);
+
+        // BGMスライダー位置調整
+        bgmSlider.x = windowX + 50;
+        bgmSlider.y = sliderStartY;
+        bgmSlider.w = windowW - 150;
+        DrawBGMSlider();
+
+        // BGM数値表示
+        int bgmPercent = (int)(bgmSlider.valueDisplay * 100);
+        string bgmText = to_string(bgmPercent) + "%";
+        DrawStringToHandle(bgmSlider.x + bgmSlider.w + 20, sliderStartY - 5, bgmText.c_str(), GetColor(255, 215, 0), fontHandle);
+
+        // SEセクション
+        int seLabelsY = labelStartY + 80;
+        int seSliderY = sliderStartY + 80;
+
+        DrawStringToHandle(windowX + 50, seLabelsY, "SE Volume", GetColor(200, 200, 200), fontHandle);
+
+        // SEスライダー位置調整
+        seSlider.x = windowX + 50;
+        seSlider.y = seSliderY;
+        seSlider.w = windowW - 150;
+        DrawSESlider();
+
+        // SE数値表示
+        int sePercent = (int)(seSlider.valueDisplay * 100);
+        string seText = to_string(sePercent) + "%";
+        DrawStringToHandle(seSlider.x + seSlider.w + 20, seSliderY - 5, seText.c_str(), GetColor(255, 215, 0), fontHandle);
+
+        // **戻るための説明文（フェードイン）**
+        float instructionFade = max(0.0f, (contentFade - 0.5f) / 0.5f);
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(180 * instructionFade));
+        DrawStringToHandle(windowX + 50, windowYScaled + windowH - 60,
+            "Press [Backspace] to return", GetColor(150, 150, 150), fontHandle);
+
+        // **閉じるボタン（洗練されたアニメーション）**
+        int closeX = windowX + windowW - 80;
+        int closeY = windowYScaled + 20;
+        bool closeHovered = IsMouseOver(closeX, closeY, 60, 60);
+
+        if (closeHovered && contentFade > 0.8f) {
+            DrawGlowEffect(closeX - 5, closeY - 5, 70, 70, 0.3f * contentFade, GetColor(255, 120, 120));
+        }
+
+        float closeScale = closeHovered ? 1.05f : 1.0f;
+        float closeFade = contentFade * (closeHovered ? 1.0f : 0.8f);
+
+        int closeSize = (int)(40 * closeScale);
         int closeOffsetX = (60 - closeSize) / 2;
         int closeOffsetY = (60 - closeSize) / 2;
 
-        SetDrawBlendMode(DX_BLENDMODE_ALPHA, windowAlpha);
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(255 * closeFade));
         DrawExtendGraph(
             closeX + closeOffsetX, closeY + closeOffsetY,
             closeX + closeOffsetX + closeSize, closeY + closeOffsetY + closeSize,
@@ -283,7 +463,7 @@ void TitleScene::Draw()
         SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
     }
 
-    // 画面遷移フェードオーバーレイ（最前面に描画）
+    // **6. 画面遷移フェードオーバーレイ（最前面）**
     if (transitionState != None) {
         int fadeAlpha = (int)(255 * transitionFadeProgress);
         SetDrawBlendMode(DX_BLENDMODE_ALPHA, fadeAlpha);
@@ -291,7 +471,7 @@ void TitleScene::Draw()
         SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
     }
 }
-
+// UpdateButtons関数の改良版（BGM制御をより明確に）
 void TitleScene::UpdateButtons()
 {
     for (auto& btn : buttons) {
@@ -312,6 +492,8 @@ void TitleScene::UpdateButtons()
         // プレス効果
         if (over && mousePressed) {
             btn.pressProgress = min(1.0f, btn.pressProgress + 0.2f);
+            // ボタンクリック音
+            SoundManager::GetInstance().PlaySE(SoundManager::SFX_SELECT);
         }
         else {
             btn.pressProgress = max(0.0f, btn.pressProgress - 0.15f);
@@ -320,27 +502,45 @@ void TitleScene::UpdateButtons()
 
     // ボタンクリック処理（画面遷移中でない場合のみ）
     if (optionState == Hidden && transitionState == None) {
-        // START
+        // START ボタン
         if (IsClicked(buttons[0].x, buttons[0].y, buttons[0].w, buttons[0].h)) {
+          
+
             transitionState = FadingOut;
             transitionFadeProgress = 0.0f;
+
+            OutputDebugStringA("TitleScene: START clicked - BGM stopped for game transition\n");
         }
-        // OPTIONS
+
+        // OPTIONS ボタン
         if (IsClicked(buttons[1].x, buttons[1].y, buttons[1].w, buttons[1].h)) {
             optionState = Showing;
             optionAnimProgress = 0.0f;
+
+            // **オプション画面：BGMは継続再生（何もしない）**
+            OutputDebugStringA("TitleScene: OPTIONS opened - BGM continues\n");
         }
-        // EXIT
+
+        // EXIT ボタン
         if (IsClicked(buttons[2].x, buttons[2].y, buttons[2].w, buttons[2].h)) {
+            // **アプリケーション終了：全ての音声を停止**
+            SoundManager::GetInstance().StopBGM();
+            SoundManager::GetInstance().StopAllSE();
+
             exitRequested = true;
+
+            OutputDebugStringA("TitleScene: EXIT clicked - All sounds stopped\n");
         }
     }
 
-    // オプション閉じる（画面遷移中でない場合のみ）
+    // オプション画面を閉じる処理（画面遷移中でない場合のみ）
     if (optionState == Visible && transitionState == None) {
         int slideY = 150; // Visible状態では固定位置
         if (IsClicked(450, slideY + 30, 60, 60)) {
             optionState = Hiding;
+
+            // **オプション画面を閉じる：BGMは継続**
+            OutputDebugStringA("TitleScene: OPTIONS closed - BGM continues\n");
         }
     }
 }
@@ -364,6 +564,8 @@ void TitleScene::UpdateSlider()
         float newValue = (float)(mouseX - slider.x) / slider.w;
         slider.value = clamp(newValue, 0.0f, 1.0f);
         slider.glowEffect = min(1.0f, slider.glowEffect + 0.1f);
+        // 既存のマスターボリューム更新の後に
+        SoundManager::GetInstance().SetMasterVolume(slider.value);
     }
     else {
         slider.glowEffect = max(0.0f, slider.glowEffect - 0.05f);
@@ -580,4 +782,169 @@ bool TitleScene::IsMouseOver(int x, int y, int w, int h) const
 bool TitleScene::IsClicked(int x, int y, int w, int h) const
 {
     return IsMouseOver(x, y, w, h) && mousePressed && !mousePressedPrev;
+}
+
+// BGMスライダー更新関数の改良版
+void TitleScene::UpdateBGMSlider()
+{
+    int knobSize = 32;
+    float knobX = bgmSlider.x + bgmSlider.value * bgmSlider.w - knobSize / 2;
+    float knobY = bgmSlider.y + bgmSlider.h / 2 - knobSize / 2;
+
+    bool knobHovered = IsMouseOver((int)knobX, (int)knobY, knobSize, knobSize);
+    bgmSlider.hoverProgress = Lerp(bgmSlider.hoverProgress, knobHovered ? 1.0f : 0.0f, 0.2f);
+
+    // ドラッグ開始
+    if (!bgmSlider.dragging && mousePressed && !mousePressedPrev && knobHovered) {
+        bgmSlider.dragging = true;
+    }
+
+    // ドラッグ中の値更新
+    if (bgmSlider.dragging) {
+        float newValue = (float)(mouseX - bgmSlider.x) / bgmSlider.w;
+        bgmSlider.value = clamp(newValue, 0.0f, 1.0f);
+        bgmSlider.glowEffect = min(1.0f, bgmSlider.glowEffect + 0.1f);
+
+        // **BGMボリュームをリアルタイム更新**
+        SoundManager::GetInstance().SetBGMVolume(bgmSlider.value);
+
+        // **タイトルBGMが再生中の場合、即座にボリューム変更を適用**
+        // SetBGMVolume内で既に処理されているが、確実にするため
+    }
+    else {
+        bgmSlider.glowEffect = max(0.0f, bgmSlider.glowEffect - 0.05f);
+    }
+
+    // ドラッグ終了
+    if (!mousePressed) {
+        bgmSlider.dragging = false;
+    }
+
+    // 表示値の滑らかな補間
+    bgmSlider.valueDisplay = Lerp(bgmSlider.valueDisplay, bgmSlider.value, 0.25f);
+}
+
+void TitleScene::UpdateSESlider()
+{
+    int knobSize = 32;
+    float knobX = seSlider.x + seSlider.value * seSlider.w - knobSize / 2;
+    float knobY = seSlider.y + seSlider.h / 2 - knobSize / 2;
+
+    bool knobHovered = IsMouseOver((int)knobX, (int)knobY, knobSize, knobSize);
+    seSlider.hoverProgress = Lerp(seSlider.hoverProgress, knobHovered ? 1.0f : 0.0f, 0.2f);
+
+    // ドラッグ開始
+    if (!seSlider.dragging && mousePressed && !mousePressedPrev && knobHovered) {
+        seSlider.dragging = true;
+    }
+
+    // ドラッグ中の値更新
+    if (seSlider.dragging) {
+        float newValue = (float)(mouseX - seSlider.x) / seSlider.w;
+        seSlider.value = clamp(newValue, 0.0f, 1.0f);
+        seSlider.glowEffect = min(1.0f, seSlider.glowEffect + 0.1f);
+
+        // SEボリュームをリアルタイム更新
+        SoundManager::GetInstance().SetSEVolume(seSlider.value);
+    }
+    else {
+        seSlider.glowEffect = max(0.0f, seSlider.glowEffect - 0.05f);
+    }
+
+    // ドラッグ終了
+    if (!mousePressed) {
+        seSlider.dragging = false;
+    }
+
+    // 表示値の滑らかな補間
+    seSlider.valueDisplay = Lerp(seSlider.valueDisplay, seSlider.value, 0.25f);
+}
+
+void TitleScene::DrawBGMSlider()
+{
+    // スライダーバー全体を描画
+    DrawExtendGraph(bgmSlider.x, bgmSlider.y, bgmSlider.x + bgmSlider.w, bgmSlider.y + bgmSlider.h,
+        slideBarHandle, TRUE);
+
+    // 値の部分を明るくしてコントラストを付ける
+    int valueWidth = (int)(bgmSlider.valueDisplay * bgmSlider.w);
+    SetDrawBlendMode(DX_BLENDMODE_ALPHA, 150);
+    DrawBox(bgmSlider.x, bgmSlider.y, bgmSlider.x + valueWidth, bgmSlider.y + bgmSlider.h,
+        GetColor(255, 100, 100), TRUE);
+    SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+
+    // ノブ描画
+    int knobSize = 32;
+    float knobX = bgmSlider.x + bgmSlider.valueDisplay * bgmSlider.w - knobSize / 2;
+    float knobY = bgmSlider.y + bgmSlider.h / 2 - knobSize / 2;
+
+    float hoverScale = 1.0f + bgmSlider.hoverProgress * 0.2f;
+    int scaledKnobSize = (int)(knobSize * hoverScale);
+    int scaleOffset = (scaledKnobSize - knobSize) / 2;
+
+    if (bgmSlider.glowEffect > 0.01f || bgmSlider.hoverProgress > 0.01f) {
+        float totalGlow = max(bgmSlider.glowEffect, bgmSlider.hoverProgress * 0.5f);
+        DrawGlowEffect((int)knobX - scaleOffset - 5, (int)knobY - scaleOffset - 5,
+            scaledKnobSize + 10, scaledKnobSize + 10, totalGlow, GetColor(255, 100, 100));
+    }
+
+    DrawExtendGraph(
+        (int)knobX - scaleOffset, (int)knobY - scaleOffset,
+        (int)knobX - scaleOffset + scaledKnobSize, (int)knobY - scaleOffset + scaledKnobSize,
+        slideHandle, TRUE
+    );
+}
+
+void TitleScene::DrawSESlider()
+{
+    // スライダーバー全体を描画
+    DrawExtendGraph(seSlider.x, seSlider.y, seSlider.x + seSlider.w, seSlider.y + seSlider.h,
+        slideBarHandle, TRUE);
+
+    // 値の部分を明るくしてコントラストを付ける
+    int valueWidth = (int)(seSlider.valueDisplay * seSlider.w);
+    SetDrawBlendMode(DX_BLENDMODE_ALPHA, 150);
+    DrawBox(seSlider.x, seSlider.y, seSlider.x + valueWidth, seSlider.y + seSlider.h,
+        GetColor(100, 255, 100), TRUE);
+    SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+
+    // ノブ描画
+    int knobSize = 32;
+    float knobX = seSlider.x + seSlider.valueDisplay * seSlider.w - knobSize / 2;
+    float knobY = seSlider.y + seSlider.h / 2 - knobSize / 2;
+
+    float hoverScale = 1.0f + seSlider.hoverProgress * 0.2f;
+    int scaledKnobSize = (int)(knobSize * hoverScale);
+    int scaleOffset = (scaledKnobSize - knobSize) / 2;
+
+    if (seSlider.glowEffect > 0.01f || seSlider.hoverProgress > 0.01f) {
+        float totalGlow = max(seSlider.glowEffect, seSlider.hoverProgress * 0.5f);
+        DrawGlowEffect((int)knobX - scaleOffset - 5, (int)knobY - scaleOffset - 5,
+            scaledKnobSize + 10, scaledKnobSize + 10, totalGlow, GetColor(100, 255, 100));
+    }
+
+    DrawExtendGraph(
+        (int)knobX - scaleOffset, (int)knobY - scaleOffset,
+        (int)knobX - scaleOffset + scaledKnobSize, (int)knobY - scaleOffset + scaledKnobSize,
+        slideHandle, TRUE
+    );
+}
+
+void TitleScene::EnsureTitleBGMPlaying()
+{
+    static int bgmCheckCounter = 0;
+    bgmCheckCounter++;
+
+    // 60フレーム（約1秒）ごとにBGMの状態をチェック
+    if (bgmCheckCounter % 60 == 0) {
+        SoundManager& soundManager = SoundManager::GetInstance();
+
+        // タイトルBGMが再生されていない場合は再開
+        if (!soundManager.IsBGMPlaying(SoundManager::BGM_TITLE)) {
+            soundManager.PlayBGM(SoundManager::BGM_TITLE);
+
+            // デバッグ出力
+            OutputDebugStringA("TitleScene: Title BGM was restarted\n");
+        }
+    }
 }

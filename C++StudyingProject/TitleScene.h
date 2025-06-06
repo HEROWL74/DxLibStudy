@@ -5,7 +5,7 @@
 #include <math.h>
 #include <algorithm>
 #include <random>
-
+#include "SoundManager.h"
 class TitleScene
 {
 public:
@@ -34,7 +34,7 @@ private:
     static constexpr float SCALE_LERP = 0.18f;
     static constexpr float FLOAT_SPEED = 0.08f;
     static constexpr float FLOAT_AMP = 6.0f;
-    static constexpr float ANIM_SPEED = 0.08f;  // より滑らかなアニメーション
+    static constexpr float ANIM_SPEED = 0.08f;  // よりゆっくりとしたアニメーション
     static constexpr float FADE_SPEED = 0.06f;  // フェード専用速度
     static constexpr float TRANSITION_SPEED = 0.04f;  // 画面遷移フェード速度
 
@@ -89,6 +89,8 @@ private:
 
     // 改良されたスライダー
     EnhancedSlider slider;
+    EnhancedSlider bgmSlider;
+    EnhancedSlider seSlider;
 
     // 状態管理
     bool        startRequested;
@@ -127,6 +129,14 @@ private:
     bool IsMouseOver(int x, int y, int w, int h) const;
     bool IsClicked(int x, int y, int w, int h) const;
 
+    void UpdateBGMSlider();
+    void UpdateSESlider();
+    void DrawBGMSlider();
+    void DrawSESlider();
+
+    // **新規追加: BGM継続再生関数**
+    void EnsureTitleBGMPlaying();
+
     // イージング関数
     float EaseInOutCubic(float t);
     float EaseOutElastic(float t);
@@ -137,4 +147,9 @@ private:
     float Lerp(float a, float b, float t);
     float SmoothStep(float edge0, float edge1, float x);
     int BlendColor(int color1, int color2, float ratio);
+    
+    // **新追加: エイリアンテーマのアニメーション用変数**
+    float       alienGlowPhase;          // エイリアン風グロー効果
+    float       starFieldPhase;          // 星空背景効果
+    float       titleColorPhase;         // タイトルカラーアニメーション
 };

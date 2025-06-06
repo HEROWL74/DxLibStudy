@@ -3,6 +3,7 @@
 #include "TitleScene.h"
 #include "CharacterSelectScene.h"
 #include "GameScene.h"
+#include "LoadingScene.h"
 
 class Game
 {
@@ -20,11 +21,16 @@ public:
     void  Finalize();
 
 private:
-    enum GameState { TITLE, CHARACTER_SELECT, GAME_MAIN };
+    enum GameState { TITLE, CHARACTER_SELECT,LOADING, GAME_MAIN };
 
     TitleScene titleScene;
     CharacterSelectScene characterSelectScene;
+    LoadingScene loadingScene;
     GameScene gameScene;
     GameState currentState;
     int selectedCharacter;
+
+    //ローディング関連の状態
+    LoadingScene::LoadingType pendingLoadingType;
+    int pendingStageIndex;
 };

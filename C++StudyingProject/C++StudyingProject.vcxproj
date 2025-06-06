@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClCompile Include="CharacterSelectScene.cpp" />
     <ClCompile Include="CoinSystem.cpp" />
+    <ClCompile Include="DoorSystem.cpp" />
     <ClCompile Include="EnemyBase.cpp" />
     <ClCompile Include="EnemyManager.cpp" />
     <ClCompile Include="Game.cpp" />
@@ -28,6 +29,7 @@
     <ClCompile Include="GoalSystem.cpp" />
     <ClCompile Include="GrassStage.cpp" />
     <ClCompile Include="HUDSystem.cpp" />
+    <ClCompile Include="LoadingScene.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="NormalSlime.cpp" />
     <ClCompile Include="Player.cpp" />
@@ -35,6 +37,7 @@
     <ClCompile Include="ResultUISystem.cpp" />
     <ClCompile Include="SandStage.cpp" />
     <ClCompile Include="SnowStage.cpp" />
+    <ClCompile Include="SoundManager.cpp" />
     <ClCompile Include="SpikeSlime.cpp" />
     <ClCompile Include="Stage.cpp" />
     <ClCompile Include="StageManager.cpp" />
@@ -45,6 +48,7 @@
   <ItemGroup>
     <ClInclude Include="CharacterSelectScene.h" />
     <ClInclude Include="CoinSystem.h" />
+    <ClInclude Include="DoorSystem.h" />
     <ClInclude Include="EnemyBase.h" />
     <ClInclude Include="EnemyManager.h" />
     <ClInclude Include="Game.h" />
@@ -52,12 +56,14 @@
     <ClInclude Include="GoalSystem.h" />
     <ClInclude Include="GrassStage.h" />
     <ClInclude Include="HUDSystem.h" />
+    <ClInclude Include="LoadingScene.h" />
     <ClInclude Include="NormalSlime.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="PurpleStage.h" />
     <ClInclude Include="ResultUISystem.h" />
     <ClInclude Include="SandStage.h" />
     <ClInclude Include="SnowStage.h" />
+    <ClInclude Include="SoundManager.h" />
     <ClInclude Include="SpikeSlime.h" />
     <ClInclude Include="Stage.h" />
     <ClInclude Include="StageManager.h" />

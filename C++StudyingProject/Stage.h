@@ -39,8 +39,13 @@ protected:
 
     // タイル配置用ヘルパー
     void PlaceTile(const std::string& tileType, int gridX, int gridY);
+    void PlacePlatformBlock(int gridX, int gridY); // **新追加：単一ブロック配置**
     void CreatePlatform(int startX, int startY, int width, int height);
     void LoadTerrainTextures();
+
+    // **新追加：プラットフォーム専用テクスチャ管理**
+    void LoadPlatformTexture();
+    void CreatePlatformBlock(int startX, int startY, int width, int height);
 
     // テクスチャハンドル管理
     struct TerrainTextures {
@@ -49,6 +54,9 @@ protected:
         int top, top_left, top_right;
     } textures;
 
+    // **新追加：単一プラットフォームテクスチャ**
+    int platformBlockTexture;
+
 private:
-    void LoadTileTexture(int& handle, const std::string& tileType);
+    void LoadTileTexture(int& handle, const std::string& filePath);
 };

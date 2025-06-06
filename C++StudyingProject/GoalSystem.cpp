@@ -250,9 +250,9 @@ void GoalSystem::PlaceGoalForStage(int stageIndex, StageManager* stageManager)
 {
     ClearGoal();
 
-    // 最後のステージ（4番目）にはゴールを配置しない
-    if (stageIndex >= 4) {
-        return;
+    // 最後のステージ（4番目）にもゴールを配置
+    if (stageIndex >= 5) {
+        return; // 5番目以降は配置しない（将来の拡張用）
     }
 
     // ステージに応じた色と位置を設定
@@ -260,23 +260,53 @@ void GoalSystem::PlaceGoalForStage(int stageIndex, StageManager* stageManager)
         FLAG_BLUE,    // GrassStage
         FLAG_YELLOW,  // StoneStage  
         FLAG_GREEN,   // SandStage
-        FLAG_RED      // SnowStage
+        FLAG_RED,     // SnowStage
+        FLAG_BLUE     // PurpleStage（5番目なので青で統一）
     };
 
-    // ステージの終端近くにゴールを配置
-    float goalWorldX = Stage::STAGE_WIDTH - 400; // ステージの右端から400px手前
+    // **ステージごとの旗配置位置を個別設定**
+    float goalWorldX;
+
+    switch (stageIndex) {
+    case 0: // ステージ1（Grass Stage）
+        // ドアの後ろ（右側）に配置
+        goalWorldX = Stage::STAGE_WIDTH - 1050; // ドアより後ろ
+        break;
+    case 1: // ステージ2（Stone Stage）
+        goalWorldX = Stage::STAGE_WIDTH - 850;
+        break;
+    case 2: // ステージ3（Sand Stage）
+        goalWorldX = Stage::STAGE_WIDTH - 800;
+        break;
+    case 3: // ステージ4（Snow Stage）
+        goalWorldX = Stage::STAGE_WIDTH - 880;
+        break;
+    case 4: // ステージ5（Purple Stage）- ドアなし
+        goalWorldX = Stage::STAGE_WIDTH - 800; // ステージの右端から200px手前
+        break;
+    default:
+        goalWorldX = Stage::STAGE_WIDTH - 800;
+        break;
+    }
+
     float groundLevel = FindGroundLevel(goalWorldX, stageManager);
 
     if (groundLevel > 0) {
         // ブロックの上に配置（旗の底がブロックの上に来るように）
         float goalWorldY = groundLevel - FLAG_HEIGHT;
-        SetGoal(goalWorldX, goalWorldY, stageColors[stageIndex % 4]);
+        SetGoal(goalWorldX, goalWorldY, stageColors[stageIndex % 5]);
+
+        // **デバッグ出力**
+        char debugMsg[256];
+        sprintf_s(debugMsg, "GoalSystem: Placed flag at Stage %d - X:%.1f, Y:%.1f, Ground:%.1f\n",
+            stageIndex + 1, goalWorldX, goalWorldY, groundLevel);
+        OutputDebugStringA(debugMsg);
     }
 }
 
 float GoalSystem::FindGroundLevel(float x, StageManager* stageManager)
 {
-    // 指定された位置での地面レベルを検索
+    // 指定された位置での地面レベルを探索
     // 上から下に向かってタイルをチェック
     for (int y = 0; y < Stage::STAGE_HEIGHT; y += Stage::TILE_SIZE) {
         if (stageManager->CheckCollision(x, y, 1, 1)) {
