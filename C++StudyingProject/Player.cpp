@@ -16,8 +16,11 @@ Player::Player()
     , walkAnimFrame(false)
     , bobPhase(0.0f)
     , characterIndex(0)
-    , wasStomping(false)        // **追加**
-    , stompCooldown(0.0f)       // **追加**
+    , wasStomping(false)
+    , stompCooldown(0.0f)
+    , slidingTimer(0.0f)          // **新追加**
+    , slidingSpeed(0.0f)          // **新追加**
+    , wasRunningWhenSlideStarted(false) // **新追加**
 {
     // スプライトハンドルを初期化
     sprites.front = sprites.idle = sprites.walk_a = sprites.walk_b = -1;
@@ -76,7 +79,7 @@ void Player::Update(StageManager* stageManager)
     UpdateAnimation();
 }
 
-/// **Draw関数の修正: 無敵時間中の点滅効果とHITスプライト**
+// **Draw関数の修正: スライディング時の特別な描画効果**
 void Player::Draw(float cameraX)
 {
     int currentSprite = GetCurrentSprite();
@@ -93,6 +96,15 @@ void Player::Draw(float cameraX)
         bobOffset = sinf(bobPhase) * 2.0f;
     }
 
+    // **スライディング時の特別な効果**
+    float slidingOffset = 0.0f;
+    if (currentState == SLIDING) {
+        // 微細な振動効果でスライディングの勢いを表現
+        float slidingProgress = GetSlidingProgress();
+        float vibrationIntensity = (1.0f - slidingProgress) * 1.5f;
+        slidingOffset = sinf(slidingTimer * 40.0f) * vibrationIntensity;
+    }
+
     // **ダメージ時の自然なノックバック振動効果**
     float hitShake = 0.0f;
     if (currentState == HIT && hitTimer < HIT_DURATION * 0.7f) {
@@ -103,7 +115,7 @@ void Player::Draw(float cameraX)
     }
 
     // 安全な画面座標計算
-    int screenX = (int)(x - cameraX + hitShake);
+    int screenX = (int)(x - cameraX + hitShake + slidingOffset);
     int screenY = (int)(safeY + bobOffset);
 
     // 画面外チェック
@@ -134,8 +146,16 @@ void Player::Draw(float cameraX)
     }
 
     if (shouldDraw) {
+        // **スライディング時の特別な色効果**
+        if (currentState == SLIDING) {
+            float slidingProgress = GetSlidingProgress();
+            int blueIntensity = 255 + (int)(50 * sinf(slidingTimer * 8.0f) * (1.0f - slidingProgress));
+            if (blueIntensity > 255) blueIntensity = 255;
+            SetDrawBright(255, 255, blueIntensity); // 青みがかった効果
+        }
+
         // **ダメージ時の赤色効果（より自然に）**
-        if (currentState == HIT && hitTimer < HIT_DURATION * 0.4f) {
+        else if (currentState == HIT && hitTimer < HIT_DURATION * 0.4f) {
             float flashProgress = hitTimer / (HIT_DURATION * 0.4f);
             int redIntensity = (int)(255 * (1.0f - flashProgress));
             SetDrawBright(255, 255 - redIntensity / 2, 255 - redIntensity); // 赤みがかった色
@@ -150,11 +170,17 @@ void Player::Draw(float cameraX)
         }
 
         // 色をリセット
-        if (currentState == HIT && hitTimer < HIT_DURATION * 0.4f) {
+        if (currentState == SLIDING || (currentState == HIT && hitTimer < HIT_DURATION * 0.4f)) {
             SetDrawBright(255, 255, 255);
         }
     }
+
+    // **スライディング時の煙エフェクト（オプション）**
+    if (currentState == SLIDING && onGround) {
+        DrawSlidingEffect(cameraX);
+    }
 }
+
 
 void Player::UpdatePhysics(StageManager* stageManager)
 {
@@ -167,33 +193,100 @@ void Player::UpdatePhysics(StageManager* stageManager)
     // **ダメージ状態中は入力を制限**
     bool canControl = (currentState != HIT || hitTimer > HIT_DURATION * 0.6f);
 
-    // 改良された水平移動処理（イージング付き）
-    bool leftPressed = canControl && CheckHitKey(KEY_INPUT_LEFT) && currentState != DUCKING;
-    bool rightPressed = canControl && CheckHitKey(KEY_INPUT_RIGHT) && currentState != DUCKING;
+    // **スライディング状態の更新**
+    if (currentState == SLIDING) {
+        UpdateSliding();
 
-    if (leftPressed) {
-        velocityX -= ACCELERATION;
-        if (velocityX < -MAX_HORIZONTAL_SPEED) {
-            velocityX = -MAX_HORIZONTAL_SPEED;
+        // スライディング終了判定
+        if (slidingTimer >= SLIDING_DURATION || slidingSpeed <= SLIDING_MIN_SPEED) {
+            EndSliding();
+        }
+
+        // スライディング中の重力適用
+        if (!onGround) {
+            velocityY += GRAVITY;
+            if (velocityY > MAX_FALL_SPEED) {
+                velocityY = MAX_FALL_SPEED;
+            }
+        }
+
+        return; // 通常の移動処理をスキップ
+    }
+
+    // **改良された水平移動処理（段階的加速度システム）**
+    bool leftPressed = canControl && CheckHitKey(KEY_INPUT_LEFT);
+    bool rightPressed = canControl && CheckHitKey(KEY_INPUT_RIGHT);
+    bool downPressed = canControl && CheckHitKey(KEY_INPUT_DOWN);
+
+    // **スライディング開始判定（修正版）**
+    static bool downWasPressedLastFrame = false;
+    bool downJustPressed = downPressed && !downWasPressedLastFrame;
+
+    // スライディング条件：下キーを押した瞬間 + 地上 + 十分な速度
+    if (downJustPressed && onGround && fabsf(velocityX) > 4.0f && currentState != DUCKING) {
+        StartSliding();
+        downWasPressedLastFrame = downPressed;
+        return; // スライディング開始後は通常処理をスキップ
+    }
+    downWasPressedLastFrame = downPressed;
+
+    // **段階的加速度システム（リアルな移動感）**
+    float currentSpeed = fabsf(velocityX);
+    float targetSpeed = 0.0f;
+    float accelerationRate = ACCELERATION;
+
+    if (leftPressed && !downPressed) { // 下キー押下中は通常移動しない
+        targetSpeed = -MAX_HORIZONTAL_SPEED;
+
+        // 速度に応じた加速度調整
+        if (currentSpeed < 2.0f) {
+            accelerationRate = ACCELERATION * 1.5f; // 低速時は素早く加速
+        }
+        else if (currentSpeed < 5.0f) {
+            accelerationRate = ACCELERATION; // 中速時は標準加速
+        }
+        else {
+            accelerationRate = ACCELERATION * 0.7f; // 高速時は緩やか
+        }
+
+        velocityX -= accelerationRate;
+        if (velocityX < targetSpeed) {
+            velocityX = targetSpeed;
         }
         facingRight = false;
+
         if (onGround && currentState != HIT) {
-            currentState = WALKING;
+            currentState = (currentSpeed > 1.0f) ? WALKING : IDLE;
         }
     }
-    else if (rightPressed) {
-        velocityX += ACCELERATION;
-        if (velocityX > MAX_HORIZONTAL_SPEED) {
-            velocityX = MAX_HORIZONTAL_SPEED;
+    else if (rightPressed && !downPressed) { // 下キー押下中は通常移動しない
+        targetSpeed = MAX_HORIZONTAL_SPEED;
+
+        // 速度に応じた加速度調整
+        if (currentSpeed < 2.0f) {
+            accelerationRate = ACCELERATION * 1.5f; // 低速時は素早く加速
+        }
+        else if (currentSpeed < 5.0f) {
+            accelerationRate = ACCELERATION; // 中速時は標準加速
+        }
+        else {
+            accelerationRate = ACCELERATION * 0.7f; // 高速時は緩やか
+        }
+
+        velocityX += accelerationRate;
+        if (velocityX > targetSpeed) {
+            velocityX = targetSpeed;
         }
         facingRight = true;
+
         if (onGround && currentState != HIT) {
-            currentState = WALKING;
+            currentState = (currentSpeed > 1.0f) ? WALKING : IDLE;
         }
     }
     else {
-        // **改良されたノックバック減衰システム**
+        // **改良された減速システム**
         float currentFriction = FRICTION;
+
         if (currentState == HIT && knockbackDecay > 0.0f) {
             // ノックバック中は段階的に減衰
             float decayStage = 1.0f - knockbackDecay;
@@ -207,13 +300,27 @@ void Player::UpdatePhysics(StageManager* stageManager)
                 currentFriction = 0.82f; // 後期は早めに止める
             }
         }
+        else {
+            // 通常時の速度に応じた摩擦調整
+            if (currentSpeed > 6.0f) {
+                currentFriction = 0.92f; // 高速時はゆっくり減速
+            }
+            else if (currentSpeed > 3.0f) {
+                currentFriction = 0.88f; // 中速時は標準減速
+            }
+            else {
+                currentFriction = 0.82f; // 低速時は早めに停止
+            }
+        }
 
         velocityX *= currentFriction;
 
-        if (fabsf(velocityX) < 0.1f) {
+        // 完全停止の閾値
+        if (fabsf(velocityX) < 0.3f) {
             velocityX = 0.0f;
         }
 
+        // 状態の更新
         if (onGround && currentState != JUMPING && currentState != FALLING && currentState != HIT) {
             if (fabsf(velocityX) < 0.5f) {
                 currentState = IDLE;
@@ -224,18 +331,30 @@ void Player::UpdatePhysics(StageManager* stageManager)
         }
     }
 
-    // しゃがみ処理（ダメージ中は無効）
-    if (canControl && CheckHitKey(KEY_INPUT_DOWN) && onGround && currentState != HIT) {
-        currentState = DUCKING;
-        velocityX *= 0.8f;
+    // **しゃがみ処理（修正版）**
+    if (canControl && downPressed && onGround && currentState != HIT && currentState != SLIDING) {
+        // 移動中でない場合のみしゃがみ可能
+        if (fabsf(velocityX) < 1.0f && !leftPressed && !rightPressed) {
+            currentState = DUCKING;
+            velocityX *= 0.6f; // より強い減速
+        }
+        // 移動中の場合は何もしない（スライディング判定は上で処理済み）
     }
 
-    // ジャンプ処理（ダメージ中は無効）
+    // **ジャンプ処理（ダメージ中は無効）**
     static bool spaceWasPressedLastFrame = false;
     bool spacePressed = CheckHitKey(KEY_INPUT_SPACE) != 0;
 
-    if (canControl && spacePressed && !spaceWasPressedLastFrame && onGround && currentState != JUMPING && currentState != HIT) {
-        velocityY = JUMP_POWER;
+    if (canControl && spacePressed && !spaceWasPressedLastFrame && onGround &&
+        currentState != JUMPING && currentState != HIT && currentState != SLIDING) {
+
+        // 速度に応じたジャンプ力調整
+        float jumpPower = JUMP_POWER;
+        if (fabsf(velocityX) > 6.0f) {
+            jumpPower *= 1.1f; // 高速移動中はより高いジャンプ
+        }
+
+        velocityY = jumpPower;
         currentState = JUMPING;
         onGround = false;
         SoundManager::GetInstance().PlaySE(SoundManager::SFX_JUMP);
@@ -243,40 +362,43 @@ void Player::UpdatePhysics(StageManager* stageManager)
 
     spaceWasPressedLastFrame = spacePressed;
 
-    // 重力適用
+    // **重力適用**
     if (!onGround) {
+        // 可変ジャンプ（スペースキーを離すと早く落下）
         if (currentState == JUMPING && !spacePressed && velocityY < 0) {
-            velocityY *= 0.7f;
+            velocityY *= 0.65f; // より強い減衰
         }
 
         velocityY += GRAVITY;
 
+        // 上昇速度制限
         if (velocityY < -25.0f) {
             velocityY = -25.0f;
         }
+        // 落下速度制限
         if (velocityY > MAX_FALL_SPEED) {
             velocityY = MAX_FALL_SPEED;
         }
 
+        // ジャンプから落下への状態変更
         if (velocityY > 0 && currentState == JUMPING) {
             currentState = FALLING;
         }
     }
     else {
-        if (velocityY < 0) {
+        // 地上では下向きの速度をリセット
+        if (velocityY > 0) {
             velocityY = 0;
         }
     }
-
-   
 }
 
-// [既存のメソッドは変更なし]
+// **HandleCollisions関数の修正: スライディング時の当たり判定調整**
 void Player::HandleCollisions(StageManager* stageManager)
 {
-    // プレイヤーの当たり判定サイズ（128x128プレイヤー用に最適化）
-    const float COLLISION_WIDTH = 80.0f;   // プレイヤーの実際の幅（少し小さめに）
-    const float COLLISION_HEIGHT = 100.0f; // プレイヤーの実際の高さ（少し小さめに）
+    // **スライディング時は当たり判定の高さを調整**
+    const float COLLISION_WIDTH = 80.0f;
+    float collisionHeight = GetSlidingCollisionHeight(); // スライディング対応
 
     // ===== X方向の移動と衝突判定 =====
     float newX = x + velocityX;
@@ -285,17 +407,32 @@ void Player::HandleCollisions(StageManager* stageManager)
     if (newX - COLLISION_WIDTH / 2 < 0) {
         x = COLLISION_WIDTH / 2;
         velocityX = 0.0f;
+
+        // **スライディング中に壁にぶつかった場合は強制終了**
+        if (currentState == SLIDING) {
+            EndSliding();
+        }
     }
     else if (newX + COLLISION_WIDTH / 2 > Stage::STAGE_WIDTH) {
         x = Stage::STAGE_WIDTH - COLLISION_WIDTH / 2;
         velocityX = 0.0f;
+
+        // **スライディング中に壁にぶつかった場合は強制終了**
+        if (currentState == SLIDING) {
+            EndSliding();
+        }
     }
     else {
         // X方向の詳細な衝突チェック
-        if (CheckXCollision(newX, y, COLLISION_WIDTH, COLLISION_HEIGHT, stageManager)) {
+        if (CheckXCollision(newX, y, COLLISION_WIDTH, collisionHeight, stageManager)) {
             // 壁にぶつかった場合、ピクセル単位で調整
             velocityX = 0.0f;
             newX = AdjustXPosition(x, velocityX > 0, COLLISION_WIDTH, stageManager);
+
+            // **スライディング中に壁にぶつかった場合は強制終了**
+            if (currentState == SLIDING) {
+                EndSliding();
+            }
         }
         x = newX;
     }
@@ -305,17 +442,19 @@ void Player::HandleCollisions(StageManager* stageManager)
 
     if (velocityY > 0) {
         // 下方向移動（落下）
-        HandleDownwardMovement(newY, COLLISION_WIDTH, COLLISION_HEIGHT, stageManager);
+        HandleDownwardMovement(newY, COLLISION_WIDTH, collisionHeight, stageManager);
     }
     else if (velocityY < 0) {
         // 上方向移動（ジャンプ）
-        HandleUpwardMovement(newY, COLLISION_WIDTH, COLLISION_HEIGHT, stageManager);
+        HandleUpwardMovement(newY, COLLISION_WIDTH, collisionHeight, stageManager);
     }
     else {
         // Y方向の速度が0の場合、地面チェック
-        if (onGround && !IsOnGround(x, y, COLLISION_WIDTH, COLLISION_HEIGHT, stageManager)) {
+        if (onGround && !IsOnGround(x, y, COLLISION_WIDTH, collisionHeight, stageManager)) {
             onGround = false;
-            currentState = FALLING;
+            if (currentState != SLIDING) { // スライディング中は状態変更しない
+                currentState = FALLING;
+            }
         }
         y = newY;
     }
@@ -342,10 +481,14 @@ bool Player::CheckXCollision(float newX, float currentY, float width, float heig
     return false;
 }
 
+// **修正されたHandleDownwardMovement: スライディング対応**
 void Player::HandleDownwardMovement(float newY, float width, float height, StageManager* stageManager)
 {
+    // **スライディング中は特別な当たり判定高さを使用**
+    float collisionHeight = (currentState == SLIDING) ? GetSlidingCollisionHeight() : height;
+
     // 足元の複数点でチェック（128x128プレイヤー用に調整）
-    float footY = newY + height / 2;
+    float footY = newY + collisionHeight / 2;
     float leftFoot = x - width / 3;
     float rightFoot = x + width / 3;
     float centerFoot = x;
@@ -359,12 +502,17 @@ void Player::HandleDownwardMovement(float newY, float width, float height, Stage
         // 地面に着地
         float groundY = FindPreciseGroundY(x, newY, width, stageManager);
         if (groundY != -1) {
-            y = groundY - height / 2;
+            // **スライディング中は正しい位置に配置**
+            y = groundY - collisionHeight / 2;
             velocityY = 0.0f;
             onGround = true;
 
             // 着地後の状態決定
-            if (CheckHitKey(KEY_INPUT_DOWN)) {
+            if (currentState == SLIDING) {
+                // スライディング中は状態を維持
+                return;
+            }
+            else if (CheckHitKey(KEY_INPUT_DOWN)) {
                 currentState = DUCKING;
             }
             else if (CheckHitKey(KEY_INPUT_LEFT) || CheckHitKey(KEY_INPUT_RIGHT)) {
@@ -380,7 +528,7 @@ void Player::HandleDownwardMovement(float newY, float width, float height, Stage
         y = newY;
         if (onGround) {
             onGround = false;
-            if (currentState != JUMPING) {
+            if (currentState != JUMPING && currentState != SLIDING) {
                 currentState = FALLING;
             }
         }
@@ -824,7 +972,8 @@ int Player::GetCurrentSprite()
     case JUMPING: return sprites.jump;
     case FALLING: return sprites.jump;
     case DUCKING: return sprites.duck;
-    case HIT: return sprites.hit;  // **新追加: HITスプライト**
+    case SLIDING: return sprites.duck; // **スライディング時はしゃがみスプライトを使用**
+    case HIT: return sprites.hit;
     default: return sprites.idle;
     }
 }
@@ -863,6 +1012,7 @@ void Player::SetPosition(float newX, float newY)
     y = newY;
 }
 
+// **ResetPosition関数の修正: スライディング状態もリセット**
 void Player::ResetPosition()
 {
     x = 300.0f;
@@ -877,6 +1027,11 @@ void Player::ResetPosition()
     hitTimer = 0.0f;
     invulnerabilityTimer = 0.0f;
     knockbackDecay = 0.0f;
+
+    // **スライディング状態もリセット**
+    slidingTimer = 0.0f;
+    slidingSpeed = 0.0f;
+    wasRunningWhenSlideStarted = false;
 }
 
 void Player::DrawDebugInfo(float cameraX)
@@ -1166,3 +1321,151 @@ void Player::UpdateAutoWalkPhysics(StageManager* stageManager)
     }
 }
 
+// **修正されたスライディング開始**
+void Player::StartSliding()
+{
+    currentState = SLIDING;
+    slidingTimer = 0.0f;
+
+    // 現在の速度を基にスライディング初期速度を設定
+    float currentSpeed = fabsf(velocityX);
+    slidingSpeed = max(currentSpeed, SLIDING_INITIAL_SPEED);
+
+    // 非常に高速だった場合はさらに強化
+    if (currentSpeed > 7.0f) {
+        slidingSpeed = currentSpeed * 1.2f; // 20%ボーナス
+    }
+
+    wasRunningWhenSlideStarted = (currentSpeed > 6.0f);
+
+    // 現在の方向を維持してスライディング速度を設定
+    if (facingRight) {
+        velocityX = slidingSpeed;
+    }
+    else {
+        velocityX = -slidingSpeed;
+    }
+
+    // **スライディング効果音の再生（オプション）**
+    // SoundManager::GetInstance().PlaySE(SoundManager::SFX_SLIDE);
+
+    char debugMsg[128];
+    sprintf_s(debugMsg, "Player: Started sliding! Initial speed: %.2f\n", slidingSpeed);
+    OutputDebugStringA(debugMsg);
+}
+
+// **修正されたスライディング更新**
+void Player::UpdateSliding()
+{
+    slidingTimer += 0.016f; // 60FPS想定
+
+    // 段階的な減速システム（より自然な減速カーブ）
+    float progress = slidingTimer / SLIDING_DURATION;
+
+    if (progress < 0.2f) {
+        // 初期段階: 非常に緩やかな減速（勢いを維持）
+        slidingSpeed *= 0.995f;
+    }
+    else if (progress < 0.5f) {
+        // 前期段階: 緩やかな減速
+        slidingSpeed *= 0.98f;
+    }
+    else if (progress < 0.8f) {
+        // 中期段階: 標準的な減速
+        slidingSpeed *= SLIDING_DECELERATION;
+    }
+    else {
+        // 終期段階: 急速な減速
+        slidingSpeed *= 0.80f;
+    }
+
+    // 最小速度制限
+    if (slidingSpeed < SLIDING_MIN_SPEED) {
+        slidingSpeed = SLIDING_MIN_SPEED;
+    }
+
+    // 方向を維持して速度を適用
+    if (facingRight) {
+        velocityX = slidingSpeed;
+    }
+    else {
+        velocityX = -slidingSpeed;
+    }
+
+    // **デバッグ情報（頻度を下げる）**
+    static int debugCounter = 0;
+    debugCounter++;
+    if (debugCounter % 20 == 0) { // 約0.33秒ごと
+        char debugMsg[128];
+        sprintf_s(debugMsg, "Sliding: Timer=%.2f, Speed=%.2f, Progress=%.1f%%\n",
+            slidingTimer, slidingSpeed, progress * 100);
+        OutputDebugStringA(debugMsg);
+    }
+}
+
+// **修正されたスライディング終了**
+void Player::EndSliding()
+{
+    // 状態を適切に設定
+    if (onGround) {
+        if (fabsf(velocityX) > 3.0f) {
+            currentState = WALKING;
+        }
+        else if (fabsf(velocityX) > 0.5f) {
+            currentState = WALKING; // 低速でも歩行状態を維持
+        }
+        else {
+            currentState = IDLE;
+            velocityX = 0.0f; // 完全停止
+        }
+    }
+    else {
+        currentState = FALLING;
+    }
+
+    // スライディング変数をリセット
+    slidingTimer = 0.0f;
+    slidingSpeed = 0.0f;
+    wasRunningWhenSlideStarted = false;
+
+    OutputDebugStringA("Player: Sliding ended!\n");
+}
+
+// **修正されたスライディング時の当たり判定高さ取得**
+float Player::GetSlidingCollisionHeight() const
+{
+    if (currentState == SLIDING) {
+        return 100.0f * SLIDING_HEIGHT_REDUCTION; // 通常の60%の高さ
+    }
+    return 100.0f; // 通常の高さ
+}
+
+// **新追加: スライディングエフェクト描画**
+void Player::DrawSlidingEffect(float cameraX)
+{
+    int screenX = (int)(x - cameraX);
+    int screenY = (int)y;
+
+    float progress = GetSlidingProgress();
+    float effectIntensity = 1.0f - progress; // 時間とともに減衰
+
+    if (effectIntensity > 0.1f) {
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(100 * effectIntensity));
+
+        // 後方に煙のような効果
+        int smokeX = screenX - (facingRight ? 30 : -30);
+        int smokeY = screenY + 40; // 足元付近
+
+        // 複数の円で煙効果を表現
+        for (int i = 0; i < 3; i++) {
+            int offsetX = smokeX - (facingRight ? i * 15 : -i * 15);
+            int radius = (int)(8 + i * 3 * effectIntensity);
+            int alpha = (int)(80 * effectIntensity / (i + 1));
+
+            SetDrawBlendMode(DX_BLENDMODE_ALPHA, alpha);
+            DrawCircle(offsetX, smokeY - i * 5, radius, GetColor(200, 200, 200), TRUE);
+        }
+
+        SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+    }
+}

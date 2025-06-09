@@ -364,50 +364,51 @@ void StarSystem::GenerateStarsForGrassStage()
 {
     ClearAllStars();
 
-    // 草原ステージ：3つの星を配置（難易度順）
-    AddStar(1500, 300);  // 星1：中程度の高さ
-    AddStar(3500, 200);  // 星2：高い場所
-    AddStar(5500, 250);  // 星3：最終エリア
+    // **修正: ステージ地形との重複を避け、チャレンジ要素として高い位置に配置**
+    // 草原ステージ：3つの星を難易度順に配置
+    AddStar(1600, 200);  // 星1：中程度のジャンプチャレンジ（グリッド25上空）
+    AddStar(3840, 150);  // 星2：高いプラットフォームからのジャンプ（グリッド60上空）
+    AddStar(6400, 100);  // 星3：最終エリアの最高難度（グリッド100上空）
 }
 
 void StarSystem::GenerateStarsForStoneStage()
 {
     ClearAllStars();
 
-    // 石ステージ：岩の隙間に配置
-    AddStar(1000, 250);  // 星1：左の隙間
-    AddStar(2500, 200);  // 星2：中央の高い場所
-    AddStar(4500, 300);  // 星3：右の隙間
+    // **修正: 石ステージの岩場を活用した配置**
+    AddStar(1280, 180);  // 星1：岩の隙間へのジャンプ（グリッド20上空）
+    AddStar(3200, 120);  // 星2：高い岩場からの超ジャンプ（グリッド50上空）
+    AddStar(5760, 160);  // 星3：石の道の最高点（グリッド90上空）
 }
 
 void StarSystem::GenerateStarsForSandStage()
 {
     ClearAllStars();
 
-    // 砂漠ステージ：ピラミッドとオアシス
-    AddStar(1200, 250);  // 星1：最初の砂丘
-    AddStar(2700, 150);  // 星2：ピラミッドの頂上
-    AddStar(4800, 200);  // 星3：高い砂丘
+    // **修正: 砂漠のピラミッドと砂丘を活用**
+    AddStar(1536, 140);  // 星1：砂丘の頂上ジャンプ（グリッド24上空）
+    AddStar(2688, 80);   // 星2：ピラミッドの頂上（グリッド42上空）
+    AddStar(6144, 120);  // 星3：最終砂丘の秘密（グリッド96上空）
 }
 
 void StarSystem::GenerateStarsForSnowStage()
 {
     ClearAllStars();
 
-    // 雪山ステージ：山の頂上付近
-    AddStar(1500, 200);  // 星1：山の中腹
-    AddStar(3000, 150);  // 星2：山頂
-    AddStar(5200, 180);  // 星3：雪原の高台
+    // **修正: 雪山の山頂を活用した配置**
+    AddStar(2176, 100);  // 星1：雪山の中腹（グリッド34上空）
+    AddStar(4608, 60);   // 星2：山頂の最高点（グリッド72上空）
+    AddStar(6656, 80);   // 星3：雪原の隠された場所（グリッド104上空）
 }
 
 void StarSystem::GenerateStarsForPurpleStage()
 {
     ClearAllStars();
 
-    // 魔法ステージ：浮遊する高い場所
-    AddStar(1300, 150);  // 星1：魔法の島
-    AddStar(3200, 100);  // 星2：最高の浮遊島
-    AddStar(5800, 120);  // 星3：魔法の隙間
+    // **修正: 魔法ステージの浮遊島の最高点を活用**
+    AddStar(1664, 60);   // 星1：魔法の島の頂上（グリッド26上空）
+    AddStar(4160, 40);   // 星2：最高の浮遊島（グリッド65上空）
+    AddStar(7040, 20);   // 星3：魔法の最高峰（グリッド110上空）
 }
 
 float StarSystem::GetDistance(float x1, float y1, float x2, float y2)

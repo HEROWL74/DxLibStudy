@@ -13,7 +13,8 @@ public:
         SFX_HURT,
         SFX_JUMP,
         SFX_COIN,
-        SFX_DISAPPEAR
+        SFX_DISAPPEAR,
+        SFX_BREAK_BLOCK
     };
 
     static SoundManager& GetInstance() {

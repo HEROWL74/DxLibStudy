@@ -8,8 +8,10 @@
 #include "StarSystem.h"   
 #include "ResultUISystem.h" 
 #include "EnemyManager.h" 
-#include "DoorSystem.h"   // **新追加：ドアシステム**
+#include "DoorSystem.h"   
+
 #include "SoundManager.h"
+#include "BlockSystem.h"
 #include <string>
 
 class GameScene
@@ -25,6 +27,8 @@ public:
     bool IsExitRequested() const { return exitRequested; }
     bool IsStageChangeRequested() const { return stageChangeRequested; }
     int GetRequestedStageIndex() const { return requestedStageIndex; }
+
+ 
 
 private:
     // 画面サイズ
@@ -44,7 +48,9 @@ private:
     StarSystem starSystem;
     ResultUISystem resultUI;
     EnemyManager enemyManager;
-    DoorSystem doorSystem;      // **新追加：ドアシステム**
+    BlockSystem blockSystem;
+    DoorSystem doorSystem;
+  
 
     // キャラクター情報
     int selectedCharacterIndex;
@@ -80,20 +86,22 @@ private:
     bool showingResult;
     bool goalReached;
 
-    // **新追加：ドア関連の状態管理**
+    // **新追加: ドア関連の状態管理**
     bool doorOpened;            // ドアが開いたか
     bool playerEnteringDoor;    // プレイヤーがドアに入っているか
 
-
-    // **新追加：遅延自動歩行システム**
+    // **新追加: 遅延自動歩行システム**
     bool pendingAutoWalk;       // 自動歩行が待機中か
     int autoWalkDelayFrames;    // 自動歩行開始までの遅延フレーム数
+
     // **敵との相互作用用管理**
     bool playerInvulnerable;
     float invulnerabilityTimer;
     static constexpr float INVULNERABILITY_DURATION = 2.0f;
 
-    // **新追加：遅延自動歩行関数の宣言**
+ 
+
+    // **新追加: 遅延自動歩行関数の宣言**
     void UpdateDelayedAutoWalk();
 
     // ヘルパー関数
@@ -131,10 +139,12 @@ private:
 
     void UpdatePlayerAutoWalk();
 
-    // **新追加：ドア関連の処理関数**
+    // **新追加: ドア関連の処理関数**
     void UpdateDoorInteraction();
     void HandleGoalReached();
     void HandlePlayerEnteredDoor();
+
+ 
 
     // ユーティリティ
     float Lerp(float a, float b, float t);
@@ -142,5 +152,4 @@ private:
 
     bool stageChangeRequested;
     int requestedStageIndex;
-
 };

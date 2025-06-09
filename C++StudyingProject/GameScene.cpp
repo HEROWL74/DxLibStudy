@@ -18,16 +18,18 @@ GameScene::GameScene()
     , fadeTimer(0.0f)
     , showingResult(false)
     , goalReached(false)
-    , doorOpened(false)        // **新追加**
-    , playerEnteringDoor(false) // **新追加**
+    , doorOpened(false)
+    , playerEnteringDoor(false)
     , playerInvulnerable(false)
     , invulnerabilityTimer(0.0f)
+ 
 {
     backgroundHandle = -1;
     fontHandle = -1;
     stageChangeRequested = false;
     requestedStageIndex = -1;
-}
+} 
+
 
 GameScene::~GameScene()
 {
@@ -40,7 +42,6 @@ void GameScene::Initialize(int selectedCharacter)
     selectedCharacterIndex = selectedCharacter;
     SoundManager::GetInstance().PlayBGM(SoundManager::BGM_GAME);
 
-
     // 背景とフォント読み込み
     backgroundHandle = LoadGraph("Sprites/Backgrounds/background_fade_trees.png");
     fontHandle = CreateFontToHandle(NULL, 32, 3);
@@ -50,8 +51,6 @@ void GameScene::Initialize(int selectedCharacter)
 
     // プレイヤー初期化
     gamePlayer.Initialize(selectedCharacter);
-
-    // **重要：自動歩行モードを確実にオフに設定**
     gamePlayer.SetAutoWalking(false);
 
     // ステージシステム初期化
@@ -62,43 +61,33 @@ void GameScene::Initialize(int selectedCharacter)
     cameraX = 0.0f;
     previousPlayerX = gamePlayer.GetX();
 
-    // **HUDシステム初期化**
+    // **各システム初期化**
     InitializeHUD();
-
-    // **コインシステム初期化**
     coinSystem.Initialize();
     coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
-
-    // **星システム初期化**
     starSystem.Initialize();
     starSystem.GenerateStarsForStageIndex(currentStageIndex);
-
-    // **リザルトUI初期化**
     resultUI.Initialize();
-
-    // **ゴールシステム初期化**
     goalSystem.Initialize();
     goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
-
-    // **ドアシステム初期化**
     doorSystem.Initialize();
     doorSystem.PlaceDoorForStage(currentStageIndex, &stageManager);
-
-    // **敵システム初期化**
-    enemyManager.Initialize();
     enemyManager.GenerateEnemiesForStage(currentStageIndex);
+    goalSystem.ResetGoal(); // ゴール状態をリセット
 
-    // **状態リセット（遅延自動歩行変数を含む）**
-    showingResult = false;
-    goalReached = false;
+    blockSystem.Initialize();
+    blockSystem.GenerateBlocksForStageIndex(currentStageIndex);
+
+    // 収集カウントをリセット
+    coinSystem.ResetCollectedCount();
+    starSystem.ResetCollectedCount();
+    blockSystem.ResetCoinCount(); // **ブロックからのコインもリセット**
+
+    // 状態をリセット
+    playerStars = 0;
+    playerCoins = 0;
     doorOpened = false;
     playerEnteringDoor = false;
-    playerInvulnerable = false;
-    invulnerabilityTimer = 0.0f;
-
-    // **新追加：遅延自動歩行システムの初期化**
-    pendingAutoWalk = false;
-    autoWalkDelayFrames = 0;
 }
 void GameScene::Update()
 {
@@ -108,26 +97,28 @@ void GameScene::Update()
         return;
     }
 
-
     // 入力更新
     UpdateInput();
 
-    // **新追加：遅延自動歩行の処理**
+    // **遅延自動歩行の処理**
     UpdateDelayedAutoWalk();
 
-    // ステージ切り替え
-    if (stageSelectPressed && !stageSelectPressedPrev && fadeState == FADE_NONE && !showingResult) {
-        // ... 既存のステージ切り替え処理 ...
-    }
-
-    // **修正：プレイヤー更新（自動歩行対応）**
+    // **プレイヤー更新（自動歩行対応）**
     if (gamePlayer.IsAutoWalking()) {
-        // 自動歩行中は特別な更新処理
         UpdatePlayerAutoWalk();
     }
     else {
-        // 通常のプレイヤー更新
+        float prevX = gamePlayer.GetX();
+        float prevY = gamePlayer.GetY();
+
         gamePlayer.Update(&stageManager);
+
+        float newX = gamePlayer.GetX();
+        float newY = gamePlayer.GetY();
+
+        if (blockSystem.CheckCollision(newX, newY, 80.0f, 100.0f)) {
+            blockSystem.HandlePlayerCollision(&gamePlayer, newX, newY);
+        }
     }
 
     // **プレイヤーの無敵状態更新**
@@ -142,6 +133,7 @@ void GameScene::Update()
     coinSystem.Update(&gamePlayer, hudCoinIconWorldX, hudCoinIconWorldY);
     starSystem.Update(&gamePlayer);
     enemyManager.Update(&gamePlayer, &stageManager);
+    blockSystem.Update(&gamePlayer);
 
     // **敵とプレイヤーの相互作用用更新（自動歩行中は無効化）**
     if (!gamePlayer.IsAutoWalking()) {
@@ -151,15 +143,17 @@ void GameScene::Update()
     // **ゴールシステム更新**
     goalSystem.Update(&gamePlayer);
 
-    // **ドアシステム更新（新追加）**
+    // **ドアシステム更新**
     doorSystem.Update(&gamePlayer);
 
-    // **ドア相互作用用更新（新追加）**
+   
+
+    // **ドア相互作用用更新**
     UpdateDoorInteraction();
 
-    // **ゴールタッチ後のリザルト表示（変更）**
+    // **ゴールタッチ後のリザルト表示**
     if (goalSystem.IsGoalTouched() && !goalReached) {
-        HandleGoalReached(); // **新関数を呼び出し**
+        HandleGoalReached();
     }
 
     // **フェード処理**
@@ -177,12 +171,13 @@ void GameScene::Update()
     // **HUD更新**
     UpdateHUD();
 
-    // ESCキーでタイトルに戻る
+    // **ESCキーでタイトルに戻る（修正版）**
     if (escPressed && !escPressedPrev) {
         exitRequested = true;
+        OutputDebugStringA("GameScene: ESC pressed - returning to title\n");
     }
 }
-// UpdateDoorInteraction関数も改良
+
 void GameScene::UpdateDoorInteraction()
 {
     // **自動歩行状態のデバッグ情報**
@@ -416,7 +411,8 @@ void GameScene::UpdateGameLogic()
         coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
         starSystem.GenerateStarsForStageIndex(currentStageIndex);
         enemyManager.GenerateEnemiesForStage(currentStageIndex);
-
+        // **ブロックシステムもリセット（新追加）**
+        blockSystem.GenerateBlocksForStageIndex(currentStageIndex);
         // **ドア状態もリセット（新追加）**
         doorSystem.PlaceDoorForStage(currentStageIndex, &stageManager);
         doorOpened = false;
@@ -498,6 +494,9 @@ void GameScene::StartNextStage()
     cameraX = 0.0f;
     previousPlayerX = gamePlayer.GetX();
 
+    // **ブロックシステムのリセット（新追加）**
+    blockSystem.GenerateBlocksForStageIndex(currentStageIndex);
+
     // コイン、星、ゴール、ドア、敵を再配置
     coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
     starSystem.GenerateStarsForStageIndex(currentStageIndex);
@@ -509,6 +508,7 @@ void GameScene::StartNextStage()
     // 収集カウントをリセット
     coinSystem.ResetCollectedCount();
     starSystem.ResetCollectedCount();
+    blockSystem.ResetCoinCount(); // **ブロックからのコインもリセット**
 
     // 状態をリセット
     playerStars = 0;
@@ -550,6 +550,9 @@ void GameScene::HandleResultButtons()
         // **重要: 自動歩行モードを確実にリセット**
         gamePlayer.SetAutoWalking(false);
 
+        // **ブロックシステムをリセット（新追加）**
+        blockSystem.GenerateBlocksForStageIndex(currentStageIndex);
+
         // システムをリセット
         coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
         starSystem.GenerateStarsForStageIndex(currentStageIndex);
@@ -561,6 +564,7 @@ void GameScene::HandleResultButtons()
         // 収集カウントをリセット
         coinSystem.ResetCollectedCount();
         starSystem.ResetCollectedCount();
+        blockSystem.ResetCoinCount(); // **ブロックからのコインもリセット**
 
         // 状態を完全リセット
         playerStars = 0;
@@ -592,6 +596,9 @@ void GameScene::HandleResultButtons()
         // **重要: 自動歩行モードを確実にリセット**
         gamePlayer.SetAutoWalking(false);
 
+        // **ブロックシステムの新ステージ初期化（新追加）**
+        blockSystem.GenerateBlocksForStageIndex(currentStageIndex);
+
         // 新ステージのシステム初期化
         coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
         starSystem.GenerateStarsForStageIndex(currentStageIndex);
@@ -603,6 +610,7 @@ void GameScene::HandleResultButtons()
         // 収集カウントをリセット
         coinSystem.ResetCollectedCount();
         starSystem.ResetCollectedCount();
+        blockSystem.ResetCoinCount(); // **ブロックからのコインもリセット**
 
         // 状態を完全リセット
         playerStars = 0;
@@ -628,7 +636,6 @@ void GameScene::HandleResultButtons()
 }
 
 
-// Draw関数への追加
 void GameScene::Draw()
 {
     // **背景描画**
@@ -636,6 +643,9 @@ void GameScene::Draw()
 
     // ステージ描画
     stageManager.Draw(cameraX);
+
+    // **ブロック描画（ステージの後、プレイヤーの前）**
+    blockSystem.Draw(cameraX);
 
     // **コイン描画**
     coinSystem.Draw(cameraX);
@@ -649,8 +659,10 @@ void GameScene::Draw()
     // **ゴール描画**
     goalSystem.Draw(cameraX);
 
-    // **ドア描画（新追加）**
+    // **ドア描画**
     doorSystem.Draw(cameraX);
+
+    blockSystem.Draw(cameraX);
 
     // **プレイヤー描画（ドアに入っている時は非表示）**
     if (!playerEnteringDoor || !doorSystem.IsPlayerFullyEntered()) {
@@ -669,12 +681,15 @@ void GameScene::Draw()
     hudSystem.Draw();
 
     // UI描画（デバッグ情報など）
-    if (!showingResult) {
+    if (!showingResult) { // **ポーズ中は非表示**
         DrawUI();
     }
 
     // **リザルトUI描画**
     resultUI.Draw();
+
+  
+ 
 
     // **フェード描画（最前面）**
     DrawFade();
@@ -706,13 +721,12 @@ void GameScene::DrawSeamlessBackground()
         );
     }
 }
-
 void GameScene::DrawFade()
 {
     if (fadeState != FADE_NONE && fadeAlpha > 0.0f) {
         int alpha = (int)(255 * fadeAlpha);
         SetDrawBlendMode(DX_BLENDMODE_ALPHA, alpha);
-        DrawBox(0, 0, SCREEN_W, SCREEN_H, GetColor(0, 0, 0), TRUE);
+        DrawBox(0, 0, SCREEN_W, SCREEN_H, GetColor(255, 0, 0), TRUE);
         SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
     }
 }
@@ -727,8 +741,7 @@ void GameScene::UpdateInput()
     escPressed = CheckHitKey(KEY_INPUT_ESCAPE) != 0;
     stageSelectPressed = CheckHitKey(KEY_INPUT_TAB) != 0;
 
-
-    // **新機能：ステージ変更リクエスト（TABキーなど）**
+    // **ステージ変更リクエスト（TABキーなど）**
     static bool tabWasPressed = false;
     bool tabPressed = CheckHitKey(KEY_INPUT_TAB) != 0;
 
@@ -737,9 +750,7 @@ void GameScene::UpdateInput()
         requestedStageIndex = (currentStageIndex + 1) % 5;
     }
     tabWasPressed = tabPressed;
-
 }
-
 void GameScene::UpdateCamera()
 {
     float currentPlayerX = gamePlayer.GetX();
@@ -777,7 +788,7 @@ void GameScene::UpdateCameraSimple()
     cameraX = Lerp(cameraX, targetCameraX, 0.03f); // 0.03fでより滑らかに
 }
 
-// **更新されたDrawUI関数（ドア情報追加）**
+// **修正されたDrawUI関数（ポーズ情報追加）**
 void GameScene::DrawUI()
 {
 #ifdef _DEBUG
@@ -797,8 +808,8 @@ void GameScene::DrawUI()
     SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
 
     DrawStringToHandle(30, SCREEN_H - 250, "Controls:", GetColor(255, 255, 255), fontHandle);
-    DrawStringToHandle(30, SCREEN_H - 210, "Left/Right: Move, Space: Jump, Down: Duck", GetColor(200, 200, 200), fontHandle);
-    DrawStringToHandle(30, SCREEN_H - 170, "TAB: Change Stage, ESC: Return to title", GetColor(200, 200, 200), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 210, "Left/Right: Move, Space: Jump, Down: Duck/Slide", GetColor(200, 200, 200), fontHandle);
+    DrawStringToHandle(30, SCREEN_H - 170, "TAB: Change Stage, ESC: Pause Game", GetColor(200, 200, 200), fontHandle); // **修正**
 
     // **テスト用操作説明（拡張）**
     DrawStringToHandle(30, SCREEN_H - 130, "Test: 1/2: Life -/+, 3: Reset Items & Enemies", GetColor(150, 150, 150), fontHandle);
@@ -819,7 +830,7 @@ void GameScene::DrawUI()
     string enemyInfo = "Enemies: " + to_string(enemyManager.GetActiveEnemyCount()) + " active, " + to_string(enemyManager.GetDeadEnemyCount()) + " defeated";
     DrawStringToHandle(30, SCREEN_H - 80, enemyInfo.c_str(), GetColor(255, 150, 150), fontHandle);
 
-    // **ドア状態情報（新追加）**
+    // **ドア状態情報**
     string doorInfo = "Door: ";
     if (doorSystem.IsDoorExists()) {
         if (doorOpened) {
@@ -837,10 +848,12 @@ void GameScene::DrawUI()
     }
     DrawStringToHandle(30, SCREEN_H - 60, doorInfo.c_str(), GetColor(100, 255, 100), fontHandle);
 
+
+
     // **無敵状態表示**
     if (playerInvulnerable) {
         string invulInfo = "INVULNERABLE: " + to_string(INVULNERABILITY_DURATION - invulnerabilityTimer).substr(0, 3) + "s";
-        DrawStringToHandle(30, SCREEN_H - 40, invulInfo.c_str(), GetColor(255, 100, 100), fontHandle);
+        DrawStringToHandle(30, SCREEN_H - 20, invulInfo.c_str(), GetColor(255, 100, 100), fontHandle);
     }
 
     // 入力状態表示
@@ -864,6 +877,8 @@ void GameScene::DrawUI()
     case Player::JUMPING: stateInfo += "JUMPING"; break;
     case Player::FALLING: stateInfo += "FALLING"; break;
     case Player::DUCKING: stateInfo += "DUCKING"; break;
+    case Player::SLIDING: stateInfo += "SLIDING"; break; // **新追加**
+    case Player::HIT: stateInfo += "HIT"; break;
     }
     stateInfo += ", Direction: " + string(gamePlayer.IsFacingRight() ? "Right" : "Left");
     DrawStringToHandle(SCREEN_W - 500, 30, stateInfo.c_str(), GetColor(100, 100, 100), fontHandle);

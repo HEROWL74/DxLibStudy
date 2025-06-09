@@ -4,6 +4,7 @@
 #include "CharacterSelectScene.h"
 #include "GameScene.h"
 #include "LoadingScene.h"
+#include "SplashScene.h"
 
 class Game
 {
@@ -21,8 +22,9 @@ public:
     void  Finalize();
 
 private:
-    enum GameState { TITLE, CHARACTER_SELECT,LOADING, GAME_MAIN };
+    enum GameState { SPLASH, TITLE, CHARACTER_SELECT, LOADING, GAME_MAIN };
 
+    SplashScene splashScene;
     TitleScene titleScene;
     CharacterSelectScene characterSelectScene;
     LoadingScene loadingScene;
@@ -30,7 +32,8 @@ private:
     GameState currentState;
     int selectedCharacter;
 
-    //ローディング関連の状態
+    // ローディング関連の状態
     LoadingScene::LoadingType pendingLoadingType;
     int pendingStageIndex;
+
 };
