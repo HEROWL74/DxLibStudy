@@ -91,90 +91,80 @@ void GameScene::Initialize(int selectedCharacter)
 }
 void GameScene::Update()
 {
-    // リザルト表示中の場合はリザルトのみ更新
     if (showingResult) {
         UpdateResult();
         return;
     }
 
-    // 入力更新
     UpdateInput();
-
-    // **遅延自動歩行の処理**
     UpdateDelayedAutoWalk();
 
-    // **プレイヤー更新（自動歩行対応）**
     if (gamePlayer.IsAutoWalking()) {
         UpdatePlayerAutoWalk();
     }
     else {
-        float prevX = gamePlayer.GetX();
-        float prevY = gamePlayer.GetY();
-
+        // **元の順序に戻す**
         gamePlayer.Update(&stageManager);
 
-        float newX = gamePlayer.GetX();
-        float newY = gamePlayer.GetY();
+        // **ブロックシステムの更新（ヒット判定を含む）**
+        blockSystem.Update(&gamePlayer);
 
-        if (blockSystem.CheckCollision(newX, newY, 80.0f, 100.0f)) {
-            blockSystem.HandlePlayerCollision(&gamePlayer, newX, newY);
-        }
+        // **ブロック衝突処理は最後に実行（着地処理のみ）**
+        blockSystem.CheckAndResolvePlayerCollisions(&gamePlayer);
     }
 
-    // **プレイヤーの無敵状態更新**
     UpdatePlayerInvulnerability();
 
-    // **各システム更新**
-    float hudCoinIconScreenX = 30 + 80 + 20 + 48 / 2;
-    float hudCoinIconScreenY = 30 + 64 + 20 + 48 / 2;
-    float hudCoinIconWorldX = hudCoinIconScreenX + cameraX;
-    float hudCoinIconWorldY = hudCoinIconScreenY;
+    // **3. コイン管理の簡素化**
+    UpdateCoins();
+
+    // 他のシステム更新
+    float hudCoinIconWorldX = 30 + 80 + 20 + 48 / 2 + cameraX;
+    float hudCoinIconWorldY = 30 + 64 + 20 + 48 / 2;
 
     coinSystem.Update(&gamePlayer, hudCoinIconWorldX, hudCoinIconWorldY);
     starSystem.Update(&gamePlayer);
     enemyManager.Update(&gamePlayer, &stageManager);
-    blockSystem.Update(&gamePlayer);
 
-    // **敵とプレイヤーの相互作用用更新（自動歩行中は無効化）**
     if (!gamePlayer.IsAutoWalking()) {
         UpdatePlayerEnemyInteractions();
     }
 
-    // **ゴールシステム更新**
+
     goalSystem.Update(&gamePlayer);
-
-    // **ドアシステム更新**
     doorSystem.Update(&gamePlayer);
-
-   
-
-    // **ドア相互作用用更新**
     UpdateDoorInteraction();
 
-    // **ゴールタッチ後のリザルト表示**
     if (goalSystem.IsGoalTouched() && !goalReached) {
         HandleGoalReached();
     }
 
-    // **フェード処理**
     UpdateFade();
-
-    // カメラ更新
     UpdateCamera();
-
-    // ステージ更新
     stageManager.Update(cameraX);
-
-    // **ゲームロジック更新**
     UpdateGameLogic();
-
-    // **HUD更新**
     UpdateHUD();
 
-    // **ESCキーでタイトルに戻る（修正版）**
     if (escPressed && !escPressedPrev) {
         exitRequested = true;
         OutputDebugStringA("GameScene: ESC pressed - returning to title\n");
+    }
+}
+
+void GameScene::UpdateCoins()
+{
+    int fieldCoins = coinSystem.GetCollectedCoinsCount();
+    int blockCoins = blockSystem.GetCoinsFromBlocks();
+    int totalCoins = fieldCoins + blockCoins;
+
+    if (totalCoins != playerCoins) {
+        playerCoins = totalCoins;
+        hudSystem.SetCoins(playerCoins);
+
+        char debugMsg[128];
+        sprintf_s(debugMsg, "GameScene: Coins updated to %d (Field:%d + Blocks:%d)\n",
+            totalCoins, fieldCoins, blockCoins);
+        OutputDebugStringA(debugMsg);
     }
 }
 
@@ -354,27 +344,16 @@ void GameScene::UpdatePlayerInvulnerability()
     }
 }
 
-// **ステージ全体のリセット時にドア状態を含める**
 void GameScene::UpdateGameLogic()
 {
-    // **コイン収集数をゲーム状態に反映（リアルタイム更新）**
-    int newCoinCount = coinSystem.GetCollectedCoinsCount();
-    if (newCoinCount != playerCoins) {
-        playerCoins = newCoinCount;
-        // コイン取得時のサウンドやエフェクトをここに追加可能
-    }
-
-    // **星収集数をゲーム状態に反映**
+    // 星収集数をゲーム状態に反映
     int newStarCount = starSystem.GetCollectedStarsCount();
     if (newStarCount != playerStars) {
         playerStars = newStarCount;
-        // 星取得時のサウンドやエフェクトをここに追加可能
+        hudSystem.SetCollectedStars(playerStars);
     }
 
-    // ここでゲームロジックを更新
-    // 例：ダメージ処理、アイテム取得など
-
-    // **テスト用：キー入力でライフを操作**
+    // **テスト用キー入力の処理**
     static bool key1Pressed = false, key1PressedPrev = false;
     static bool key2Pressed = false, key2PressedPrev = false;
     static bool key3Pressed = false, key3PressedPrev = false;
@@ -389,51 +368,37 @@ void GameScene::UpdateGameLogic()
 
     // テスト用操作
     if (key1Pressed && !key1PressedPrev) {
-        // 1キーでライフ減少（ハート割れテスト）
         if (playerLife > 0) {
             playerLife--;
-            hudSystem.SetCurrentLife(playerLife); // HUDに即座に反映
+            hudSystem.SetCurrentLife(playerLife);
             OutputDebugStringA("GameScene: Manual life decrease for testing.\n");
         }
     }
 
     if (key2Pressed && !key2PressedPrev) {
-        // 2キーでライフ回復
         if (playerLife < 6) {
             playerLife++;
-            hudSystem.SetCurrentLife(playerLife); // HUDに即座に反映
+            hudSystem.SetCurrentLife(playerLife);
             OutputDebugStringA("GameScene: Manual life increase for testing.\n");
         }
     }
 
     if (key3Pressed && !key3PressedPrev) {
-        // 3キーでコイン・星全配置（テスト用）
-        coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
-        starSystem.GenerateStarsForStageIndex(currentStageIndex);
-        enemyManager.GenerateEnemiesForStage(currentStageIndex);
-        // **ブロックシステムもリセット（新追加）**
-        blockSystem.GenerateBlocksForStageIndex(currentStageIndex);
-        // **ドア状態もリセット（新追加）**
-        doorSystem.PlaceDoorForStage(currentStageIndex, &stageManager);
-        doorOpened = false;
-        playerEnteringDoor = false;
-        goalReached = false;
-        goalSystem.ResetGoal();
-
-        OutputDebugStringA("GameScene: Regenerated all items, enemies, and door for testing.\n");
+        // **全システムリセット**
+        ResetAllSystems();
+        OutputDebugStringA("GameScene: All systems reset including block coins.\n");
     }
 }
 
+
 void GameScene::UpdateHUD()
 {
-    // HUDシステムを更新
     hudSystem.Update();
 
-    // ゲーム状態をHUDに反映
+    // **コイン数は UpdateCoins() で処理済み**
     hudSystem.SetCurrentLife(playerLife);
-    hudSystem.SetCoins(playerCoins);
-    hudSystem.SetCollectedStars(playerStars);  // 星数を反映
-    hudSystem.SetTotalStars(3);               // 総星数を設定
+    hudSystem.SetCollectedStars(playerStars);
+    hudSystem.SetTotalStars(3);
 }
 
 void GameScene::UpdateFade()
@@ -477,45 +442,44 @@ void GameScene::StartNextStage()
     // 次のステージに移行
     currentStageIndex = (currentStageIndex + 1) % 5;
 
-    // ステージが最高（4番目）の場合の特別処理
-    if (currentStageIndex >= 4) {
-        // 最高のステージ - 特別な処理をここに追加可能
-        // 現在は通常通りステージを読み込み
-    }
-
     stageManager.LoadStage((StageManager::StageType)currentStageIndex);
 
     // プレイヤー位置をリセット
     gamePlayer.ResetPosition();
-
-    // **重要: 自動歩行モードを確実にリセット**
     gamePlayer.SetAutoWalking(false);
 
     cameraX = 0.0f;
     previousPlayerX = gamePlayer.GetX();
 
-    // **ブロックシステムのリセット（新追加）**
+    // **修正: ブロックシステムのリセットを追加**
     blockSystem.GenerateBlocksForStageIndex(currentStageIndex);
 
-    // コイン、星、ゴール、ドア、敵を再配置
+    // その他のシステムも再配置
     coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
     starSystem.GenerateStarsForStageIndex(currentStageIndex);
     goalSystem.PlaceGoalForStage(currentStageIndex, &stageManager);
     doorSystem.PlaceDoorForStage(currentStageIndex, &stageManager);
     enemyManager.GenerateEnemiesForStage(currentStageIndex);
-    goalSystem.ResetGoal(); // ゴール状態をリセット
+    goalSystem.ResetGoal();
 
-    // 収集カウントをリセット
+    // **修正: 収集カウントをリセット（ブロックからのコインも含む）**
     coinSystem.ResetCollectedCount();
     starSystem.ResetCollectedCount();
-    blockSystem.ResetCoinCount(); // **ブロックからのコインもリセット**
+    blockSystem.ResetCoinCount();  // **ブロックからのコインをリセット**
 
     // 状態をリセット
     playerStars = 0;
-    playerCoins = 0;
+    playerCoins = 0;  // **これも0にリセット**
     doorOpened = false;
     playerEnteringDoor = false;
+
+    // **HUDも即座に更新**
+    hudSystem.SetCoins(0);
+    hudSystem.SetCollectedStars(0);
+
+    OutputDebugStringA("GameScene: Started next stage with full system reset including blocks\n");
 }
+
 
 void GameScene::UpdateResult()
 {
@@ -544,13 +508,11 @@ void GameScene::HandleResultButtons()
     case ResultUISystem::BUTTON_RETRY:
         // ステージをリトライ
         gamePlayer.ResetPosition();
+        gamePlayer.SetAutoWalking(false);
         cameraX = 0.0f;
         previousPlayerX = gamePlayer.GetX();
 
-        // **重要: 自動歩行モードを確実にリセット**
-        gamePlayer.SetAutoWalking(false);
-
-        // **ブロックシステムをリセット（新追加）**
+        // **修正: ブロックシステムもリセット**
         blockSystem.GenerateBlocksForStageIndex(currentStageIndex);
 
         // システムをリセット
@@ -561,10 +523,10 @@ void GameScene::HandleResultButtons()
         enemyManager.GenerateEnemiesForStage(currentStageIndex);
         goalSystem.ResetGoal();
 
-        // 収集カウントをリセット
+        // **修正: 収集カウントをリセット（ブロックからのコインも含む）**
         coinSystem.ResetCollectedCount();
         starSystem.ResetCollectedCount();
-        blockSystem.ResetCoinCount(); // **ブロックからのコインもリセット**
+        blockSystem.ResetCoinCount();
 
         // 状態を完全リセット
         playerStars = 0;
@@ -576,12 +538,15 @@ void GameScene::HandleResultButtons()
         playerInvulnerable = false;
         invulnerabilityTimer = 0.0f;
 
-        // **新追加：遅延自動歩行システムのリセット**
         pendingAutoWalk = false;
         autoWalkDelayFrames = 0;
 
-        // **リザルトUIを完全リセット**
+        // **HUDを即座に更新**
+        hudSystem.SetCoins(0);
+        hudSystem.SetCollectedStars(0);
+
         resultUI.ResetState();
+        OutputDebugStringA("GameScene: Stage retried with full reset including blocks\n");
         break;
 
     case ResultUISystem::BUTTON_NEXT_STAGE:
@@ -590,13 +555,11 @@ void GameScene::HandleResultButtons()
         stageManager.LoadStage((StageManager::StageType)currentStageIndex);
 
         gamePlayer.ResetPosition();
+        gamePlayer.SetAutoWalking(false);
         cameraX = 0.0f;
         previousPlayerX = gamePlayer.GetX();
 
-        // **重要: 自動歩行モードを確実にリセット**
-        gamePlayer.SetAutoWalking(false);
-
-        // **ブロックシステムの新ステージ初期化（新追加）**
+        // **修正: 新ステージのブロックシステム初期化**
         blockSystem.GenerateBlocksForStageIndex(currentStageIndex);
 
         // 新ステージのシステム初期化
@@ -607,10 +570,10 @@ void GameScene::HandleResultButtons()
         enemyManager.GenerateEnemiesForStage(currentStageIndex);
         goalSystem.ResetGoal();
 
-        // 収集カウントをリセット
+        // **修正: 収集カウントをリセット（ブロックからのコインも含む）**
         coinSystem.ResetCollectedCount();
         starSystem.ResetCollectedCount();
-        blockSystem.ResetCoinCount(); // **ブロックからのコインもリセット**
+        blockSystem.ResetCoinCount();
 
         // 状態を完全リセット
         playerStars = 0;
@@ -622,12 +585,15 @@ void GameScene::HandleResultButtons()
         playerInvulnerable = false;
         invulnerabilityTimer = 0.0f;
 
-        // **新追加：遅延自動歩行システムのリセット**
         pendingAutoWalk = false;
         autoWalkDelayFrames = 0;
 
-        // **リザルトUIを完全リセット**
+        // **HUDを即座に更新**
+        hudSystem.SetCoins(0);
+        hudSystem.SetCollectedStars(0);
+
         resultUI.ResetState();
+        OutputDebugStringA("GameScene: Advanced to next stage with full initialization including blocks\n");
         break;
 
     default:
@@ -655,6 +621,7 @@ void GameScene::Draw()
 
     // **敵描画**
     enemyManager.Draw(cameraX);
+	
 
     // **ゴール描画**
     goalSystem.Draw(cameraX);
@@ -1069,4 +1036,29 @@ void GameScene::UpdateDelayedAutoWalk()
             OutputDebugStringA("GameScene: Delayed auto-walk started!\n");
         }
     }
+}
+
+void GameScene::ResetAllSystems()
+{
+    coinSystem.GenerateCoinsForStageIndex(currentStageIndex);
+    starSystem.GenerateStarsForStageIndex(currentStageIndex);
+    enemyManager.GenerateEnemiesForStage(currentStageIndex);
+    blockSystem.GenerateBlocksForStageIndex(currentStageIndex);
+    doorSystem.PlaceDoorForStage(currentStageIndex, &stageManager);
+
+    // カウントもリセット
+    coinSystem.ResetCollectedCount();
+    starSystem.ResetCollectedCount();
+    blockSystem.ResetCoinCount();
+
+    doorOpened = false;
+    playerEnteringDoor = false;
+    goalReached = false;
+    goalSystem.ResetGoal();
+
+    // プレイヤーの状態もリセット
+    playerStars = 0;
+    playerCoins = 0;
+    hudSystem.SetCoins(0);
+    hudSystem.SetCollectedStars(0);
 }

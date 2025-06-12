@@ -46,6 +46,7 @@
     <ClCompile Include="StarSystem.cpp" />
     <ClCompile Include="StoneStage.cpp" />
     <ClCompile Include="TitleScene.cpp" />
+    <ClCompile Include="TutorialScene.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BlockSystem.h" />
@@ -74,6 +75,7 @@
     <ClInclude Include="StarSystem.h" />
     <ClInclude Include="StoneStage.h" />
     <ClInclude Include="TitleScene.h" />
+    <ClInclude Include="TutorialScene.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>

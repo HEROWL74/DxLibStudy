@@ -18,9 +18,9 @@ Player::Player()
     , characterIndex(0)
     , wasStomping(false)
     , stompCooldown(0.0f)
-    , slidingTimer(0.0f)          // **新追加**
-    , slidingSpeed(0.0f)          // **新追加**
-    , wasRunningWhenSlideStarted(false) // **新追加**
+    , slidingTimer(0.0f)
+    , slidingSpeed(0.0f)
+    , wasRunningWhenSlideStarted(false)
 {
     // スプライトハンドルを初期化
     sprites.front = sprites.idle = sprites.walk_a = sprites.walk_b = -1;
@@ -55,7 +55,7 @@ void Player::Initialize(int characterIndex)
 
 void Player::Update(StageManager* stageManager)
 {
-    // **踏みつけクールダウンの更新**
+    // 踏みつけクールダウンの更新
     if (stompCooldown > 0.0f) {
         stompCooldown -= 0.016f; // 60FPS想定
         if (stompCooldown <= 0.0f) {
@@ -63,23 +63,22 @@ void Player::Update(StageManager* stageManager)
         }
     }
 
-    // **ダメージ状態の更新**
+    // ダメージ状態の更新
     UpdateDamageState();
 
-    // **無敵時間の更新**
+    // 無敵時間の更新
     UpdateInvulnerability();
 
     // 物理演算更新
     UpdatePhysics(stageManager);
 
-    // 当たり判定処理
+    // 当たり判定処理（ブロックシステムとの連携も含む）
     HandleCollisions(stageManager);
 
     // アニメーション更新
     UpdateAnimation();
 }
 
-// **Draw関数の修正: スライディング時の特別な描画効果**
 void Player::Draw(float cameraX)
 {
     int currentSprite = GetCurrentSprite();
@@ -96,21 +95,19 @@ void Player::Draw(float cameraX)
         bobOffset = sinf(bobPhase) * 2.0f;
     }
 
-    // **スライディング時の特別な効果**
+    // スライディング時の特別な効果
     float slidingOffset = 0.0f;
     if (currentState == SLIDING) {
-        // 微細な振動効果でスライディングの勢いを表現
         float slidingProgress = GetSlidingProgress();
         float vibrationIntensity = (1.0f - slidingProgress) * 1.5f;
         slidingOffset = sinf(slidingTimer * 40.0f) * vibrationIntensity;
     }
 
-    // **ダメージ時の自然なノックバック振動効果**
+    // ダメージ時の自然なノックバック振動効果
     float hitShake = 0.0f;
     if (currentState == HIT && hitTimer < HIT_DURATION * 0.7f) {
-        // より自然な振動パターン
         float shakeProgress = hitTimer / (HIT_DURATION * 0.7f);
-        float shakeIntensity = (1.0f - shakeProgress) * 2.5f; // 徐々に減衰
+        float shakeIntensity = (1.0f - shakeProgress) * 2.5f;
         hitShake = sinf(hitTimer * 35.0f) * shakeIntensity;
     }
 
@@ -137,28 +134,26 @@ void Player::Draw(float cameraX)
     if (screenX < -1000 || screenX > 3000) return;
     if (screenY < -1000 || screenY > 2000) return;
 
-    // **無敵時間中の点滅効果**
+    // 無敵時間中の点滅効果
     bool shouldDraw = true;
     if (invulnerabilityTimer > 0.0f) {
-        // 点滅間隔を調整（速い点滅）
         float blinkSpeed = 12.0f;
         shouldDraw = ((int)(invulnerabilityTimer * blinkSpeed) % 2 == 0);
     }
 
     if (shouldDraw) {
-        // **スライディング時の特別な色効果**
+        // スライディング時の特別な色効果
         if (currentState == SLIDING) {
             float slidingProgress = GetSlidingProgress();
             int blueIntensity = 255 + (int)(50 * sinf(slidingTimer * 8.0f) * (1.0f - slidingProgress));
             if (blueIntensity > 255) blueIntensity = 255;
-            SetDrawBright(255, 255, blueIntensity); // 青みがかった効果
+            SetDrawBright(255, 255, blueIntensity);
         }
-
-        // **ダメージ時の赤色効果（より自然に）**
+        // ダメージ時の赤色効果
         else if (currentState == HIT && hitTimer < HIT_DURATION * 0.4f) {
             float flashProgress = hitTimer / (HIT_DURATION * 0.4f);
             int redIntensity = (int)(255 * (1.0f - flashProgress));
-            SetDrawBright(255, 255 - redIntensity / 2, 255 - redIntensity); // 赤みがかった色
+            SetDrawBright(255, 255 - redIntensity / 2, 255 - redIntensity);
         }
 
         // 左右反転描画
@@ -175,25 +170,24 @@ void Player::Draw(float cameraX)
         }
     }
 
-    // **スライディング時の煙エフェクト（オプション）**
+    // スライディング時の煙エフェクト
     if (currentState == SLIDING && onGround) {
         DrawSlidingEffect(cameraX);
     }
 }
 
-
 void Player::UpdatePhysics(StageManager* stageManager)
 {
-    // **自動歩行モード専用の処理**
+    // 自動歩行モード専用の処理
     if (isAutoWalking) {
         UpdateAutoWalkPhysics(stageManager);
-        return; // 通常の物理処理をスキップ
+        return;
     }
 
-    // **ダメージ状態中は入力を制限**
+    // ダメージ状態中は入力を制限
     bool canControl = (currentState != HIT || hitTimer > HIT_DURATION * 0.6f);
 
-    // **スライディング状態の更新**
+    // スライディング状態の更新
     if (currentState == SLIDING) {
         UpdateSliding();
 
@@ -210,43 +204,41 @@ void Player::UpdatePhysics(StageManager* stageManager)
             }
         }
 
-        return; // 通常の移動処理をスキップ
+        return;
     }
 
-    // **改良された水平移動処理（段階的加速度システム）**
+    // 改良された水平移動処理
     bool leftPressed = canControl && CheckHitKey(KEY_INPUT_LEFT);
     bool rightPressed = canControl && CheckHitKey(KEY_INPUT_RIGHT);
     bool downPressed = canControl && CheckHitKey(KEY_INPUT_DOWN);
 
-    // **スライディング開始判定（修正版）**
+    // スライディング開始判定
     static bool downWasPressedLastFrame = false;
     bool downJustPressed = downPressed && !downWasPressedLastFrame;
 
-    // スライディング条件：下キーを押した瞬間 + 地上 + 十分な速度
     if (downJustPressed && onGround && fabsf(velocityX) > 4.0f && currentState != DUCKING) {
         StartSliding();
         downWasPressedLastFrame = downPressed;
-        return; // スライディング開始後は通常処理をスキップ
+        return;
     }
     downWasPressedLastFrame = downPressed;
 
-    // **段階的加速度システム（リアルな移動感）**
+    // 段階的加速度システム
     float currentSpeed = fabsf(velocityX);
     float targetSpeed = 0.0f;
     float accelerationRate = ACCELERATION;
 
-    if (leftPressed && !downPressed) { // 下キー押下中は通常移動しない
+    if (leftPressed && !downPressed) {
         targetSpeed = -MAX_HORIZONTAL_SPEED;
 
-        // 速度に応じた加速度調整
         if (currentSpeed < 2.0f) {
-            accelerationRate = ACCELERATION * 1.5f; // 低速時は素早く加速
+            accelerationRate = ACCELERATION * 1.5f;
         }
         else if (currentSpeed < 5.0f) {
-            accelerationRate = ACCELERATION; // 中速時は標準加速
+            accelerationRate = ACCELERATION;
         }
         else {
-            accelerationRate = ACCELERATION * 0.7f; // 高速時は緩やか
+            accelerationRate = ACCELERATION * 0.7f;
         }
 
         velocityX -= accelerationRate;
@@ -259,18 +251,17 @@ void Player::UpdatePhysics(StageManager* stageManager)
             currentState = (currentSpeed > 1.0f) ? WALKING : IDLE;
         }
     }
-    else if (rightPressed && !downPressed) { // 下キー押下中は通常移動しない
+    else if (rightPressed && !downPressed) {
         targetSpeed = MAX_HORIZONTAL_SPEED;
 
-        // 速度に応じた加速度調整
         if (currentSpeed < 2.0f) {
-            accelerationRate = ACCELERATION * 1.5f; // 低速時は素早く加速
+            accelerationRate = ACCELERATION * 1.5f;
         }
         else if (currentSpeed < 5.0f) {
-            accelerationRate = ACCELERATION; // 中速時は標準加速
+            accelerationRate = ACCELERATION;
         }
         else {
-            accelerationRate = ACCELERATION * 0.7f; // 高速時は緩やか
+            accelerationRate = ACCELERATION * 0.7f;
         }
 
         velocityX += accelerationRate;
@@ -284,43 +275,39 @@ void Player::UpdatePhysics(StageManager* stageManager)
         }
     }
     else {
-        // **改良された減速システム**
+        // 改良された減速システム
         float currentFriction = FRICTION;
 
         if (currentState == HIT && knockbackDecay > 0.0f) {
-            // ノックバック中は段階的に減衰
             float decayStage = 1.0f - knockbackDecay;
             if (decayStage < 0.3f) {
-                currentFriction = 0.95f; // 初期は緩やか
+                currentFriction = 0.95f;
             }
             else if (decayStage < 0.7f) {
-                currentFriction = 0.88f; // 中期は標準的
+                currentFriction = 0.88f;
             }
             else {
-                currentFriction = 0.82f; // 後期は早めに止める
+                currentFriction = 0.82f;
             }
         }
         else {
-            // 通常時の速度に応じた摩擦調整
             if (currentSpeed > 6.0f) {
-                currentFriction = 0.92f; // 高速時はゆっくり減速
+                currentFriction = 0.92f;
             }
             else if (currentSpeed > 3.0f) {
-                currentFriction = 0.88f; // 中速時は標準減速
+                currentFriction = 0.88f;
             }
             else {
-                currentFriction = 0.82f; // 低速時は早めに停止
+                currentFriction = 0.82f;
             }
         }
 
         velocityX *= currentFriction;
 
-        // 完全停止の閾値
         if (fabsf(velocityX) < 0.3f) {
             velocityX = 0.0f;
         }
 
-        // 状態の更新
         if (onGround && currentState != JUMPING && currentState != FALLING && currentState != HIT) {
             if (fabsf(velocityX) < 0.5f) {
                 currentState = IDLE;
@@ -331,27 +318,24 @@ void Player::UpdatePhysics(StageManager* stageManager)
         }
     }
 
-    // **しゃがみ処理（修正版）**
+    // しゃがみ処理
     if (canControl && downPressed && onGround && currentState != HIT && currentState != SLIDING) {
-        // 移動中でない場合のみしゃがみ可能
         if (fabsf(velocityX) < 1.0f && !leftPressed && !rightPressed) {
             currentState = DUCKING;
-            velocityX *= 0.6f; // より強い減速
+            velocityX *= 0.6f;
         }
-        // 移動中の場合は何もしない（スライディング判定は上で処理済み）
     }
 
-    // **ジャンプ処理（ダメージ中は無効）**
+    // ジャンプ処理
     static bool spaceWasPressedLastFrame = false;
     bool spacePressed = CheckHitKey(KEY_INPUT_SPACE) != 0;
 
     if (canControl && spacePressed && !spaceWasPressedLastFrame && onGround &&
         currentState != JUMPING && currentState != HIT && currentState != SLIDING) {
 
-        // 速度に応じたジャンプ力調整
         float jumpPower = JUMP_POWER;
         if (fabsf(velocityX) > 6.0f) {
-            jumpPower *= 1.1f; // 高速移動中はより高いジャンプ
+            jumpPower *= 1.1f;
         }
 
         velocityY = jumpPower;
@@ -362,43 +346,37 @@ void Player::UpdatePhysics(StageManager* stageManager)
 
     spaceWasPressedLastFrame = spacePressed;
 
-    // **重力適用**
+    // 重力適用
     if (!onGround) {
-        // 可変ジャンプ（スペースキーを離すと早く落下）
         if (currentState == JUMPING && !spacePressed && velocityY < 0) {
-            velocityY *= 0.65f; // より強い減衰
+            velocityY *= 0.65f;
         }
 
         velocityY += GRAVITY;
 
-        // 上昇速度制限
         if (velocityY < -25.0f) {
             velocityY = -25.0f;
         }
-        // 落下速度制限
         if (velocityY > MAX_FALL_SPEED) {
             velocityY = MAX_FALL_SPEED;
         }
 
-        // ジャンプから落下への状態変更
         if (velocityY > 0 && currentState == JUMPING) {
             currentState = FALLING;
         }
     }
     else {
-        // 地上では下向きの速度をリセット
         if (velocityY > 0) {
             velocityY = 0;
         }
     }
 }
 
-// **HandleCollisions関数の修正: スライディング時の当たり判定調整**
+// **修正版HandleCollisions: ブロックシステムとの統合対応**
 void Player::HandleCollisions(StageManager* stageManager)
 {
-    // **スライディング時は当たり判定の高さを調整**
     const float COLLISION_WIDTH = 80.0f;
-    float collisionHeight = GetSlidingCollisionHeight(); // スライディング対応
+    float collisionHeight = GetSlidingCollisionHeight();
 
     // ===== X方向の移動と衝突判定 =====
     float newX = x + velocityX;
@@ -407,8 +385,6 @@ void Player::HandleCollisions(StageManager* stageManager)
     if (newX - COLLISION_WIDTH / 2 < 0) {
         x = COLLISION_WIDTH / 2;
         velocityX = 0.0f;
-
-        // **スライディング中に壁にぶつかった場合は強制終了**
         if (currentState == SLIDING) {
             EndSliding();
         }
@@ -416,20 +392,21 @@ void Player::HandleCollisions(StageManager* stageManager)
     else if (newX + COLLISION_WIDTH / 2 > Stage::STAGE_WIDTH) {
         x = Stage::STAGE_WIDTH - COLLISION_WIDTH / 2;
         velocityX = 0.0f;
-
-        // **スライディング中に壁にぶつかった場合は強制終了**
         if (currentState == SLIDING) {
             EndSliding();
         }
     }
     else {
-        // X方向の詳細な衝突チェック
-        if (CheckXCollision(newX, y, COLLISION_WIDTH, collisionHeight, stageManager)) {
-            // 壁にぶつかった場合、ピクセル単位で調整
+        // **修正: ブロックシステムとの衝突チェックを優先**
+        bool blockCollision = false;
+
+        // まずブロックシステムでの衝突をチェック
+        // この部分はGameSceneでblockSystem.HandlePlayerCollision()が呼ばれることを想定
+
+        // 通常のステージとの衝突チェック
+        if (!blockCollision && CheckXCollision(newX, y, COLLISION_WIDTH, collisionHeight, stageManager)) {
             velocityX = 0.0f;
             newX = AdjustXPosition(x, velocityX > 0, COLLISION_WIDTH, stageManager);
-
-            // **スライディング中に壁にぶつかった場合は強制終了**
             if (currentState == SLIDING) {
                 EndSliding();
             }
@@ -441,18 +418,18 @@ void Player::HandleCollisions(StageManager* stageManager)
     float newY = y + velocityY;
 
     if (velocityY > 0) {
-        // 下方向移動（落下）
+        // 下方向移動（落下）- ブロック上への着地も含む
         HandleDownwardMovement(newY, COLLISION_WIDTH, collisionHeight, stageManager);
     }
     else if (velocityY < 0) {
-        // 上方向移動（ジャンプ）
+        // 上方向移動（ジャンプ）- ブロック下への衝突も含む
         HandleUpwardMovement(newY, COLLISION_WIDTH, collisionHeight, stageManager);
     }
     else {
         // Y方向の速度が0の場合、地面チェック
         if (onGround && !IsOnGround(x, y, COLLISION_WIDTH, collisionHeight, stageManager)) {
             onGround = false;
-            if (currentState != SLIDING) { // スライディング中は状態変更しない
+            if (currentState != SLIDING) {
                 currentState = FALLING;
             }
         }
@@ -464,13 +441,13 @@ void Player::HandleCollisions(StageManager* stageManager)
         ResetPosition();
     }
 }
+
 bool Player::CheckXCollision(float newX, float currentY, float width, float height, StageManager* stageManager)
 {
-    // プレイヤーの上部、中央、下部の3点でチェック
     float checkPoints[] = {
-        currentY - height / 2 + 16,  // 上部（少し下）
-        currentY,                    // 中央
-        currentY + height / 2 - 16   // 下部（少し上）
+        currentY - height / 2 + 16,
+        currentY,
+        currentY + height / 2 - 16
     };
 
     for (float checkY : checkPoints) {
@@ -481,81 +458,105 @@ bool Player::CheckXCollision(float newX, float currentY, float width, float heig
     return false;
 }
 
-// **修正されたHandleDownwardMovement: スライディング対応**
 void Player::HandleDownwardMovement(float newY, float width, float height, StageManager* stageManager)
 {
-    // **スライディング中は特別な当たり判定高さを使用**
     float collisionHeight = (currentState == SLIDING) ? GetSlidingCollisionHeight() : height;
 
-    // 足元の複数点でチェック（128x128プレイヤー用に調整）
+    // 足元の複数点でチェック
     float footY = newY + collisionHeight / 2;
     float leftFoot = x - width / 3;
     float rightFoot = x + width / 3;
     float centerFoot = x;
 
-    // 3点で地面チェック
+    // **ステージ地面との衝突チェック**
     bool leftHit = CheckPointCollision(leftFoot, footY, 8.0f, 8.0f, stageManager);
     bool centerHit = CheckPointCollision(centerFoot, footY, 8.0f, 8.0f, stageManager);
     bool rightHit = CheckPointCollision(rightFoot, footY, 8.0f, 8.0f, stageManager);
 
     if (leftHit || centerHit || rightHit) {
-        // 地面に着地
+        // **ステージ地面に着地**
         float groundY = FindPreciseGroundY(x, newY, width, stageManager);
         if (groundY != -1) {
-            // **スライディング中は正しい位置に配置**
             y = groundY - collisionHeight / 2;
             velocityY = 0.0f;
-            onGround = true;
 
-            // 着地後の状態決定
-            if (currentState == SLIDING) {
-                // スライディング中は状態を維持
-                return;
+            // **onGroundの状態変化を安定化**
+            if (!onGround) {
+                onGround = true;
+
+                // **着地時の状態設定を改善**
+                if (currentState == JUMPING || currentState == FALLING) {
+                    // **入力状態をチェックして適切な状態に設定**
+                    bool hasInput = CheckHitKey(KEY_INPUT_LEFT) || CheckHitKey(KEY_INPUT_RIGHT);
+
+                    if (currentState == SLIDING) {
+                        // スライディング中は状態を維持
+                    }
+                    else if (CheckHitKey(KEY_INPUT_DOWN) && !hasInput) {
+                        currentState = DUCKING;
+                    }
+                    else if (hasInput) {
+                        currentState = WALKING;
+                    }
+                    else {
+                        currentState = IDLE;
+                    }
+                }
             }
-            else if (CheckHitKey(KEY_INPUT_DOWN)) {
-                currentState = DUCKING;
-            }
-            else if (CheckHitKey(KEY_INPUT_LEFT) || CheckHitKey(KEY_INPUT_RIGHT)) {
-                currentState = WALKING;
-            }
-            else {
-                currentState = IDLE;
-            }
+
+            OutputDebugStringA("Player: Landed on stage ground\n");
         }
     }
     else {
-        // 自由落下
+        // **自由落下 - onGroundをfalseに設定する前に少し待つ**
         y = newY;
+
+        // **地面から離れた時の状態変化を緩やかに**
         if (onGround) {
-            onGround = false;
-            if (currentState != JUMPING && currentState != SLIDING) {
-                currentState = FALLING;
+            // **少しの距離なら地面判定を維持（安定化のため）**
+            float currentFootY = y + collisionHeight / 2;
+            bool stillNearGround = IsOnGround(x, y, width, collisionHeight, stageManager);
+
+            if (!stillNearGround) {
+                onGround = false;
+                if (currentState != JUMPING && currentState != SLIDING) {
+                    currentState = FALLING;
+                }
             }
         }
     }
 }
 
+
+// **修正版HandleUpwardMovement: ブロック下への衝突を正しく処理**
 void Player::HandleUpwardMovement(float newY, float width, float height, StageManager* stageManager)
 {
-    // 頭上の複数点でチェック
     float headY = newY - height / 2;
     float leftHead = x - width / 3;
     float rightHead = x + width / 3;
     float centerHead = x;
 
-    // 3点で天井チェック
+    // 3点で天井チェック（ブロック下面も含む）
     bool leftHit = CheckPointCollision(leftHead, headY, 8.0f, 8.0f, stageManager);
     bool centerHit = CheckPointCollision(centerHead, headY, 8.0f, 8.0f, stageManager);
     bool rightHit = CheckPointCollision(rightHead, headY, 8.0f, 8.0f, stageManager);
 
     if (leftHit || centerHit || rightHit) {
-        // 天井にぶつかった
+        // 天井またはブロック下面にぶつかった
         float ceilingY = FindPreciseCeilingY(x, newY, width, stageManager);
         if (ceilingY != -1) {
             y = ceilingY + height / 2;
-            velocityY = 0.0f;  // 上方向の速度を完全に停止
-            currentState = FALLING;
+            velocityY = 0.0f;  // **修正: 上方向の速度を完全に停止**
+
+            // **修正: ジャンプ中に天井にぶつかった場合は落下状態に**
+            if (currentState == JUMPING) {
+                currentState = FALLING;
+            }
+
             onGround = false;
+
+            // **デバッグ出力**
+            OutputDebugStringA("Player: Hit ceiling/block from below\n");
         }
     }
     else {
@@ -573,62 +574,56 @@ bool Player::CheckPointCollision(float centerX, float centerY, float width, floa
 
 float Player::AdjustXPosition(float currentX, bool movingRight, float width, StageManager* stageManager)
 {
-    // ピクセル単位で調整して、壁にめり込まない位置を見つける
     float adjustedX = currentX;
     float step = movingRight ? -1.0f : 1.0f;
 
-    for (int i = 0; i < 64; i++) { // 最大64ピクセル調整（1タイル分）
+    for (int i = 0; i < 64; i++) {
         adjustedX += step;
         if (!CheckXCollision(adjustedX, y, width, 100.0f, stageManager)) {
             return adjustedX;
         }
     }
 
-    return currentX; // 調整できない場合は元の位置
+    return currentX;
 }
 
+// **修正版FindPreciseGroundY: ブロック上の地面も正確に検出**
 float Player::FindPreciseGroundY(float playerX, float playerY, float width, StageManager* stageManager)
 {
-    // タイルサイズを考慮した正確な地面位置の探索
     int tileSize = Stage::TILE_SIZE; // 64px
 
-    // プレイヤーの足元周辺のタイルを調べる
     int startTileY = (int)(playerY / tileSize);
-    int endTileY = startTileY + 4; // 下方向に4タイル分チェック
+    int endTileY = startTileY + 4;
 
     for (int tileY = startTileY; tileY <= endTileY; tileY++) {
         float checkY = tileY * tileSize;
 
-        // プレイヤーの幅で地面をチェック
         float leftX = playerX - width / 2 + 8;
         float rightX = playerX + width / 2 - 8;
         float centerX = playerX;
 
+        // **修正: より厳密な地面検出**
         if (stageManager->CheckCollision(leftX, checkY, 8, 8) ||
             stageManager->CheckCollision(centerX, checkY, 8, 8) ||
             stageManager->CheckCollision(rightX, checkY, 8, 8)) {
 
-            // このタイルの上端が地面
-            return checkY;
+            return checkY; // このタイルの上端が地面
         }
     }
 
-    return -1; // 地面が見つからない
+    return -1;
 }
 
 float Player::FindPreciseCeilingY(float playerX, float playerY, float width, StageManager* stageManager)
 {
-    // タイルサイズを考慮した正確な天井位置の探索
-    int tileSize = Stage::TILE_SIZE; // 64px
+    int tileSize = Stage::TILE_SIZE;
 
-    // プレイヤーの頭上周辺のタイルを調べる
     int startTileY = (int)(playerY / tileSize);
-    int endTileY = startTileY - 4; // 上方向に4タイル分チェック
+    int endTileY = startTileY - 4;
 
     for (int tileY = startTileY; tileY >= endTileY && tileY >= 0; tileY--) {
-        float checkY = (tileY + 1) * tileSize; // タイルの下端
+        float checkY = (tileY + 1) * tileSize;
 
-        // プレイヤーの幅で天井をチェック
         float leftX = playerX - width / 2 + 8;
         float rightX = playerX + width / 2 - 8;
         float centerX = playerX;
@@ -637,309 +632,29 @@ float Player::FindPreciseCeilingY(float playerX, float playerY, float width, Sta
             stageManager->CheckCollision(centerX, checkY - 8, 8, 8) ||
             stageManager->CheckCollision(rightX, checkY - 8, 8, 8)) {
 
-            // このタイルの下端が天井
             return checkY;
         }
     }
 
-    return -1; // 天井が見つからない
+    return -1;
 }
 
 bool Player::IsOnGround(float playerX, float playerY, float width, float height, StageManager* stageManager)
 {
-    // 地面との接触判定
-    float footY = playerY + height / 2 + 4; // 足元よりわずかに下
+    float footY = playerY + height / 2 + 4;
     float leftFoot = playerX - width / 3;
     float rightFoot = playerX + width / 3;
     float centerFoot = playerX;
 
-    return CheckPointCollision(leftFoot, footY, 8.0f, 8.0f, stageManager) ||
+    // ステージの地面をチェック
+    bool onStageGround = CheckPointCollision(leftFoot, footY, 8.0f, 8.0f, stageManager) ||
         CheckPointCollision(centerFoot, footY, 8.0f, 8.0f, stageManager) ||
         CheckPointCollision(rightFoot, footY, 8.0f, 8.0f, stageManager);
+
+    return onStageGround;
 }
 
-// ===== 改良された影描画システム =====
-
-void Player::DrawShadow(float cameraX, StageManager* stageManager)
-{
-    // プレイヤーの足元位置を正確に計算
-    float playerFootX = x;
-    float playerFootY = y + (PLAYER_HEIGHT / 2) - 8; // 足元より少し上（より自然な位置）
-
-    // 最も近い地面を探索（最適化された検索）
-    float groundY = FindOptimalGroundForShadow(playerFootX, playerFootY, stageManager);
-
-    // 地面が見つからない場合は影を描画しない
-    if (groundY == -1) return;
-
-    // プレイヤーと地面の距離を計算
-    float distanceToGround = groundY - playerFootY;
-
-    // 距離が負の場合（地面より下にいる場合）や遠すぎる場合は影を描画しない
-    if (distanceToGround < 0 || distanceToGround > MAX_SHADOW_DISTANCE) return;
-
-    // 影の描画位置（地面上）
-    int shadowX = (int)(playerFootX - cameraX);
-    int shadowY = (int)groundY - 2; // 地面に少しめり込ませて自然に
-
-    // 画面外チェック（最適化）
-    if (shadowX < -100 || shadowX > 1920 + 100) return;
-    if (shadowY < -50 || shadowY > 1080 + 50) return;
-
-    // === 影のサイズと透明度の詳細計算 ===
-
-    // 正規化された距離（0.0〜1.0）
-    float normalizedDistance = min(distanceToGround / MAX_SHADOW_DISTANCE, 1.0f);
-
-    // プレイヤーの状態による影サイズの調整
-    float stateMultiplier = 1.0f;
-    switch (currentState) {
-    case DUCKING:
-        stateMultiplier = 1.2f; // しゃがみ時は少し大きく
-        break;
-    case JUMPING:
-    case FALLING:
-        stateMultiplier = 0.9f; // ジャンプ/落下時は少し小さく
-        break;
-    default:
-        stateMultiplier = 1.0f;
-        break;
-    }
-
-    // 距離による縮小率の計算（より自然な縮小カーブ）
-    float distanceMultiplier = 1.0f - powf(normalizedDistance, 1.5f) * 0.8f; // 0.2〜1.0の範囲
-
-    // 最終的な影のサイズ
-    float finalSizeMultiplier = stateMultiplier * distanceMultiplier;
-    int shadowRadiusX = (int)(BASE_SHADOW_SIZE_X * finalSizeMultiplier);
-    int shadowRadiusY = (int)(BASE_SHADOW_SIZE_Y * finalSizeMultiplier);
-
-    // 影の透明度計算（距離とプレイヤー状態を考慮）
-    float alphaMultiplier = 1.0f - powf(normalizedDistance, 0.8f) * 0.7f;
-    int shadowAlpha = (int)(BASE_SHADOW_ALPHA * alphaMultiplier);
-
-    // 最小サイズと透明度の制限
-    if (shadowRadiusX < 6 || shadowRadiusY < 2 || shadowAlpha < 20) return;
-
-    // === 影の詳細描画 ===
-
-    // 影の色（距離に応じてより薄く）
-    float colorIntensity = 50.0f * (1.0f - normalizedDistance * 0.6f);
-    int shadowColor = GetColor((int)colorIntensity, (int)colorIntensity, (int)colorIntensity);
-
-    // ソフトシャドウ効果（複数レイヤーで描画）
-    SetDrawBlendMode(DX_BLENDMODE_ALPHA, shadowAlpha);
-
-    // メインの影
-    DrawOval(shadowX, shadowY, shadowRadiusX, shadowRadiusY, shadowColor, TRUE);
-
-    // より濃い中心部（リアリスティックな影）
-    if (distanceToGround < MAX_SHADOW_DISTANCE * 0.5f) {
-        int innerAlpha = shadowAlpha / 3;
-        int innerRadiusX = shadowRadiusX * 2 / 3;
-        int innerRadiusY = shadowRadiusY * 2 / 3;
-
-        SetDrawBlendMode(DX_BLENDMODE_ALPHA, innerAlpha);
-        DrawOval(shadowX, shadowY, innerRadiusX, innerRadiusY, GetColor(20, 20, 20), TRUE);
-    }
-
-    SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
-
-    // === デバッグ情報 ===
-#ifdef _DEBUG
-    if (CheckHitKey(KEY_INPUT_F1)) {
-        DrawShadowDebugInfo(cameraX, shadowX, shadowY, distanceToGround, normalizedDistance);
-    }
-#endif
-}
-
-void Player::DrawShadowDebugInfo(float cameraX, int shadowX, int shadowY, float distanceToGround, float normalizedDistance)
-{
-    int playerScreenX = (int)(x - cameraX);
-    int playerScreenY = (int)y;
-
-    SetDrawBlendMode(DX_BLENDMODE_ALPHA, 150);
-
-    // プレイヤーから影への接続線
-    DrawLine(playerScreenX, playerScreenY, shadowX, shadowY, GetColor(255, 255, 0));
-
-    // プレイヤーの足元位置
-    int footY = playerScreenY + PLAYER_HEIGHT / 2;
-    DrawCircle(playerScreenX, footY, 3, GetColor(0, 255, 0), TRUE);
-
-    // 距離情報の表示
-    std::string distInfo = "Ground Dist: " + std::to_string((int)distanceToGround) + "px";
-    std::string normalInfo = "Normalized: " + std::to_string(normalizedDistance).substr(0, 4);
-    std::string stateInfo = "State: ";
-
-    switch (currentState) {
-    case IDLE: stateInfo += "IDLE"; break;
-    case WALKING: stateInfo += "WALKING"; break;
-    case JUMPING: stateInfo += "JUMPING"; break;
-    case FALLING: stateInfo += "FALLING"; break;
-    case DUCKING: stateInfo += "DUCKING"; break;
-    }
-
-    DrawString(playerScreenX + 15, playerScreenY - 60, distInfo.c_str(), GetColor(255, 255, 0));
-    DrawString(playerScreenX + 15, playerScreenY - 40, normalInfo.c_str(), GetColor(255, 255, 0));
-    DrawString(playerScreenX + 15, playerScreenY - 20, stateInfo.c_str(), GetColor(255, 255, 0));
-
-    SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
-}
-
-float Player::FindOptimalGroundForShadow(float playerX, float playerY, StageManager* stageManager)
-{
-    // まず高速な基本検索を試行
-    float basicGround = FindNearestGroundForShadow(playerX, playerY, stageManager);
-
-    // 基本検索で見つからない場合、より詳細な検索
-    if (basicGround == -1) {
-        basicGround = FindPreciseGroundForShadow(playerX, playerY, stageManager);
-    }
-
-    // それでも見つからない場合、適応的検索
-    if (basicGround == -1) {
-        basicGround = FindAdaptiveGroundForShadow(playerX, playerY, stageManager);
-    }
-
-    return basicGround;
-}
-
-float Player::FindNearestGroundForShadow(float playerX, float playerY, StageManager* stageManager)
-{
-    const int TILE_SIZE = Stage::TILE_SIZE; // 64px
-    const float SEARCH_WIDTH = 60.0f;       // プレイヤーの幅（少し小さめ）
-    const int MAX_SEARCH_TILES = 15;        // 最大15タイル下まで探索
-
-    // プレイヤーの足元から下方向に地面を探索
-    int startTileY = (int)(playerY / TILE_SIZE);
-    int endTileY = startTileY + MAX_SEARCH_TILES;
-
-    // 最も近い地面を探す
-    for (int tileY = startTileY; tileY <= endTileY; tileY++) {
-        float checkY = tileY * TILE_SIZE;
-
-        // プレイヤーの中心と左右で地面をチェック
-        bool groundFound = false;
-
-        // 3点でチェック（中央、左、右）
-        float checkPositions[] = {
-            playerX,                    // 中央
-            playerX - SEARCH_WIDTH / 2,   // 左
-            playerX + SEARCH_WIDTH / 2    // 右
-        };
-
-        for (float checkX : checkPositions) {
-            if (stageManager->CheckCollision(checkX, checkY, 4, 4)) {
-                groundFound = true;
-                break;
-            }
-        }
-
-        if (groundFound) {
-            return checkY; // このタイルの上端が地面
-        }
-    }
-
-    return -1; // 地面が見つからない
-}
-
-float Player::FindPreciseGroundForShadow(float playerX, float playerY, StageManager* stageManager)
-{
-    const float SEARCH_WIDTH = 50.0f; // より狭い検索幅
-    const int MAX_SEARCH_DISTANCE = 960; // 15タイル分（15 * 64px）
-    const int SEARCH_STEP = 8; // 8ピクセル単位で検索（高速化）
-
-    // ピクセル単位で下方向に探索
-    for (int searchY = (int)playerY; searchY < playerY + MAX_SEARCH_DISTANCE; searchY += SEARCH_STEP) {
-        // 5点で地面チェック（より詳細）
-        for (int i = 0; i < 5; i++) {
-            float checkX = playerX - SEARCH_WIDTH / 2 + (SEARCH_WIDTH * i / 4);
-
-            if (stageManager->CheckCollision(checkX, searchY, 4, 4)) {
-                // より正確な地面位置を求める（タイルの上端）
-                int tileY = searchY / Stage::TILE_SIZE;
-                return (float)(tileY * Stage::TILE_SIZE);
-            }
-        }
-    }
-
-    return -1; // 地面が見つからない
-}
-
-float Player::FindAdaptiveGroundForShadow(float playerX, float playerY, StageManager* stageManager)
-{
-    const float SEARCH_RADIUS = 30.0f; // プレイヤーの足回りの検索半径
-    const int SEARCH_POINTS = 6;       // 円周上の検索点数
-    const int MAX_SEARCH_DISTANCE = 480; // 7.5タイル分
-
-    float nearestGroundY = -1;
-    float minDistance = (float)(MAX_SEARCH_DISTANCE + 1);
-
-    // プレイヤーの足元周辺の円周上で地面を探索
-    for (int i = 0; i < SEARCH_POINTS; i++) {
-        float angle = (2.0f * 3.14159265f * i) / SEARCH_POINTS;
-        float searchStartX = playerX + cosf(angle) * SEARCH_RADIUS;
-
-        // この位置から下方向に地面を探索
-        for (int searchY = (int)playerY; searchY < playerY + MAX_SEARCH_DISTANCE; searchY += 12) {
-            if (stageManager->CheckCollision(searchStartX, searchY, 4, 4)) {
-                float distance = searchY - playerY;
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    nearestGroundY = searchY;
-                }
-                break; // この方向での探索は完了
-            }
-        }
-    }
-
-    // タイルの上端に調整
-    if (nearestGroundY != -1) {
-        int tileY = (int)(nearestGroundY / Stage::TILE_SIZE);
-        nearestGroundY = (float)(tileY * Stage::TILE_SIZE);
-    }
-
-    return nearestGroundY;
-}
-
-// ===== 既存の関数（互換性のため残す） =====
-
-bool Player::CheckCollision(float checkX, float checkY, StageManager* stageManager)
-{
-    float collisionWidth = 80.0f;
-    float collisionHeight = 100.0f;
-    float left = checkX - collisionWidth / 2;
-    float top = checkY - collisionHeight / 2;
-    return stageManager->CheckCollision(left, top, collisionWidth, collisionHeight);
-}
-
-float Player::GetGroundY(float checkX, StageManager* stageManager)
-{
-    float footWidth = 80.0f;
-    return stageManager->GetGroundY(checkX - footWidth / 2, footWidth);
-}
-
-bool Player::CheckCollisionRect(float checkX, float checkY, float width, float height, StageManager* stageManager)
-{
-    float left = checkX - width / 2;
-    float top = checkY - height / 2;
-    return stageManager->CheckCollision(left, top, width, height);
-}
-
-int Player::FindGroundTileY(float playerX, float playerY, float playerWidth, StageManager* stageManager)
-{
-    float groundY = FindPreciseGroundY(playerX, playerY, playerWidth, stageManager);
-    return (groundY != -1) ? (int)groundY : -1;
-}
-
-int Player::FindCeilingTileY(float playerX, float playerY, float playerWidth, StageManager* stageManager)
-{
-    float ceilingY = FindPreciseCeilingY(playerX, playerY, playerWidth, stageManager);
-    return (ceilingY != -1) ? (int)ceilingY : -1;
-}
-
-// ===== その他の既存関数 =====
+// **その他の関数は元のままで省略（影描画、アニメーション、スライディングなど）**
 
 void Player::UpdateAnimation()
 {
@@ -963,7 +678,6 @@ void Player::UpdateAnimation()
     }
 }
 
-// **GetCurrentSprite関数の修正: HITスプライト対応**
 int Player::GetCurrentSprite()
 {
     switch (currentState) {
@@ -972,7 +686,7 @@ int Player::GetCurrentSprite()
     case JUMPING: return sprites.jump;
     case FALLING: return sprites.jump;
     case DUCKING: return sprites.duck;
-    case SLIDING: return sprites.duck; // **スライディング時はしゃがみスプライトを使用**
+    case SLIDING: return sprites.duck;
     case HIT: return sprites.hit;
     default: return sprites.idle;
     }
@@ -1012,7 +726,6 @@ void Player::SetPosition(float newX, float newY)
     y = newY;
 }
 
-// **ResetPosition関数の修正: スライディング状態もリセット**
 void Player::ResetPosition()
 {
     x = 300.0f;
@@ -1023,95 +736,31 @@ void Player::ResetPosition()
     onGround = false;
     facingRight = true;
 
-    // ダメージ関連の状態もリセット
     hitTimer = 0.0f;
     invulnerabilityTimer = 0.0f;
     knockbackDecay = 0.0f;
 
-    // **スライディング状態もリセット**
     slidingTimer = 0.0f;
     slidingSpeed = 0.0f;
     wasRunningWhenSlideStarted = false;
 }
 
-void Player::DrawDebugInfo(float cameraX)
-{
-    const float COLLISION_WIDTH = 80.0f;
-    const float COLLISION_HEIGHT = 100.0f;
-
-    int screenX = (int)(x - cameraX);
-    int screenY = (int)y;
-
-    // 安全な範囲での描画のみ
-    if (screenX < -200 || screenX > 2200) return;
-    if (screenY < -200 || screenY > 1300) return;
-
-    // 衝突判定ボックス表示
-    SetDrawBlendMode(DX_BLENDMODE_ALPHA, 100);
-    DrawBox(
-        screenX - COLLISION_WIDTH / 2,
-        screenY - COLLISION_HEIGHT / 2,
-        screenX + COLLISION_WIDTH / 2,
-        screenY + COLLISION_HEIGHT / 2,
-        GetColor(255, 0, 0), FALSE
-    );
-    SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
-
-    // 詳細情報表示（安全な範囲で）
-    std::string debugText =
-        "Pos: (" + std::to_string((int)x) + "," + std::to_string((int)y) + ") " +
-        "Vel: (" + std::to_string((int)(velocityX * 10)) + "," + std::to_string((int)(velocityY * 10)) + ") " +
-        "Ground: " + (onGround ? "YES" : "NO");
-
-    DrawString(screenX - 100, screenY - 140, debugText.c_str(), GetColor(255, 255, 0));
-
-    // 速度の視覚化（制限付き）
-    if (fabsf(velocityX) > 0.1f || fabsf(velocityY) > 0.1f) {
-        // 速度ベクトルの表示（安全な長さに制限）
-        int arrowEndX = screenX + (int)(velocityX * 3); // スケールダウン
-        int arrowEndY = screenY + (int)(velocityY * 3); // スケールダウン
-
-        // 矢印の長さを制限
-        int maxArrowLength = 50;
-        int arrowLengthX = arrowEndX - screenX;
-        int arrowLengthY = arrowEndY - screenY;
-        int arrowLength = (int)sqrtf(arrowLengthX * arrowLengthX + arrowLengthY * arrowLengthY);
-
-        if (arrowLength > maxArrowLength) {
-            float scale = (float)maxArrowLength / arrowLength;
-            arrowEndX = screenX + (int)(arrowLengthX * scale);
-            arrowEndY = screenY + (int)(arrowLengthY * scale);
-        }
-
-        DrawLine(screenX, screenY, arrowEndX, arrowEndY, GetColor(255, 0, 255));
-        DrawCircle(arrowEndX, arrowEndY, 3, GetColor(255, 0, 255), TRUE);
-    }
-}
-
-// **踏みつけ小ジャンプ効果（マリオ風）**
 void Player::ApplyStompBounce(float bounceVelocity)
 {
-    // デフォルト値を使用してマリオ風の小ジャンプ
-    velocityY = (bounceVelocity != -8.0f) ? bounceVelocity : -12.0f; // より高いジャンプ
+    velocityY = (bounceVelocity != -8.0f) ? bounceVelocity : -12.0f;
     currentState = JUMPING;
     onGround = false;
     wasStomping = true;
     stompCooldown = STOMP_COOLDOWN_DURATION;
 
-    // **踏みつけ効果音の再生（オプション）**
-    // PlaySoundEffect("player_stomp_bounce");
-
-    // **デバッグ出力**
     OutputDebugStringA("Player: Stomp bounce applied!\n");
 }
 
-// **新追加: ダメージ状態更新**
 void Player::UpdateDamageState()
 {
     if (currentState == HIT) {
-        hitTimer += 0.016f; // 60FPS想定
+        hitTimer += 0.016f;
 
-        // ダメージ状態の終了
         if (hitTimer >= HIT_DURATION) {
             if (onGround) {
                 if (fabsf(velocityX) > 0.5f) {
@@ -1127,7 +776,6 @@ void Player::UpdateDamageState()
             hitTimer = 0.0f;
         }
 
-        // ノックバック減衰の更新
         if (knockbackDecay > 0.0f) {
             knockbackDecay -= 0.016f;
             if (knockbackDecay <= 0.0f) {
@@ -1137,58 +785,46 @@ void Player::UpdateDamageState()
     }
 }
 
-// **新追加: 無敵時間更新**
 void Player::UpdateInvulnerability()
 {
     if (invulnerabilityTimer > 0.0f) {
-        invulnerabilityTimer -= 0.016f; // 60FPS想定
+        invulnerabilityTimer -= 0.016f;
         if (invulnerabilityTimer <= 0.0f) {
             invulnerabilityTimer = 0.0f;
         }
     }
 }
 
-// **新追加: ダメージ処理（改良版）**
 void Player::TakeDamage(int damage, float knockbackDirection)
 {
-    if (invulnerabilityTimer > 0.0f) return; // 無敵時間中はダメージを受けない
+    if (invulnerabilityTimer > 0.0f) return;
 
-    // ダメージ状態に変更
     currentState = HIT;
     hitTimer = 0.0f;
     invulnerabilityTimer = INVULNERABILITY_DURATION;
     knockbackDecay = 1.0f;
 
-    // **改良されたノックバック効果**
     if (knockbackDirection != 0.0f) {
-        // ノックバック強度を調整
         float knockbackForce = KNOCKBACK_FORCE;
 
-        // 地上にいる場合はより強いノックバック
         if (onGround) {
             knockbackForce *= 1.2f;
-            velocityY = KNOCKBACK_VERTICAL; // 少し浮かせる
+            velocityY = KNOCKBACK_VERTICAL;
             onGround = false;
         }
         else {
-            // 空中の場合は水平方向のみ
             knockbackForce *= 0.8f;
         }
 
         velocityX = knockbackDirection * knockbackForce;
-
-        // ノックバック方向に応じて向きを変更
         facingRight = (knockbackDirection > 0.0f);
     }
 
-    // **デバッグ出力**
     OutputDebugStringA("Player: Taking damage with improved knockback!\n");
 }
 
-// **新追加: 重力のみ適用（自動歩行用）**
 void Player::ApplyGravityOnly(StageManager* stageManager)
 {
-    // 重力適用
     if (!onGround) {
         velocityY += GRAVITY;
         if (velocityY > MAX_FALL_SPEED) {
@@ -1196,46 +832,37 @@ void Player::ApplyGravityOnly(StageManager* stageManager)
         }
     }
 
-    // Y方向の位置更新
     y += velocityY;
-
-    // 地面との衝突判定のみ
     HandleGroundCollisionOnly(stageManager);
 }
 
-// **新追加: 地面衝突のみ処理（自動歩行用）**
 void Player::HandleGroundCollisionOnly(StageManager* stageManager)
 {
     const float COLLISION_WIDTH = 80.0f;
     const float COLLISION_HEIGHT = 100.0f;
 
-    // 足元の複数点でチェック
     float footY = y + COLLISION_HEIGHT / 2;
     float leftFoot = x - COLLISION_WIDTH / 3;
     float rightFoot = x + COLLISION_WIDTH / 3;
     float centerFoot = x;
 
-    // 3点で地面チェック
     bool leftHit = CheckPointCollision(leftFoot, footY, 8.0f, 8.0f, stageManager);
     bool centerHit = CheckPointCollision(centerFoot, footY, 8.0f, 8.0f, stageManager);
     bool rightHit = CheckPointCollision(rightFoot, footY, 8.0f, 8.0f, stageManager);
 
     if (leftHit || centerHit || rightHit) {
-        // 地面に着地
         float groundY = FindPreciseGroundY(x, y, COLLISION_WIDTH, stageManager);
         if (groundY != -1) {
             y = groundY - COLLISION_HEIGHT / 2;
             velocityY = 0.0f;
             onGround = true;
 
-            // 自動歩行中は歩行アニメーションに設定
             if (isAutoWalking) {
                 currentState = WALKING;
             }
         }
     }
     else {
-        // 自由落下
         if (onGround) {
             onGround = false;
             if (currentState != JUMPING) {
@@ -1245,7 +872,6 @@ void Player::HandleGroundCollisionOnly(StageManager* stageManager)
     }
 }
 
-// **新追加: アニメーションのみ更新（自動歩行用）**
 void Player::UpdateAnimationOnly()
 {
     if (currentState == WALKING) {
@@ -1268,21 +894,17 @@ void Player::UpdateAnimationOnly()
     }
 }
 
-// **新しい関数: UpdateAutoWalkPhysics を完全に修正**
 void Player::UpdateAutoWalkPhysics(StageManager* stageManager)
 {
-    // **自動歩行中は穏やかな右方向移動**
-    const float AUTO_WALK_SPEED = 3.5f; // 速度を大幅に減少（6.0f → 3.5f）
+    const float AUTO_WALK_SPEED = 3.5f;
 
-    // **段階的な加速（急激な動きを防止）**
     if (fabsf(velocityX) < AUTO_WALK_SPEED) {
-        velocityX += 0.3f; // 徐々に加速
+        velocityX += 0.3f;
     }
-    velocityX = min(velocityX, AUTO_WALK_SPEED); // 最大速度制限
+    velocityX = min(velocityX, AUTO_WALK_SPEED);
 
-    facingRight = true; // 右向き
+    facingRight = true;
 
-    // **重力適用（地上にいる場合は無効化）**
     if (!onGround) {
         velocityY += GRAVITY;
         if (velocityY > MAX_FALL_SPEED) {
@@ -1290,26 +912,21 @@ void Player::UpdateAutoWalkPhysics(StageManager* stageManager)
         }
     }
     else {
-        // **地上にいる場合は垂直速度を完全に0に**
         if (velocityY > 0) {
             velocityY = 0;
         }
     }
 
-    // **位置更新（X方向とY方向）**
     x += velocityX;
     y += velocityY;
 
-    // **ステージ境界チェック**
     if (x + 40.0f > Stage::STAGE_WIDTH) {
         x = Stage::STAGE_WIDTH - 40.0f;
         velocityX = 0.0f;
     }
 
-    // **衝突判定処理（完全版）**
     HandleCollisions(stageManager);
 
-    // **状態設定（落下中でない限り歩行アニメーション）**
     if (onGround) {
         currentState = WALKING;
     }
@@ -1321,70 +938,55 @@ void Player::UpdateAutoWalkPhysics(StageManager* stageManager)
     }
 }
 
-// **修正されたスライディング開始**
 void Player::StartSliding()
 {
     currentState = SLIDING;
     slidingTimer = 0.0f;
 
-    // 現在の速度を基にスライディング初期速度を設定
     float currentSpeed = fabsf(velocityX);
     slidingSpeed = max(currentSpeed, SLIDING_INITIAL_SPEED);
 
-    // 非常に高速だった場合はさらに強化
     if (currentSpeed > 7.0f) {
-        slidingSpeed = currentSpeed * 1.2f; // 20%ボーナス
+        slidingSpeed = currentSpeed * 1.2f;
     }
 
     wasRunningWhenSlideStarted = (currentSpeed > 6.0f);
 
-    // 現在の方向を維持してスライディング速度を設定
     if (facingRight) {
         velocityX = slidingSpeed;
     }
     else {
         velocityX = -slidingSpeed;
     }
-
-    // **スライディング効果音の再生（オプション）**
-    // SoundManager::GetInstance().PlaySE(SoundManager::SFX_SLIDE);
 
     char debugMsg[128];
     sprintf_s(debugMsg, "Player: Started sliding! Initial speed: %.2f\n", slidingSpeed);
     OutputDebugStringA(debugMsg);
 }
 
-// **修正されたスライディング更新**
 void Player::UpdateSliding()
 {
-    slidingTimer += 0.016f; // 60FPS想定
+    slidingTimer += 0.016f;
 
-    // 段階的な減速システム（より自然な減速カーブ）
     float progress = slidingTimer / SLIDING_DURATION;
 
     if (progress < 0.2f) {
-        // 初期段階: 非常に緩やかな減速（勢いを維持）
         slidingSpeed *= 0.995f;
     }
     else if (progress < 0.5f) {
-        // 前期段階: 緩やかな減速
         slidingSpeed *= 0.98f;
     }
     else if (progress < 0.8f) {
-        // 中期段階: 標準的な減速
         slidingSpeed *= SLIDING_DECELERATION;
     }
     else {
-        // 終期段階: 急速な減速
         slidingSpeed *= 0.80f;
     }
 
-    // 最小速度制限
     if (slidingSpeed < SLIDING_MIN_SPEED) {
         slidingSpeed = SLIDING_MIN_SPEED;
     }
 
-    // 方向を維持して速度を適用
     if (facingRight) {
         velocityX = slidingSpeed;
     }
@@ -1392,10 +994,9 @@ void Player::UpdateSliding()
         velocityX = -slidingSpeed;
     }
 
-    // **デバッグ情報（頻度を下げる）**
     static int debugCounter = 0;
     debugCounter++;
-    if (debugCounter % 20 == 0) { // 約0.33秒ごと
+    if (debugCounter % 20 == 0) {
         char debugMsg[128];
         sprintf_s(debugMsg, "Sliding: Timer=%.2f, Speed=%.2f, Progress=%.1f%%\n",
             slidingTimer, slidingSpeed, progress * 100);
@@ -1403,27 +1004,24 @@ void Player::UpdateSliding()
     }
 }
 
-// **修正されたスライディング終了**
 void Player::EndSliding()
 {
-    // 状態を適切に設定
     if (onGround) {
         if (fabsf(velocityX) > 3.0f) {
             currentState = WALKING;
         }
         else if (fabsf(velocityX) > 0.5f) {
-            currentState = WALKING; // 低速でも歩行状態を維持
+            currentState = WALKING;
         }
         else {
             currentState = IDLE;
-            velocityX = 0.0f; // 完全停止
+            velocityX = 0.0f;
         }
     }
     else {
         currentState = FALLING;
     }
 
-    // スライディング変数をリセット
     slidingTimer = 0.0f;
     slidingSpeed = 0.0f;
     wasRunningWhenSlideStarted = false;
@@ -1431,32 +1029,28 @@ void Player::EndSliding()
     OutputDebugStringA("Player: Sliding ended!\n");
 }
 
-// **修正されたスライディング時の当たり判定高さ取得**
 float Player::GetSlidingCollisionHeight() const
 {
     if (currentState == SLIDING) {
-        return 100.0f * SLIDING_HEIGHT_REDUCTION; // 通常の60%の高さ
+        return 100.0f * SLIDING_HEIGHT_REDUCTION;
     }
-    return 100.0f; // 通常の高さ
+    return 100.0f;
 }
 
-// **新追加: スライディングエフェクト描画**
 void Player::DrawSlidingEffect(float cameraX)
 {
     int screenX = (int)(x - cameraX);
     int screenY = (int)y;
 
     float progress = GetSlidingProgress();
-    float effectIntensity = 1.0f - progress; // 時間とともに減衰
+    float effectIntensity = 1.0f - progress;
 
     if (effectIntensity > 0.1f) {
         SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(100 * effectIntensity));
 
-        // 後方に煙のような効果
         int smokeX = screenX - (facingRight ? 30 : -30);
-        int smokeY = screenY + 40; // 足元付近
+        int smokeY = screenY + 40;
 
-        // 複数の円で煙効果を表現
         for (int i = 0; i < 3; i++) {
             int offsetX = smokeX - (facingRight ? i * 15 : -i * 15);
             int radius = (int)(8 + i * 3 * effectIntensity);
@@ -1467,5 +1061,289 @@ void Player::DrawSlidingEffect(float cameraX)
         }
 
         SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+    }
+}
+
+// **影描画システム（省略版）**
+void Player::DrawShadow(float cameraX, StageManager* stageManager)
+{
+    float playerFootX = x;
+    float playerFootY = y + (PLAYER_HEIGHT / 2) - 8;
+
+    float groundY = FindOptimalGroundForShadow(playerFootX, playerFootY, stageManager);
+
+    if (groundY == -1) return;
+
+    float distanceToGround = groundY - playerFootY;
+
+    if (distanceToGround < 0 || distanceToGround > MAX_SHADOW_DISTANCE) return;
+
+    int shadowX = (int)(playerFootX - cameraX);
+    int shadowY = (int)groundY - 2;
+
+    if (shadowX < -100 || shadowX > 1920 + 100) return;
+    if (shadowY < -50 || shadowY > 1080 + 50) return;
+
+    float normalizedDistance = min(distanceToGround / MAX_SHADOW_DISTANCE, 1.0f);
+
+    float stateMultiplier = 1.0f;
+    switch (currentState) {
+    case DUCKING:
+        stateMultiplier = 1.2f;
+        break;
+    case JUMPING:
+    case FALLING:
+        stateMultiplier = 0.9f;
+        break;
+    default:
+        stateMultiplier = 1.0f;
+        break;
+    }
+
+    float distanceMultiplier = 1.0f - powf(normalizedDistance, 1.5f) * 0.8f;
+
+    float finalSizeMultiplier = stateMultiplier * distanceMultiplier;
+    int shadowRadiusX = (int)(BASE_SHADOW_SIZE_X * finalSizeMultiplier);
+    int shadowRadiusY = (int)(BASE_SHADOW_SIZE_Y * finalSizeMultiplier);
+
+    float alphaMultiplier = 1.0f - powf(normalizedDistance, 0.8f) * 0.7f;
+    int shadowAlpha = (int)(BASE_SHADOW_ALPHA * alphaMultiplier);
+
+    if (shadowRadiusX < 6 || shadowRadiusY < 2 || shadowAlpha < 20) return;
+
+    float colorIntensity = 50.0f * (1.0f - normalizedDistance * 0.6f);
+    int shadowColor = GetColor((int)colorIntensity, (int)colorIntensity, (int)colorIntensity);
+
+    SetDrawBlendMode(DX_BLENDMODE_ALPHA, shadowAlpha);
+    DrawOval(shadowX, shadowY, shadowRadiusX, shadowRadiusY, shadowColor, TRUE);
+
+    if (distanceToGround < MAX_SHADOW_DISTANCE * 0.5f) {
+        int innerAlpha = shadowAlpha / 3;
+        int innerRadiusX = shadowRadiusX * 2 / 3;
+        int innerRadiusY = shadowRadiusY * 2 / 3;
+
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, innerAlpha);
+        DrawOval(shadowX, shadowY, innerRadiusX, innerRadiusY, GetColor(20, 20, 20), TRUE);
+    }
+
+    SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+}
+
+float Player::FindOptimalGroundForShadow(float playerX, float playerY, StageManager* stageManager)
+{
+    float basicGround = FindNearestGroundForShadow(playerX, playerY, stageManager);
+
+    if (basicGround == -1) {
+        basicGround = FindPreciseGroundForShadow(playerX, playerY, stageManager);
+    }
+
+    if (basicGround == -1) {
+        basicGround = FindAdaptiveGroundForShadow(playerX, playerY, stageManager);
+    }
+
+    return basicGround;
+}
+
+float Player::FindNearestGroundForShadow(float playerX, float playerY, StageManager* stageManager)
+{
+    const int TILE_SIZE = Stage::TILE_SIZE;
+    const float SEARCH_WIDTH = 60.0f;
+    const int MAX_SEARCH_TILES = 15;
+
+    int startTileY = (int)(playerY / TILE_SIZE);
+    int endTileY = startTileY + MAX_SEARCH_TILES;
+
+    for (int tileY = startTileY; tileY <= endTileY; tileY++) {
+        float checkY = tileY * TILE_SIZE;
+
+        bool groundFound = false;
+
+        float checkPositions[] = {
+            playerX,
+            playerX - SEARCH_WIDTH / 2,
+            playerX + SEARCH_WIDTH / 2
+        };
+
+        for (float checkX : checkPositions) {
+            if (stageManager->CheckCollision(checkX, checkY, 4, 4)) {
+                groundFound = true;
+                break;
+            }
+        }
+
+        if (groundFound) {
+            return checkY;
+        }
+    }
+
+    return -1;
+}
+
+float Player::FindPreciseGroundForShadow(float playerX, float playerY, StageManager* stageManager)
+{
+    const float SEARCH_WIDTH = 50.0f;
+    const int MAX_SEARCH_DISTANCE = 960;
+    const int SEARCH_STEP = 8;
+
+    for (int searchY = (int)playerY; searchY < playerY + MAX_SEARCH_DISTANCE; searchY += SEARCH_STEP) {
+        for (int i = 0; i < 5; i++) {
+            float checkX = playerX - SEARCH_WIDTH / 2 + (SEARCH_WIDTH * i / 4);
+
+            if (stageManager->CheckCollision(checkX, searchY, 4, 4)) {
+                int tileY = searchY / Stage::TILE_SIZE;
+                return (float)(tileY * Stage::TILE_SIZE);
+            }
+        }
+    }
+
+    return -1;
+}
+
+float Player::FindAdaptiveGroundForShadow(float playerX, float playerY, StageManager* stageManager)
+{
+    const float SEARCH_RADIUS = 30.0f;
+    const int SEARCH_POINTS = 6;
+    const int MAX_SEARCH_DISTANCE = 480;
+
+    float nearestGroundY = -1;
+    float minDistance = (float)(MAX_SEARCH_DISTANCE + 1);
+
+    for (int i = 0; i < SEARCH_POINTS; i++) {
+        float angle = (2.0f * 3.14159265f * i) / SEARCH_POINTS;
+        float searchStartX = playerX + cosf(angle) * SEARCH_RADIUS;
+
+        for (int searchY = (int)playerY; searchY < playerY + MAX_SEARCH_DISTANCE; searchY += 12) {
+            if (stageManager->CheckCollision(searchStartX, searchY, 4, 4)) {
+                float distance = searchY - playerY;
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    nearestGroundY = searchY;
+                }
+                break;
+            }
+        }
+    }
+
+    if (nearestGroundY != -1) {
+        int tileY = (int)(nearestGroundY / Stage::TILE_SIZE);
+        nearestGroundY = (float)(tileY * Stage::TILE_SIZE);
+    }
+
+    return nearestGroundY;
+}
+
+// **その他の互換性関数**
+bool Player::CheckCollision(float checkX, float checkY, StageManager* stageManager)
+{
+    float collisionWidth = 80.0f;
+    float collisionHeight = 100.0f;
+    float left = checkX - collisionWidth / 2;
+    float top = checkY - collisionHeight / 2;
+    return stageManager->CheckCollision(left, top, collisionWidth, collisionHeight);
+}
+
+float Player::GetGroundY(float checkX, StageManager* stageManager)
+{
+    float footWidth = 80.0f;
+    return stageManager->GetGroundY(checkX - footWidth / 2, footWidth);
+}
+
+bool Player::CheckCollisionRect(float checkX, float checkY, float width, float height, StageManager* stageManager)
+{
+    float left = checkX - width / 2;
+    float top = checkY - height / 2;
+    return stageManager->CheckCollision(left, top, width, height);
+}
+
+int Player::FindGroundTileY(float playerX, float playerY, float playerWidth, StageManager* stageManager)
+{
+    float groundY = FindPreciseGroundY(playerX, playerY, playerWidth, stageManager);
+    return (groundY != -1) ? (int)groundY : -1;
+}
+
+int Player::FindCeilingTileY(float playerX, float playerY, float playerWidth, StageManager* stageManager)
+{
+    float ceilingY = FindPreciseCeilingY(playerX, playerY, playerWidth, stageManager);
+    return (ceilingY != -1) ? (int)ceilingY : -1;
+}
+
+void Player::DrawShadowDebugInfo(float cameraX, int shadowX, int shadowY, float distanceToGround, float normalizedDistance)
+{
+    int playerScreenX = (int)(x - cameraX);
+    int playerScreenY = (int)y;
+
+    SetDrawBlendMode(DX_BLENDMODE_ALPHA, 150);
+
+    DrawLine(playerScreenX, playerScreenY, shadowX, shadowY, GetColor(255, 255, 0));
+
+    int footY = playerScreenY + PLAYER_HEIGHT / 2;
+    DrawCircle(playerScreenX, footY, 3, GetColor(0, 255, 0), TRUE);
+
+    std::string distInfo = "Ground Dist: " + std::to_string((int)distanceToGround) + "px";
+    std::string normalInfo = "Normalized: " + std::to_string(normalizedDistance).substr(0, 4);
+    std::string stateInfo = "State: ";
+
+    switch (currentState) {
+    case IDLE: stateInfo += "IDLE"; break;
+    case WALKING: stateInfo += "WALKING"; break;
+    case JUMPING: stateInfo += "JUMPING"; break;
+    case FALLING: stateInfo += "FALLING"; break;
+    case DUCKING: stateInfo += "DUCKING"; break;
+    case SLIDING: stateInfo += "SLIDING"; break;
+    case HIT: stateInfo += "HIT"; break;
+    }
+
+    DrawString(playerScreenX + 15, playerScreenY - 60, distInfo.c_str(), GetColor(255, 255, 0));
+    DrawString(playerScreenX + 15, playerScreenY - 40, normalInfo.c_str(), GetColor(255, 255, 0));
+    DrawString(playerScreenX + 15, playerScreenY - 20, stateInfo.c_str(), GetColor(255, 255, 0));
+
+    SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+}
+
+void Player::DrawDebugInfo(float cameraX)
+{
+    const float COLLISION_WIDTH = 80.0f;
+    const float COLLISION_HEIGHT = 100.0f;
+
+    int screenX = (int)(x - cameraX);
+    int screenY = (int)y;
+
+    if (screenX < -200 || screenX > 2200) return;
+    if (screenY < -200 || screenY > 1300) return;
+
+    SetDrawBlendMode(DX_BLENDMODE_ALPHA, 100);
+    DrawBox(
+        screenX - COLLISION_WIDTH / 2,
+        screenY - COLLISION_HEIGHT / 2,
+        screenX + COLLISION_WIDTH / 2,
+        screenY + COLLISION_HEIGHT / 2,
+        GetColor(255, 0, 0), FALSE
+    );
+    SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+
+    std::string debugText =
+        "Pos: (" + std::to_string((int)x) + "," + std::to_string((int)y) + ") " +
+        "Vel: (" + std::to_string((int)(velocityX * 10)) + "," + std::to_string((int)(velocityY * 10)) + ") " +
+        "Ground: " + (onGround ? "YES" : "NO");
+
+    DrawString(screenX - 100, screenY - 140, debugText.c_str(), GetColor(255, 255, 0));
+
+    if (fabsf(velocityX) > 0.1f || fabsf(velocityY) > 0.1f) {
+        int arrowEndX = screenX + (int)(velocityX * 3);
+        int arrowEndY = screenY + (int)(velocityY * 3);
+
+        int maxArrowLength = 50;
+        int arrowLengthX = arrowEndX - screenX;
+        int arrowLengthY = arrowEndY - screenY;
+        int arrowLength = (int)sqrtf(arrowLengthX * arrowLengthX + arrowLengthY * arrowLengthY);
+
+        if (arrowLength > maxArrowLength) {
+            float scale = (float)maxArrowLength / arrowLength;
+            arrowEndX = screenX + (int)(arrowLengthX * scale);
+            arrowEndY = screenY + (int)(arrowLengthY * scale);
+        }
+
+        DrawLine(screenX, screenY, arrowEndX, arrowEndY, GetColor(255, 0, 255));
+        DrawCircle(arrowEndX, arrowEndY, 3, GetColor(255, 0, 255), TRUE);
     }
 }

@@ -12,11 +12,11 @@ public:
         JUMPING,
         FALLING,
         DUCKING,
-        SLIDING,  // **新追加: スライディング状態**
-        HIT       // ダメージ状態
+        SLIDING,
+        HIT
     };
 
-    // プレイヤーサイズ定数（128x128に対応）
+    // プレイヤーサイズ定数
     static const int PLAYER_WIDTH = 128;
     static const int PLAYER_HEIGHT = 128;
 
@@ -43,10 +43,14 @@ public:
     void SetPosition(float newX, float newY);
     void ResetPosition();
 
-    // 新機能: 踏みつけ後の小ジャンプ効果
+    // **新規追加: ブロックシステム連携用の関数**
+    void SetOnGround(bool ground) { onGround = ground; }
+    void SetState(State newState) { currentState = newState; }
+
+    // 踏みつけ効果
     void ApplyStompBounce(float bounceVelocity = -8.0f);
 
-    // 新機能: ダメージシステム
+    // ダメージシステム
     void TakeDamage(int damage, float knockbackDirection = 0.0f);
     void ApplyGravityOnly(StageManager* stageManager);
     void HandleGroundCollisionOnly(StageManager* stageManager);
@@ -54,24 +58,20 @@ public:
     bool IsInvulnerable() const { return invulnerabilityTimer > 0.0f; }
     float GetInvulnerabilityTimer() const { return invulnerabilityTimer; }
 
-    // デバッグ用: 敵踏みつけ状態の取得
+    // デバッグ用
     bool IsStomping() const { return wasStomping; }
 
-    // 新追加: 自動歩行用メソッド
+    // 自動歩行用
     void SetFacingRight(bool facing) { facingRight = facing; }
-
-    // デバッグ用: プレイヤーの内部状態を確認
     void SetAutoWalking(bool autoWalk) { isAutoWalking = autoWalk; }
     bool IsAutoWalking() const { return isAutoWalking; }
-
-    // 新追加: 自動歩行専用の物理処理
     void UpdateAutoWalkPhysics(StageManager* stageManager);
 
-    // **新追加: スライディング関連**
+    // スライディング関連
     bool IsSliding() const { return currentState == SLIDING; }
     float GetSlidingProgress() const { return slidingTimer / SLIDING_DURATION; }
 
-    // 新追加：速度の設定（ブロック衝突時用）
+    // 速度設定（ブロック衝突後用）
     void SetVelocityX(float velX) { velocityX = velX; }
     void SetVelocityY(float velY) { velocityY = velY; }
 
@@ -81,30 +81,30 @@ private:
         int front, idle, walk_a, walk_b, jump, duck, hit, climb_a, climb_b;
     };
 
-    // 物理定数（128x128プレイヤー用に最適化）
-    static constexpr float GRAVITY = 0.8f;             // 重力を少し強めに調整
-    static constexpr float JUMP_POWER = -20.0f;        // ジャンプ力を128x128プレイヤーに合わせて調整
+    // 物理定数
+    static constexpr float GRAVITY = 0.8f;
+    static constexpr float JUMP_POWER = -20.0f;
     static constexpr float MOVE_SPEED = 8.0f;
     static constexpr float WALK_ANIM_SPEED = 0.15f;
-    static constexpr float MAX_FALL_SPEED = 16.0f;     // 最大落下速度
+    static constexpr float MAX_FALL_SPEED = 16.0f;
 
-    // 改良：段階的加速度システムの定数
-    static constexpr float FRICTION = 0.85f;           // 摩擦係数（横移動の減速）
-    static constexpr float ACCELERATION = 0.8f;        // 基本加速度（よりリアルに）
-    static constexpr float MAX_HORIZONTAL_SPEED = 10.0f; // 最大横移動速度（高速化）
+    // 段階的加速度システムの定数
+    static constexpr float FRICTION = 0.85f;
+    static constexpr float ACCELERATION = 0.8f;
+    static constexpr float MAX_HORIZONTAL_SPEED = 10.0f;
 
-    // **新追加: スライディングシステム定数**
-    static constexpr float SLIDING_DURATION = 1.2f;           // スライディング持続時間
-    static constexpr float SLIDING_INITIAL_SPEED = 12.0f;     // スライディング初期速度
-    static constexpr float SLIDING_DECELERATION = 0.92f;      // スライディング減速率
-    static constexpr float SLIDING_MIN_SPEED = 1.0f;          // スライディング最小速度
-    static constexpr float SLIDING_HEIGHT_REDUCTION = 0.6f;   // スライディング時の当たり判定高さ縮小率
+    // スライディングシステム定数
+    static constexpr float SLIDING_DURATION = 1.2f;
+    static constexpr float SLIDING_INITIAL_SPEED = 12.0f;
+    static constexpr float SLIDING_DECELERATION = 0.92f;
+    static constexpr float SLIDING_MIN_SPEED = 1.0f;
+    static constexpr float SLIDING_HEIGHT_REDUCTION = 0.6f;
 
-    // 新追加: ダメージシステム定数
-    static constexpr float HIT_DURATION = 0.8f;        // ダメージ状態の持続時間
-    static constexpr float INVULNERABILITY_DURATION = 2.0f;  // 無敵時間
-    static constexpr float KNOCKBACK_FORCE = 6.0f;     // ノックバック力
-    static constexpr float KNOCKBACK_VERTICAL = -4.0f; // ノックバック時の縦方向速度
+    // ダメージシステム定数
+    static constexpr float HIT_DURATION = 0.8f;
+    static constexpr float INVULNERABILITY_DURATION = 2.0f;
+    static constexpr float KNOCKBACK_FORCE = 6.0f;
+    static constexpr float KNOCKBACK_VERTICAL = -4.0f;
 
     // プレイヤー状態
     float x, y;
@@ -124,19 +124,19 @@ private:
     std::string characterColorName;
 
     // 踏みつけ状態管理用
-    bool wasStomping;           // 前フレームで踏みつけを行ったか
-    float stompCooldown;        // 踏みつけのクールダウン
-    static constexpr float STOMP_COOLDOWN_DURATION = 0.2f; // 踏みつけクールダウン持続
+    bool wasStomping;
+    float stompCooldown;
+    static constexpr float STOMP_COOLDOWN_DURATION = 0.2f;
 
-    // 新追加: ダメージシステム変数
-    float hitTimer;             // ダメージ状態タイマー
-    float invulnerabilityTimer; // 無敵タイマー
-    float knockbackDecay;       // ノックバック減衰
+    // ダメージシステム変数
+    float hitTimer;
+    float invulnerabilityTimer;
+    float knockbackDecay;
 
-    // **新追加: スライディングシステム変数**
-    float slidingTimer;         // スライディングタイマー
-    float slidingSpeed;         // 現在のスライディング速度
-    bool wasRunningWhenSlideStarted; // スライド開始時に走っていたか
+    // スライディングシステム変数
+    float slidingTimer;
+    float slidingSpeed;
+    bool wasRunningWhenSlideStarted;
 
     // 自動歩行フラグ
     bool isAutoWalking = false;
@@ -149,15 +149,14 @@ private:
     void LoadCharacterSprites(int characterIndex);
     std::string GetCharacterColorName(int index);
 
-    // **新追加: スライディングシステム関数**
+    // スライディングシステム関数
     void StartSliding();
     void UpdateSliding();
     void EndSliding();
     float GetSlidingCollisionHeight() const;
-
     void DrawSlidingEffect(float cameraX);
 
-    // 新追加: ダメージシステム関数
+    // ダメージシステム関数
     void UpdateDamageState();
     void UpdateInvulnerability();
 
@@ -177,28 +176,22 @@ private:
     float FindPreciseGroundY(float playerX, float playerY, float width, StageManager* stageManager);
     float FindPreciseCeilingY(float playerX, float playerY, float width, StageManager* stageManager);
 
-    // ===== 上位互換のための旧関数 =====
+    // ===== 上位互換性のための旧関数 =====
     bool CheckCollision(float newX, float newY, StageManager* stageManager);
     float GetGroundY(float checkX, StageManager* stageManager);
     bool CheckCollisionRect(float x, float y, float width, float height, StageManager* stageManager);
     int FindGroundTileY(float playerX, float playerY, float playerWidth, StageManager* stageManager);
     int FindCeilingTileY(float playerX, float playerY, float playerWidth, StageManager* stageManager);
 
-    // 基本的な地面検出（高速）
+    // 影描画用の地面検索関数
+    float FindOptimalGroundForShadow(float playerX, float playerY, StageManager* stageManager);
     float FindNearestGroundForShadow(float playerX, float playerY, StageManager* stageManager);
-
-    // 高精度な地面検出（詳細）
     float FindPreciseGroundForShadow(float playerX, float playerY, StageManager* stageManager);
-
-    // 適応的地面検出（複雑な地形対応）
     float FindAdaptiveGroundForShadow(float playerX, float playerY, StageManager* stageManager);
 
-    // 最適な地面検出（状況に応じて最適な方法を選択）
-    float FindOptimalGroundForShadow(float playerX, float playerY, StageManager* stageManager);
-
     // 影描画の定数
-    static constexpr float MAX_SHADOW_DISTANCE = 200.0f; // 影が表示される最大距離
-    static constexpr float BASE_SHADOW_SIZE_X = 40.0f;   // 基本影サイズ（幅）
-    static constexpr float BASE_SHADOW_SIZE_Y = 16.0f;   // 基本影サイズ（高さ）
-    static constexpr int BASE_SHADOW_ALPHA = 150;        // 基本影の透明度
+    static constexpr float MAX_SHADOW_DISTANCE = 200.0f;
+    static constexpr float BASE_SHADOW_SIZE_X = 40.0f;
+    static constexpr float BASE_SHADOW_SIZE_Y = 16.0f;
+    static constexpr int BASE_SHADOW_ALPHA = 150;
 };

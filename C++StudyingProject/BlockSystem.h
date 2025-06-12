@@ -68,6 +68,10 @@ public:
     void HandlePlayerCollision(Player* player, float newX, float newY);
     void CheckAndResolvePlayerCollisions(Player* player); // **追加：より詳細な衝突処理**
 
+    void HandleBlockLandingOnly(Player* player);
+
+    bool CheckPlayerLandingOnBlocksImproved(float playerX, float playerY, float playerWidth, float playerHeight);
+
     // ステージ別のブロック配置
     void GenerateBlocksForStageIndex(int stageIndex);
     void GenerateBlocksForGrassStage();
@@ -79,6 +83,10 @@ public:
     // 獲得したコイン数を取得
     int GetCoinsFromBlocks() const { return coinsFromBlocks; }
     void ResetCoinCount() { coinsFromBlocks = 0; }
+
+    bool CheckPlayerHitFromBelowImproved(const Block& block, Player* player);
+    bool CheckPlayerLandingOnBlocks(float playerX, float playerY, float playerWidth, float playerHeight);
+    void HandleBlockLanding(Player* player);
 
 private:
     // テクスチャハンドル
@@ -121,4 +129,6 @@ private:
     bool IsBlockSolid(const Block& block);
 
     float GetDistance(float x1, float y1, float x2, float y2);
+
+    float FindNearestBlockTop(float playerX, float playerY, float playerWidth);
 };

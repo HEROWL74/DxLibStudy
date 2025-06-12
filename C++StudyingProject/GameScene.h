@@ -9,7 +9,6 @@
 #include "ResultUISystem.h" 
 #include "EnemyManager.h" 
 #include "DoorSystem.h"   
-
 #include "SoundManager.h"
 #include "BlockSystem.h"
 #include <string>
@@ -22,6 +21,7 @@ public:
 
     void Initialize(int selectedCharacter);
     void Update();
+    void UpdateCoins();
     void Draw();
 
     bool IsExitRequested() const { return exitRequested; }
@@ -50,6 +50,7 @@ private:
     EnemyManager enemyManager;
     BlockSystem blockSystem;
     DoorSystem doorSystem;
+	
   
 
     // キャラクター情報
@@ -103,6 +104,11 @@ private:
 
     // **新追加: 遅延自動歩行関数の宣言**
     void UpdateDelayedAutoWalk();
+
+    void ResetAllSystems();
+
+
+   
 
     // ヘルパー関数
     std::string GetCharacterDisplayName(int index);

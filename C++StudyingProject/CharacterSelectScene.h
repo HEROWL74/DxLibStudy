@@ -17,6 +17,7 @@ public:
 
     bool IsCharacterSelected() const { return selectConfirmed; }
     bool IsBackRequested() const { return backRequested; }
+    bool IsTutorialRequested() const { return tutorialRequested; }  // **新追加**
     int GetSelectedCharacter() const { return selectedCharacterIndex; }
     void ResetState(); // 状態リセット用関数を追加
 
@@ -35,7 +36,7 @@ private:
     static constexpr float FLOAT_SPEED = 0.06f;
     static constexpr float FLOAT_AMP = 8.0f;
     static constexpr float ROTATION_SPEED = 0.008f;  // 回転速度
-    static constexpr float MOVE_SPEED = 0.12f;       // 選択時の移動速度
+    static constexpr float MOVE_SPEED = 0.12f;       // 選択後の移動速度
 
     enum SelectionState { SELECTING, SELECTED, CONFIRMED };
 
@@ -82,6 +83,7 @@ private:
     // 状態管理
     bool characterSelected;
     bool backRequested;
+    bool tutorialRequested;      // **新追加：チュートリアルリクエスト**
     bool selectConfirmed;       // SELECT ボタンが押された
     int selectedCharacterIndex;
     int hoveredCharacterIndex;

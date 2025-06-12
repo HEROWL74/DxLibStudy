@@ -21,6 +21,7 @@ bool Game::Initialize()
     splashScene.Initialize();
     titleScene.Initialize();
     characterSelectScene.Initialize();
+    tutorialScene.Initialize(0);  // **新追加：仮の初期化**
     loadingScene.Initialize();
 
     SoundManager::GetInstance().Initialize();
@@ -70,6 +71,7 @@ void Game::Run()
             if (characterSelectScene.IsCharacterSelected()) {
                 selectedCharacter = characterSelectScene.GetSelectedCharacter();
 
+                // ゲーム本編に直接移行
                 currentState = LOADING;
                 pendingLoadingType = LoadingScene::LOADING_GAME_START;
                 loadingScene.StartLoading(pendingLoadingType, selectedCharacter, 0);
@@ -79,11 +81,44 @@ void Game::Run()
 
                 OutputDebugStringA("Game: Started loading for GAME_MAIN\n");
             }
+            else if (characterSelectScene.IsTutorialRequested()) {
+                selectedCharacter = characterSelectScene.GetSelectedCharacter();
+
+                // **チュートリアルシーンに移行**
+                currentState = TUTORIAL;
+                tutorialScene.Initialize(selectedCharacter);
+
+                SoundManager::GetInstance().StopBGM();
+                characterSelectScene.ResetState();
+
+                OutputDebugStringA("Game: Started TUTORIAL\n");
+            }
             else if (characterSelectScene.IsBackRequested()) {
                 currentState = TITLE;
                 SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
                 characterSelectScene.ResetState();
                 OutputDebugStringA("Game: Returned to TITLE - Title BGM restarted\n");
+            }
+            break;
+
+        case TUTORIAL:  // **新追加：チュートリアルシーン処理**
+            tutorialScene.Update();
+            tutorialScene.Draw();
+
+            if (tutorialScene.IsCompleted()) {
+                // チュートリアル完了後、ローディングを経てゲーム本編へ
+                currentState = LOADING;
+                pendingLoadingType = LoadingScene::LOADING_GAME_START;
+                loadingScene.StartLoading(pendingLoadingType, selectedCharacter, 0);
+
+                SoundManager::GetInstance().StopBGM();
+                OutputDebugStringA("Game: Tutorial completed, starting loading for GAME_MAIN\n");
+            }
+            else if (tutorialScene.IsExitRequested()) {
+                // チュートリアルを中断してキャラクター選択に戻る
+                currentState = CHARACTER_SELECT;
+                SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
+                OutputDebugStringA("Game: Returned to CHARACTER_SELECT from TUTORIAL\n");
             }
             break;
 
@@ -96,8 +131,6 @@ void Game::Run()
                     currentState = GAME_MAIN;
                     gameScene.Initialize(selectedCharacter);
 
-                    
-
                     OutputDebugStringA("Game: Loading complete, switched to GAME_MAIN\n");
                 }
                 else if (pendingLoadingType == LoadingScene::LOADING_STAGE_CHANGE) {
@@ -108,7 +141,6 @@ void Game::Run()
             break;
 
         case GAME_MAIN:
-
             gameScene.Update();
 
             // **描画は常に実行（ポーズUI表示のため）**
@@ -117,8 +149,6 @@ void Game::Run()
             // **ゲーム終了リクエスト処理**
             if (gameScene.IsExitRequested()) {
                 currentState = TITLE;
-
-            
 
                 // **音声管理**
                 SoundManager::GetInstance().StopBGM();

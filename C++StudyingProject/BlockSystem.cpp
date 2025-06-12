@@ -100,8 +100,8 @@ void BlockSystem::Update(Player* player)
 
 void BlockSystem::UpdateBlock(Block& block, Player* player)
 {
-    // プレイヤーが下からブロックに当たったかチェック
-    if (!block.wasHit && CheckPlayerHitFromBelow(block, player)) {
+    // **修正: より正確な下からの衝突判定を使用**
+    if (!block.wasHit && CheckPlayerHitFromBelowImproved(block, player)) {
         block.wasHit = true;
 
         switch (block.type) {
@@ -116,28 +116,26 @@ void BlockSystem::UpdateBlock(Block& block, Player* player)
 
     // バウンスアニメーションの更新
     if (block.bounceTimer > 0.0f) {
-        block.bounceTimer -= 0.016f; // 60FPS想定
+        block.bounceTimer -= 0.016f;
 
         if (block.bounceTimer <= 0.0f) {
             block.bounceTimer = 0.0f;
             block.bounceAnimation = 0.0f;
         }
         else {
-            // サイン波でバウンス効果
             float progress = 1.0f - (block.bounceTimer / BOUNCE_DURATION);
             block.bounceAnimation = sinf(progress * 3.14159265f) * BOUNCE_HEIGHT;
         }
     }
 
-    // ヒットフラグのリセット（プレイヤーが離れた場合）
-    if (block.wasHit && !CheckPlayerHitFromBelow(block, player)) {
+    // **修正: ヒットフラグのリセット条件を改善**
+    if (block.wasHit && !CheckPlayerHitFromBelowImproved(block, player)) {
         float distance = GetDistance(block.x, block.y, player->GetX(), player->GetY());
-        if (distance > HIT_DETECTION_SIZE * 1.5f) { // 十分離れたらリセット
+        if (distance > HIT_DETECTION_SIZE * 2.0f) {
             block.wasHit = false;
         }
     }
 }
-
 void BlockSystem::UpdateFragments()
 {
     for (auto it = fragments.begin(); it != fragments.end();) {
@@ -189,17 +187,23 @@ void BlockSystem::HandleCoinBlockHit(Block& block)
         // バウンスアニメーション開始
         block.bounceTimer = BOUNCE_DURATION;
 
-        // コイン獲得
+        // **修正: コイン値得を確実に実行**
         coinsFromBlocks++;
 
         // サウンド再生
         SoundManager::GetInstance().PlaySE(SoundManager::SFX_COIN);
 
-        // デバッグ出力
-        OutputDebugStringA("BlockSystem: Coin block hit! Coins from blocks: ");
-        char coinMsg[32];
-        sprintf_s(coinMsg, "%d\n", coinsFromBlocks);
-        OutputDebugStringA(coinMsg);
+        // **詳細なデバッグ出力**
+        char debugMsg[128];
+        sprintf_s(debugMsg, "BlockSystem: COIN BLOCK HIT! Total coins from blocks: %d\n", coinsFromBlocks);
+        OutputDebugStringA(debugMsg);
+
+        // **成功確認のデバッグ**
+        OutputDebugStringA("BlockSystem: Coin count increased successfully!\n");
+    }
+    else {
+        // 既に空のブロックを叩いた場合
+        OutputDebugStringA("BlockSystem: Hit empty coin block (no effect)\n");
     }
 }
 
@@ -439,7 +443,6 @@ bool BlockSystem::CheckAABBCollision(float x1, float y1, float w1, float h1,
         y1 + h1 > y2);
 }
 
-// **新追加：衝突解決**
 void BlockSystem::ResolveCollision(Player* player, const Block& block, float playerX, float playerY)
 {
     const float PLAYER_WIDTH = 80.0f;
@@ -468,7 +471,7 @@ void BlockSystem::ResolveCollision(Player* player, const Block& block, float pla
     float overlapTop = playerBottom - blockTop;
     float overlapBottom = blockBottom - playerTop;
 
-    // 最小の重なりを見つけて、その方向に押し戻す
+    // 最小の重なりを見つけて、その方向に押し返す
     float minOverlapX = min(overlapLeft, overlapRight);
     float minOverlapY = min(overlapTop, overlapBottom);
 
@@ -484,33 +487,42 @@ void BlockSystem::ResolveCollision(Player* player, const Block& block, float pla
         }
 
         // 横方向の速度をリセット
-        if ((velX > 0 && overlapLeft < overlapRight) || (velX < 0 && overlapLeft >= overlapRight)) {
-            // プレイヤーの速度を0にする（必要に応じて）
-        }
+        player->SetVelocityX(0.0f);
     }
     else {
         // 縦方向の衝突
         if (overlapTop < overlapBottom) {
-            // 下から上へ衝突（プレイヤーがブロックの上に乗る）
+            // **下から上へ衝突（プレイヤーがブロックの上に乗る）**
             player->SetPosition(currentX, blockTop - PLAYER_HEIGHT / 2 - 1);
+            player->SetVelocityY(0.0f);
+            player->SetOnGround(true);
 
-            // 下向きの速度をリセット（着地）
-            if (velY > 0) {
-                // プレイヤーを地面に着地させる
+            // **着地後の状態設定**
+            if (player->GetState() == Player::FALLING || player->GetState() == Player::JUMPING) {
+                if (CheckHitKey(KEY_INPUT_LEFT) || CheckHitKey(KEY_INPUT_RIGHT)) {
+                    player->SetState(Player::WALKING);
+                }
+                else {
+                    player->SetState(Player::IDLE);
+                }
             }
+
+            OutputDebugStringA("BlockSystem: Player landed on block via collision resolution!\n");
         }
         else {
-            // 上から下へ衝突（プレイヤーがブロックの下にぶつかる）
+            // **上から下へ衝突（プレイヤーがブロックの下にぶつかる）**
             player->SetPosition(currentX, blockBottom + PLAYER_HEIGHT / 2 + 1);
+            player->SetVelocityY(0.0f);
 
-            // 上向きの速度をリセット
-            if (velY < 0) {
-                // プレイヤーの上向き速度を止める
+            // ジャンプ中に天井にぶつかった場合は落下状態に
+            if (player->GetState() == Player::JUMPING) {
+                player->SetState(Player::FALLING);
             }
+
+            OutputDebugStringA("BlockSystem: Player hit block from below via collision resolution!\n");
         }
     }
 }
-
 // **新追加：ブロックが固体かどうかの判定**
 bool BlockSystem::IsBlockSolid(const Block& block)
 {
@@ -704,7 +716,7 @@ void BlockSystem::GenerateBlocksForPurpleStage()
     ClearAllBlocks();
 
     // **修正: 魔法ステージの浮遊島を避けた魔法的配置**
-    std::vector<std::pair<float, float>> coinBlocks = {
+    std::vector<std::pair<float,float>> coinBlocks = {
         {768, 380},   // 魔法の島周辺
         {1728, 320},  // 魔法の橋上空
         {3456, 360},  // 高い魔法島上空
@@ -712,6 +724,7 @@ void BlockSystem::GenerateBlocksForPurpleStage()
         {6144, 340},  // 最終魔法エリア
         {7296, 260}   // ゴール前魔法空間
     };
+
 
     std::vector<std::pair<float, float>> brickBlocks = {
         {1152, 400},  // 魔法障害
@@ -738,8 +751,15 @@ float BlockSystem::GetDistance(float x1, float y1, float x2, float y2)
     return sqrtf(dx * dx + dy * dy);
 }
 
-// **新追加：プレイヤーとブロックの個別衝突チェック（GameScene用）**
 void BlockSystem::CheckAndResolvePlayerCollisions(Player* player)
+{
+    if (!player) return;
+
+    // **着地処理のみに限定（他の衝突処理は行わない）**
+    HandleBlockLandingOnly(player);
+}
+
+void BlockSystem::HandleBlockLandingOnly(Player* player)
 {
     if (!player) return;
 
@@ -748,21 +768,234 @@ void BlockSystem::CheckAndResolvePlayerCollisions(Player* player)
 
     float playerX = player->GetX();
     float playerY = player->GetY();
+    float playerVelY = player->GetVelocityY();
+
+    // **下向きに移動中で、現在空中にいる場合のみチェック**
+    if (playerVelY <= 0.0f || player->IsOnGround()) return;
+
+    // **ブロック上への着地をチェック**
+    if (CheckPlayerLandingOnBlocksImproved(playerX, playerY, PLAYER_WIDTH, PLAYER_HEIGHT)) {
+        // **最も近いブロックの上面に正確に配置**
+        float targetY = FindNearestBlockTop(playerX, playerY, PLAYER_WIDTH);
+
+        if (targetY != -1.0f) {
+            // プレイヤーをブロックの上に配置
+            player->SetPosition(playerX, targetY - PLAYER_HEIGHT / 2);
+            player->SetVelocityY(0.0f);
+            player->SetOnGround(true);
+
+            // **適切な状態に変更**
+            if (player->GetState() == Player::FALLING || player->GetState() == Player::JUMPING) {
+                if (CheckHitKey(KEY_INPUT_LEFT) || CheckHitKey(KEY_INPUT_RIGHT)) {
+                    player->SetState(Player::WALKING);
+                }
+                else {
+                    player->SetState(Player::IDLE);
+                }
+            }
+
+            OutputDebugStringA("BlockSystem: Player successfully landed on block!\n");
+        }
+    }
+}
+
+bool BlockSystem::CheckPlayerLandingOnBlocksImproved(float playerX, float playerY, float playerWidth, float playerHeight)
+{
+    const float LANDING_TOLERANCE = 8.0f;
+
+    // プレイヤーの足元位置
+    float footY = playerY + playerHeight / 2;
+    float leftFoot = playerX - playerWidth / 3;
+    float rightFoot = playerX + playerWidth / 3;
 
     // 各ブロックとの衝突をチェック
     for (const auto& block : blocks) {
         if (!IsBlockSolid(*block)) continue;
 
-        if (CheckAABBCollision(
-            playerX - PLAYER_WIDTH / 2, playerY - PLAYER_HEIGHT / 2,
-            PLAYER_WIDTH, PLAYER_HEIGHT,
-            block->x, block->y, BLOCK_SIZE, BLOCK_SIZE)) {
+        // ブロックの上面
+        float blockTop = block->y;
+        float blockLeft = block->x;
+        float blockRight = block->x + BLOCK_SIZE;
 
-            ResolveCollision(player, *block, playerX, playerY);
+        // X軸の重なりチェック
+        bool xOverlap = (rightFoot > blockLeft && leftFoot < blockRight);
+        if (!xOverlap) continue;
 
-            // 位置が変更された可能性があるので更新
-            playerX = player->GetX();
-            playerY = player->GetY();
+        // Y軸の着地判定（プレイヤーの足がブロックの上面付近）
+        float distanceToBlockTop = footY - blockTop;
+
+        // **改良: より厳密な着地条件**
+        if (distanceToBlockTop >= 0 && distanceToBlockTop <= LANDING_TOLERANCE) {
+            char debugMsg[256];
+            sprintf_s(debugMsg, "BlockSystem: Landing detected! FootY: %.1f, BlockTop: %.1f, Distance: %.1f\n",
+                footY, blockTop, distanceToBlockTop);
+            OutputDebugStringA(debugMsg);
+
+            return true;
         }
     }
+
+    return false;
+}
+
+
+
+// **新実装: CheckPlayerHitFromBelowImproved - より正確な下からの判定**
+bool BlockSystem::CheckPlayerHitFromBelowImproved(const Block& block, Player* player)
+{
+    float playerX = player->GetX();
+    float playerY = player->GetY();
+    float playerVelY = player->GetVelocityY();
+
+    // **修正: プレイヤーが上向きに移動している場合のみ判定**
+    if (playerVelY >= 0) return false;
+
+    // **修正: より厳密なX軸の重なり判定**
+    const float PLAYER_WIDTH = 80.0f;
+    const float COLLISION_MARGIN = 4.0f; // 判定の余裕を少し減らす
+
+    float playerLeft = playerX - PLAYER_WIDTH / 2 + COLLISION_MARGIN;
+    float playerRight = playerX + PLAYER_WIDTH / 2 - COLLISION_MARGIN;
+    float blockLeft = block.x;
+    float blockRight = block.x + BLOCK_SIZE;
+
+    bool xOverlap = (playerRight > blockLeft && playerLeft < blockRight);
+    if (!xOverlap) return false;
+
+    // **修正: より正確なY軸の位置関係判定**
+    const float PLAYER_HEIGHT = 100.0f;
+    const float HIT_TOLERANCE = 20.0f; // 許容範囲
+
+    float playerHead = playerY - PLAYER_HEIGHT / 2;
+    float blockBottom = block.y + BLOCK_SIZE;
+
+    // プレイヤーの頭がブロックの下面付近にある
+    float distance = abs(playerHead - blockBottom);
+    bool isHittingFromBelow = (distance <= HIT_TOLERANCE) && (playerHead <= blockBottom);
+
+    // **デバッグ出力**
+    if (isHittingFromBelow) {
+        char debugMsg[256];
+        sprintf_s(debugMsg, "BlockSystem: Player hit block from below! Distance: %.1f, PlayerHead: %.1f, BlockBottom: %.1f\n",
+            distance, playerHead, blockBottom);
+        OutputDebugStringA(debugMsg);
+    }
+
+    return isHittingFromBelow;
+}
+
+// **新実装: CheckPlayerLandingOnBlocks - ブロック上への着地判定**
+bool BlockSystem::CheckPlayerLandingOnBlocks(float playerX, float playerY, float playerWidth, float playerHeight)
+{
+    const float LANDING_TOLERANCE = 8.0f;
+
+    // プレイヤーの足元位置
+    float footY = playerY + playerHeight / 2;
+    float leftFoot = playerX - playerWidth / 3;
+    float rightFoot = playerX + playerWidth / 3;
+    float centerFoot = playerX;
+
+    // 各ブロックとの衝突をチェック
+    for (const auto& block : blocks) {
+        if (!IsBlockSolid(*block)) continue;
+
+        // ブロックの上面
+        float blockTop = block->y;
+        float blockLeft = block->x;
+        float blockRight = block->x + BLOCK_SIZE;
+
+        // X軸の重なりチェック
+        bool xOverlap = (rightFoot > blockLeft && leftFoot < blockRight);
+        if (!xOverlap) continue;
+
+        // Y軸の着地判定（プレイヤーの足がブロックの上面付近）
+        float distanceToBlockTop = abs(footY - blockTop);
+        if (distanceToBlockTop <= LANDING_TOLERANCE && footY >= blockTop) {
+
+            char debugMsg[256];
+            sprintf_s(debugMsg, "BlockSystem: Player landing on block! FootY: %.1f, BlockTop: %.1f, Distance: %.1f\n",
+                footY, blockTop, distanceToBlockTop);
+            OutputDebugStringA(debugMsg);
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// **新実装: HandleBlockLanding - ブロック上着地の処理**
+void BlockSystem::HandleBlockLanding(Player* player)
+{
+    if (!player) return;
+
+    const float PLAYER_WIDTH = 80.0f;
+    const float PLAYER_HEIGHT = 100.0f;
+
+    float playerX = player->GetX();
+    float playerY = player->GetY();
+    float playerVelY = player->GetVelocityY();
+
+    // **下向きに移動中で、まだ地上にいない場合のみチェック**
+    if (playerVelY <= 0.0f || player->IsOnGround()) return;
+
+    // **ブロック上への着地をチェック**
+    if (CheckPlayerLandingOnBlocks(playerX, playerY, PLAYER_WIDTH, PLAYER_HEIGHT)) {
+
+        // **最も近いブロックの上面に正確に配置**
+        float targetY = FindNearestBlockTop(playerX, playerY, PLAYER_WIDTH);
+
+        if (targetY != -1.0f) {
+            // プレイヤーをブロックの上に配置
+            player->SetPosition(playerX, targetY - PLAYER_HEIGHT / 2);
+            player->SetVelocityY(0.0f);
+            player->SetOnGround(true);  // **重要: 地面状態を確実に設定**
+
+            // **適切な状態に変更**
+            if (player->GetState() == Player::FALLING || player->GetState() == Player::JUMPING) {
+                if (CheckHitKey(KEY_INPUT_LEFT) || CheckHitKey(KEY_INPUT_RIGHT)) {
+                    player->SetState(Player::WALKING);
+                }
+                else {
+                    player->SetState(Player::IDLE);
+                }
+            }
+
+            OutputDebugStringA("BlockSystem: Player successfully landed on block!\n");
+        }
+    }
+}
+
+// **新実装: FindNearestBlockTop - 最も近いブロックの上面を検索**
+float BlockSystem::FindNearestBlockTop(float playerX, float playerY, float playerWidth)
+{
+    float nearestBlockTop = -1.0f;
+    float minDistance = 999999.0f;
+
+    const float LANDING_TOLERANCE = 12.0f;
+    float footY = playerY + 50.0f; // プレイヤーの足元付近
+
+    for (const auto& block : blocks) {
+        if (!IsBlockSolid(*block)) continue;
+
+        float blockTop = block->y;
+        float blockLeft = block->x;
+        float blockRight = block->x + BLOCK_SIZE;
+
+        // X軸の重なりチェック
+        float playerLeft = playerX - playerWidth / 2;
+        float playerRight = playerX + playerWidth / 2;
+
+        bool xOverlap = (playerRight > blockLeft && playerLeft < blockRight);
+        if (!xOverlap) continue;
+
+        // Y軸の距離チェック
+        float distance = abs(footY - blockTop);
+        if (distance <= LANDING_TOLERANCE && distance < minDistance) {
+            minDistance = distance;
+            nearestBlockTop = blockTop;
+        }
+    }
+
+    return nearestBlockTop;
 }
