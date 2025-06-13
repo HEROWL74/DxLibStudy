@@ -36,7 +36,7 @@ void Game::Run()
         ClearDrawScreen();
 
         switch (currentState) {
-        case SPLASH:
+        case SPLASH: {
             splashScene.Update();
             splashScene.Draw();
 
@@ -47,8 +47,8 @@ void Game::Run()
                 OutputDebugStringA("Game: Switched from SPLASH to TITLE\n");
             }
             break;
-
-        case TITLE:
+        }
+        case TITLE: {
             titleScene.Update();
             titleScene.Draw();
 
@@ -63,66 +63,70 @@ void Game::Run()
                 return;
             }
             break;
+        }
 
-        case CHARACTER_SELECT:
+        case CHARACTER_SELECT: {
+            // **タイトルからの設定をキャラクター選択に反映**
+            static bool tutorialSettingApplied = false;
+            if (!tutorialSettingApplied) {
+                characterSelectScene.SetTutorialEnabled(titleScene.IsTutorialEnabled());
+                tutorialSettingApplied = true;
+            }
+
             characterSelectScene.Update();
             characterSelectScene.Draw();
 
             if (characterSelectScene.IsCharacterSelected()) {
                 selectedCharacter = characterSelectScene.GetSelectedCharacter();
-
-                // ゲーム本編に直接移行
                 currentState = LOADING;
                 pendingLoadingType = LoadingScene::LOADING_GAME_START;
                 loadingScene.StartLoading(pendingLoadingType, selectedCharacter, 0);
-
                 SoundManager::GetInstance().StopBGM();
                 characterSelectScene.ResetState();
-
+                tutorialSettingApplied = false; // **リセット時にフラグもクリア**
                 OutputDebugStringA("Game: Started loading for GAME_MAIN\n");
             }
             else if (characterSelectScene.IsTutorialRequested()) {
                 selectedCharacter = characterSelectScene.GetSelectedCharacter();
-
-                // **チュートリアルシーンに移行**
                 currentState = TUTORIAL;
                 tutorialScene.Initialize(selectedCharacter);
-
                 SoundManager::GetInstance().StopBGM();
                 characterSelectScene.ResetState();
-
+                tutorialSettingApplied = false;
                 OutputDebugStringA("Game: Started TUTORIAL\n");
             }
             else if (characterSelectScene.IsBackRequested()) {
                 currentState = TITLE;
                 SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
                 characterSelectScene.ResetState();
-                OutputDebugStringA("Game: Returned to TITLE - Title BGM restarted\n");
+                tutorialSettingApplied = false; // **リセット時にフラグもクリア**
+                OutputDebugStringA("Game: Returned to TITLE\n");
             }
             break;
+        }
 
-        case TUTORIAL:  // **新追加：チュートリアルシーン処理**
+        case TUTORIAL: {
             tutorialScene.Update();
             tutorialScene.Draw();
 
             if (tutorialScene.IsCompleted()) {
-                // チュートリアル完了後、ローディングを経てゲーム本編へ
-                currentState = LOADING;
-                pendingLoadingType = LoadingScene::LOADING_GAME_START;
-                loadingScene.StartLoading(pendingLoadingType, selectedCharacter, 0);
-
-                SoundManager::GetInstance().StopBGM();
-                OutputDebugStringA("Game: Tutorial completed, starting loading for GAME_MAIN\n");
+                // **チュートリアル完了後は必ずキャラクター選択に戻る**
+                currentState = CHARACTER_SELECT;
+                characterSelectScene.SetTutorialEnabled(titleScene.IsTutorialEnabled()); // **設定を再適用**
+                SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
+                OutputDebugStringA("Game: Tutorial completed, returned to CHARACTER_SELECT\n");
             }
             else if (tutorialScene.IsExitRequested()) {
-                // チュートリアルを中断してキャラクター選択に戻る
+                // **チュートリアル中断時もキャラクター選択に戻る**
                 currentState = CHARACTER_SELECT;
+                characterSelectScene.SetTutorialEnabled(titleScene.IsTutorialEnabled()); // **設定を再適用**
                 SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
                 OutputDebugStringA("Game: Returned to CHARACTER_SELECT from TUTORIAL\n");
             }
             break;
+        }
 
-        case LOADING:
+        case LOADING: {
             loadingScene.Update();
             loadingScene.Draw();
 
@@ -139,8 +143,9 @@ void Game::Run()
                 }
             }
             break;
+        }
 
-        case GAME_MAIN:
+        case GAME_MAIN: {
             gameScene.Update();
 
             // **描画は常に実行（ポーズUI表示のため）**
@@ -168,6 +173,7 @@ void Game::Run()
                 OutputDebugStringA("Game: Started stage change loading\n");
             }
             break;
+        }
         }
 
         ScreenFlip();

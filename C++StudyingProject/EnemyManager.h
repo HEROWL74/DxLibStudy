@@ -3,6 +3,11 @@
 #include "EnemyBase.h"
 #include "NormalSlime.h"
 #include "SpikeSlime.h"
+#include "Bee.h"
+#include "Fly.h"
+#include "Ladybug.h"
+#include "Saw.h"
+#include "SlimeBlock.h"
 #include "Player.h"
 #include "StageManager.h"
 #include <vector>
@@ -23,6 +28,11 @@ public:
     void AddEnemy(std::unique_ptr<EnemyBase> enemy);
     void AddNormalSlime(float x, float y);
     void AddSpikeSlime(float x, float y);
+    void AddBee(float x, float y);
+    void AddFly(float x, float y);
+    void AddLadybug(float x, float y);
+    void AddSaw(float x, float y);
+    void AddSlimeBlock(float x, float y);
 
     // ステージごとの敵配置
     void GenerateEnemiesForStage(int stageIndex);

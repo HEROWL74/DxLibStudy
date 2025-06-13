@@ -46,6 +46,8 @@ void TitleScene::Initialize()
     slideHandle = LoadGraph("UI/PNG/Yellow/slide_hangle.png");
     slideBarHandle = LoadGraph("UI/PNG/Yellow/slide_horizontal_color.png");
     homeHandle = LoadGraph("UI/PNG/Yellow/home.png");
+    checkboxCheckedHandle = LoadGraph("UI/PNG/Red/check_square_color_checkmark.png");
+    checkboxUncheckedHandle = LoadGraph("UI/PNG/Red/check_square_color.png");
     fontHandle = CreateFontToHandle(NULL, 28, 3);
     largeFontHandle = CreateFontToHandle(NULL, 48, 5);
 
@@ -83,6 +85,9 @@ void TitleScene::Initialize()
         0.0f              // glowEffect
     };
 
+    // チェックボックス初期化
+    tutorialEnabledCheckbox = { 0, 0, 32, 32, true, 0.0f, false }; // デフォルトでチュートリアル有効
+
     // **SoundManagerの現在の音量設定を取得してスライダーに反映**
     bgmSlider.value = SoundManager::GetInstance().GetBGMVolume();
     bgmSlider.valueDisplay = bgmSlider.value;
@@ -109,11 +114,11 @@ void TitleScene::Update()
     // ボタン更新
     UpdateButtons();
 
-    // **重要：タイトルBGMの継続再生を保証**
+    // **重要：タイトルBGMの継続再生をシーン間でやる**
     // タイトル画面とオプション画面の両方でBGMが流れ続けるように管理
     EnsureTitleBGMPlaying();
 
-    // オプション開閉アニメーション（分離されたフェードとスライド）
+    // オプション開閉アニメーション（分離させたフェードとスライド）
     switch (optionState) {
     case Showing:
         optionAnimProgress += ANIM_SPEED;
@@ -133,7 +138,7 @@ void TitleScene::Update()
 
     case Hiding:
         optionAnimProgress -= ANIM_SPEED;
-        optionFadeProgress -= FADE_SPEED * 1.5f; // フェードアウトは速め
+        optionFadeProgress -= FADE_SPEED * 0.8f; // フェードアウトは速め
         optionSlideProgress -= ANIM_SPEED;
 
         if (optionAnimProgress <= 0.0f) {
@@ -197,7 +202,10 @@ void TitleScene::Update()
     if (optionState != Hidden && transitionState == None) {
         UpdateBGMSlider();
         UpdateSESlider();
+        UpdateTutorialCheckbox();
     }
+
+
 
     // パーティクル更新
     UpdateParticles();
@@ -431,8 +439,15 @@ void TitleScene::Draw()
         string seText = to_string(sePercent) + "%";
         DrawStringToHandle(seSlider.x + seSlider.w + 20, seSliderY - 5, seText.c_str(), GetColor(255, 215, 0), fontHandle);
 
-        // **戻るための説明文（フェードイン）**
+        // **チュートリアル設定チェックボックス描画**
         float instructionFade = max(0.0f, (contentFade - 0.5f) / 0.5f);
+        if (instructionFade > 0.1f) {
+            SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(255 * instructionFade));
+            DrawTutorialCheckbox();
+            SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+        }
+        // **戻るための説明文（フェードイン）**
+      
         SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(180 * instructionFade));
         DrawStringToHandle(windowX + 50, windowYScaled + windowH - 60,
             "Press [Backspace] to return", GetColor(150, 150, 150), fontHandle);
@@ -471,6 +486,7 @@ void TitleScene::Draw()
         SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
     }
 }
+
 // UpdateButtons関数の改良版（BGM制御をより明確に）
 void TitleScene::UpdateButtons()
 {
@@ -947,4 +963,68 @@ void TitleScene::EnsureTitleBGMPlaying()
             OutputDebugStringA("TitleScene: Title BGM was restarted\n");
         }
     }
+}
+
+void TitleScene::UpdateTutorialCheckbox()
+{
+    // チェックボックスの位置はDrawメソッドで動的に設定されるため、ここでは hover 判定のみ
+    bool over = IsMouseOver(tutorialEnabledCheckbox.x, tutorialEnabledCheckbox.y,
+        tutorialEnabledCheckbox.w, tutorialEnabledCheckbox.h);
+    tutorialEnabledCheckbox.hovered = over;
+
+    // ホバー効果
+    float targetHover = over ? 1.0f : 0.0f;
+    tutorialEnabledCheckbox.hoverProgress = Lerp(tutorialEnabledCheckbox.hoverProgress, targetHover, 0.2f);
+
+    // クリック処理
+    if (over && mousePressed && !mousePressedPrev) {
+        tutorialEnabledCheckbox.checked = !tutorialEnabledCheckbox.checked;
+        SoundManager::GetInstance().PlaySE(SoundManager::SFX_SELECT);
+
+        char debugMsg[128];
+        sprintf_s(debugMsg, "TitleScene: Tutorial checkbox toggled to %s\n",
+            tutorialEnabledCheckbox.checked ? "enabled" : "disabled");
+        OutputDebugStringA(debugMsg);
+    }
+}
+
+void TitleScene::DrawTutorialCheckbox()
+{
+    // チェックボックスの位置を計算（SE slider の下）
+    int windowX = 400;
+    int windowW = SCREEN_W - 800;
+    int checkboxY = seSlider.y + 80;
+
+    tutorialEnabledCheckbox.x = windowX + 50;
+    tutorialEnabledCheckbox.y = checkboxY;
+
+    // ラベル表示
+    DrawStringToHandle(tutorialEnabledCheckbox.x + 50, checkboxY + 4, "Show Tutorial Button",
+        GetColor(200, 200, 200), fontHandle);
+
+    // チェックボックス本体
+    int checkboxHandle = tutorialEnabledCheckbox.checked ? checkboxCheckedHandle : checkboxUncheckedHandle;
+
+    // ホバー効果
+    if (tutorialEnabledCheckbox.hoverProgress > 0.01f) {
+        float glowIntensity = tutorialEnabledCheckbox.hoverProgress * 0.5f;
+        SetDrawBlendMode(DX_BLENDMODE_ADD, (int)(100 * glowIntensity));
+        DrawExtendGraph(tutorialEnabledCheckbox.x - 3, tutorialEnabledCheckbox.y - 3,
+            tutorialEnabledCheckbox.x + tutorialEnabledCheckbox.w + 3,
+            tutorialEnabledCheckbox.y + tutorialEnabledCheckbox.h + 3,
+            checkboxHandle, TRUE);
+        SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+    }
+
+    // 通常表示
+    DrawExtendGraph(tutorialEnabledCheckbox.x, tutorialEnabledCheckbox.y,
+        tutorialEnabledCheckbox.x + tutorialEnabledCheckbox.w,
+        tutorialEnabledCheckbox.y + tutorialEnabledCheckbox.h,
+        checkboxHandle, TRUE);
+}
+
+// 新規追加: チュートリアル設定取得メソッド
+bool TitleScene::IsTutorialEnabled() const
+{
+    return tutorialEnabledCheckbox.checked;
 }

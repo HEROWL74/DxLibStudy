@@ -114,6 +114,35 @@ void EnemyManager::AddSpikeSlime(float x, float y)
     AddEnemy(std::move(spikeSlime));
 }
 
+void EnemyManager::AddBee(float x, float y)
+{
+    auto bee = std::make_unique<Bee>(x, y);
+    AddEnemy(std::move(bee));
+}
+
+void EnemyManager::AddFly(float x, float y)
+{
+    auto fly = std::make_unique<Fly>(x, y);
+    AddEnemy(std::move(fly));
+}
+
+void EnemyManager::AddLadybug(float x, float y)
+{
+    auto ladybug = std::make_unique<Ladybug>(x, y);
+    AddEnemy(std::move(ladybug));
+}
+
+void EnemyManager::AddSaw(float x, float y)
+{
+    auto saw = std::make_unique<Saw>(x, y);
+    AddEnemy(std::move(saw));
+}
+
+void EnemyManager::AddSlimeBlock(float x, float y)
+{
+    auto slimeBlock = std::make_unique<SlimeBlock>(x, y);
+    AddEnemy(std::move(slimeBlock));
+}
 void EnemyManager::GenerateEnemiesForStage(int stageIndex)
 {
     ClearAllEnemies();
@@ -130,26 +159,29 @@ void EnemyManager::GenerateEnemiesForStage(int stageIndex)
 
 void EnemyManager::GenerateEnemiesForGrassStage()
 {
-    // 草原ステージ - 初心者向けの敵配置
+    // 草ステージ - 初心者向けの敵配置
 
-    // 序盤エリア（練習用）
+    // 基本エリア（練習用）
     AddNormalSlime(600.0f, 600.0f);
+    AddBee(800.0f, 400.0f);  // 空中敵の導入
     AddNormalSlime(1000.0f, 550.0f);
 
     // 中盤エリア（混合）
-    AddNormalSlime(1800.0f, 450.0f);
+    AddLadybug(1800.0f, 450.0f);  // 歩行+飛行敵
     AddSpikeSlime(2200.0f, 400.0f);
+    AddFly(2400.0f, 350.0f);  // 小さく素早い敵
     AddNormalSlime(2600.0f, 500.0f);
 
     // 終盤エリア（チャレンジ）
-    AddSpikeSlime(3400.0f, 350.0f);
-    AddNormalSlime(3800.0f, 600.0f);
+    AddSaw(3400.0f, 350.0f);  // 危険な敵
+    AddSlimeBlock(3600.0f, 600.0f);  // 特殊な踏みつけ敵
+    AddBee(3800.0f, 300.0f);
     AddNormalSlime(4200.0f, 450.0f);
     AddSpikeSlime(4800.0f, 550.0f);
 
     // ゴール前（最後の練習）
-    AddNormalSlime(5600.0f, 500.0f);
-    AddSpikeSlime(6000.0f, 450.0f);
+    AddLadybug(5600.0f, 500.0f);
+    AddFly(5800.0f, 350.0f);
     AddNormalSlime(6400.0f, 600.0f);
 }
 
@@ -158,27 +190,31 @@ void EnemyManager::GenerateEnemiesForStoneStage()
     // 石ステージ - 中級難易度
 
     // 開始エリア
-    AddSpikeSlime(800.0f, 650.0f);
+    AddSlimeBlock(800.0f, 650.0f);  // 硬い敵の導入
+    AddBee(1000.0f, 400.0f);
     AddNormalSlime(1200.0f, 500.0f);
 
     // 岩場エリア（複数の敵が近接）
-    AddNormalSlime(1600.0f, 550.0f);
+    AddSaw(1600.0f, 300.0f);  // 空中の危険
     AddSpikeSlime(1800.0f, 550.0f);
-    AddNormalSlime(2000.0f, 650.0f);
+    AddLadybug(2000.0f, 650.0f);
 
     // 中間エリア
-    AddSpikeSlime(2800.0f, 500.0f);
-    AddNormalSlime(3200.0f, 600.0f);
+    AddFly(2800.0f, 250.0f);
+    AddSlimeBlock(3000.0f, 600.0f);
+    AddBee(3200.0f, 350.0f);
     AddSpikeSlime(3600.0f, 450.0f);
 
     // 終盤エリア（密集配置）
-    AddNormalSlime(4400.0f, 650.0f);
-    AddSpikeSlime(4600.0f, 500.0f);
-    AddNormalSlime(4800.0f, 650.0f);
+    AddSaw(4400.0f, 400.0f);
+    AddSlimeBlock(4600.0f, 500.0f);
+    AddLadybug(4800.0f, 650.0f);
+    AddFly(5000.0f, 300.0f);
     AddSpikeSlime(5200.0f, 550.0f);
 
     // ゴール前
-    AddSpikeSlime(5800.0f, 650.0f);
+    AddBee(5800.0f, 400.0f);
+    AddSaw(6000.0f, 350.0f);
     AddNormalSlime(6200.0f, 550.0f);
 }
 
@@ -187,26 +223,33 @@ void EnemyManager::GenerateEnemiesForSandStage()
     // 砂漠ステージ - 砂の中に隠れた敵
 
     // オアシス近辺
-    AddNormalSlime(500.0f, 600.0f);
-    AddSpikeSlime(1100.0f, 550.0f);
+    AddFly(500.0f, 300.0f);  // 砂漠の虫
+    AddLadybug(700.0f, 600.0f);
+    AddSlimeBlock(1100.0f, 550.0f);
 
     // 砂丘エリア
-    AddSpikeSlime(1500.0f, 450.0f);
+    AddSaw(1500.0f, 250.0f);  // 空中を移動
+    AddBee(1700.0f, 400.0f);
     AddNormalSlime(1900.0f, 500.0f);
     AddSpikeSlime(2300.0f, 400.0f);
 
     // ピラミッド近辺（危険エリア）
-    AddSpikeSlime(2700.0f, 350.0f);
-    AddSpikeSlime(3100.0f, 450.0f);
-    AddNormalSlime(3500.0f, 550.0f);
+    AddSlimeBlock(2700.0f, 350.0f);
+    AddSaw(2900.0f, 300.0f);
+    AddFly(3100.0f, 250.0f);
+    AddBee(3300.0f, 450.0f);
+    AddLadybug(3500.0f, 550.0f);
 
     // 後半の砂丘
-    AddNormalSlime(4000.0f, 500.0f);
-    AddSpikeSlime(4400.0f, 300.0f);
+    AddSpikeSlime(4000.0f, 500.0f);
+    AddSlimeBlock(4200.0f, 400.0f);
+    AddSaw(4400.0f, 300.0f);
+    AddFly(4600.0f, 250.0f);
     AddNormalSlime(4800.0f, 550.0f);
 
     // ゴール前のオアシス
-    AddSpikeSlime(5400.0f, 500.0f);
+    AddBee(5400.0f, 350.0f);
+    AddLadybug(5600.0f, 500.0f);
     AddNormalSlime(5800.0f, 600.0f);
     AddSpikeSlime(6200.0f, 550.0f);
 }
@@ -216,26 +259,33 @@ void EnemyManager::GenerateEnemiesForSnowStage()
     // 雪山ステージ - 寒さで動きが鈍い設定
 
     // 山麓エリア
-    AddNormalSlime(600.0f, 700.0f);
-    AddSpikeSlime(1000.0f, 600.0f);
+    AddSlimeBlock(600.0f, 700.0f);  // 氷のように硬い
+    AddBee(800.0f, 500.0f);
+    AddLadybug(1000.0f, 600.0f);
 
     // 雪の足場エリア
-    AddSpikeSlime(1600.0f, 500.0f);
-    AddNormalSlime(2000.0f, 550.0f);
+    AddSaw(1600.0f, 400.0f);
+    AddFly(1800.0f, 350.0f);
+    AddSlimeBlock(2000.0f, 550.0f);
     AddSpikeSlime(2400.0f, 400.0f);
 
     // 氷の洞窟エリア
-    AddNormalSlime(3000.0f, 550.0f);
-    AddSpikeSlime(3400.0f, 450.0f);
+    AddBee(3000.0f, 300.0f);
+    AddLadybug(3200.0f, 550.0f);
+    AddSaw(3400.0f, 250.0f);
+    AddFly(3600.0f, 350.0f);
     AddNormalSlime(3800.0f, 600.0f);
 
     // 山頂付近（高難度）
-    AddSpikeSlime(4400.0f, 350.0f);
-    AddSpikeSlime(4800.0f, 250.0f);
-    AddNormalSlime(5200.0f, 400.0f);
+    AddSlimeBlock(4400.0f, 350.0f);
+    AddSaw(4600.0f, 200.0f);
+    AddBee(4800.0f, 300.0f);
+    AddSpikeSlime(5000.0f, 450.0f);
+    AddLadybug(5200.0f, 400.0f);
 
     // 雪原の秘密
-    AddSpikeSlime(5800.0f, 300.0f);
+    AddFly(5800.0f, 250.0f);
+    AddSlimeBlock(6000.0f, 350.0f);
     AddNormalSlime(6200.0f, 500.0f);
 }
 
@@ -244,29 +294,38 @@ void EnemyManager::GenerateEnemiesForPurpleStage()
     // 魔法ステージ - 最高難度
 
     // 魔法の島序盤
-    AddSpikeSlime(600.0f, 550.0f);
-    AddSpikeSlime(1000.0f, 450.0f);
+    AddSaw(600.0f, 300.0f);
+    AddSlimeBlock(800.0f, 550.0f);
+    AddBee(1000.0f, 250.0f);
 
     // 浮遊する魔法の足場
-    AddNormalSlime(1400.0f, 350.0f);
-    AddSpikeSlime(1800.0f, 300.0f);
+    AddFly(1400.0f, 200.0f);  // 高速移動
+    AddLadybug(1600.0f, 350.0f);
+    AddSaw(1800.0f, 250.0f);
+    AddSlimeBlock(2000.0f, 400.0f);
     AddSpikeSlime(2200.0f, 400.0f);
 
     // 魔法の橋（連続バトル）
-    AddSpikeSlime(2800.0f, 450.0f);
-    AddNormalSlime(3000.0f, 450.0f);
-    AddSpikeSlime(3200.0f, 450.0f);
+    AddBee(2800.0f, 300.0f);
+    AddFly(3000.0f, 200.0f);
+    AddSaw(3200.0f, 250.0f);
+    AddSlimeBlock(3400.0f, 450.0f);
+    AddLadybug(3600.0f, 350.0f);
 
     // 高い魔法の島（チャレンジエリア）
-    AddSpikeSlime(3800.0f, 300.0f);
-    AddSpikeSlime(4200.0f, 250.0f);
-    AddNormalSlime(4600.0f, 350.0f);
+    AddSaw(3800.0f, 150.0f);
+    AddBee(4000.0f, 200.0f);
+    AddFly(4200.0f, 180.0f);
+    AddSlimeBlock(4400.0f, 300.0f);
+    AddSpikeSlime(4600.0f, 350.0f);
 
     // 最終エリア（敵が密集）
-    AddSpikeSlime(5200.0f, 400.0f);
-    AddNormalSlime(5400.0f, 350.0f);
-    AddSpikeSlime(5600.0f, 400.0f);
-    AddSpikeSlime(6000.0f, 300.0f);
+    AddSaw(5200.0f, 250.0f);
+    AddBee(5400.0f, 300.0f);
+    AddSlimeBlock(5600.0f, 400.0f);
+    AddFly(5800.0f, 200.0f);
+    AddLadybug(6000.0f, 350.0f);
+    AddSpikeSlime(6200.0f, 300.0f);
     AddNormalSlime(6400.0f, 450.0f);
 }
 
@@ -294,61 +353,27 @@ bool EnemyManager::CheckDetailedPlayerEnemyCollision(Player* player, EnemyBase* 
 
     float playerX = player->GetX();
     float playerY = player->GetY();
-    float playerVelY = player->GetVelocityY();
-
     float enemyX = enemy->GetX();
     float enemyY = enemy->GetY();
 
-    // **プレイヤーと敵の当たり判定ボックス定義**
+    // 衝突判定のみ実行（踏みつけ判定は除去）
     const float PLAYER_WIDTH = 80.0f;
     const float PLAYER_HEIGHT = 100.0f;
     const float ENEMY_WIDTH = 48.0f;
     const float ENEMY_HEIGHT = 56.0f;
 
-    // **AABB衝突判定**
-    float playerLeft = playerX - PLAYER_WIDTH / 2;
-    float playerRight = playerX + PLAYER_WIDTH / 2;
-    float playerTop = playerY - PLAYER_HEIGHT / 2;
-    float playerBottom = playerY + PLAYER_HEIGHT / 2;
+    bool isOverlapping = (playerX - PLAYER_WIDTH / 2 < enemyX + ENEMY_WIDTH / 2 &&
+        playerX + PLAYER_WIDTH / 2 > enemyX - ENEMY_WIDTH / 2 &&
+        playerY - PLAYER_HEIGHT / 2 < enemyY + ENEMY_HEIGHT / 2 &&
+        playerY + PLAYER_HEIGHT / 2 > enemyY - ENEMY_HEIGHT / 2);
 
-    float enemyLeft = enemyX - ENEMY_WIDTH / 2;
-    float enemyRight = enemyX + ENEMY_WIDTH / 2;
-    float enemyTop = enemyY - ENEMY_HEIGHT / 2;
-    float enemyBottom = enemyY + ENEMY_HEIGHT / 2;
-
-    // **基本的な重なり判定**
-    bool isOverlapping = (playerLeft < enemyRight && playerRight > enemyLeft &&
-        playerTop < enemyBottom && playerBottom > enemyTop);
-
-    if (!isOverlapping) return false;
-
-    // **衝突の詳細分析: 踏み判定の厳密な条件**
-    bool isStompingFromAbove = false;
-
-    // **踏み判定の条件を修正（より確実に動作するように）**
-    // 1. プレイヤーが敵の上方から来ている
-    // 2. プレイヤーが下向きに移動している（落下中）
-    // 3. プレイヤーの足元が敵の頭部付近にある
-    float stompThreshold = 25.0f; // 踏み判定の許容範囲を拡大
-
-    if (playerVelY > 0.5f && // プレイヤーが下向きに移動（しきい値を調整）
-        playerY < enemyY - 5.0f && // プレイヤーが敵より上にいる
-        playerBottom >= enemyTop - 5.0f && // プレイヤーの足が敵の頭に接触
-        playerBottom <= enemyTop + stompThreshold) { // 踏み判定の範囲内
-
-        isStompingFromAbove = true;
-    }
-
-    if (isStompingFromAbove) {
-        // **敵の種類に応じた踏み処理**
-        HandleStompInteraction(player, enemy);
-    }
-    else {
-        // **横や下からの接触: ダメージ処理**
+    if (isOverlapping) {
+        // 横・下からの接触として処理（ダメージ）
         HandleSideCollisionInteraction(player, enemy);
+        return true;
     }
 
-    return true;
+    return false;
 }
 
 // **完全修正版: 踏み付け処理**

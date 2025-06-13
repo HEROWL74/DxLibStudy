@@ -307,19 +307,9 @@ void EnemyBase::OnPlayerCollision(Player* player)
     // 基本的な当たり判定処理（派生クラスでオーバーライド可能）
     if (!player) return;
 
-    float playerY = player->GetY();
-    float enemyTop = y - COLLISION_HEIGHT / 2;
-
-    // プレイヤーが敵の上から踏んだ場合
-    if (playerY < enemyTop && player->GetVelocityY() > 0) {
-        TakeDamage(100); // 一撃で倒す
-        // プレイヤーに少し跳ね返りを与える（実装はPlayer側で）
-    }
-    else {
-        // プレイヤーにダメージを与える（実装はPlayer側で）
-        // ここでは衝突を検出するだけ
-    }
+    OutputDebugStringA("EnemyBase: Player collision detected!\n");
 }
+
 
 // **完全修正版: TakeDamage関数**
 void EnemyBase::TakeDamage(int damage)

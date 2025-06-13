@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include "SoundManager.h"
-
+#include "BlockSystem.h"
 Player::Player()
     : x(300.0f)
     , y(200.0f)
@@ -57,7 +57,7 @@ void Player::Update(StageManager* stageManager)
 {
     // 踏みつけクールダウンの更新
     if (stompCooldown > 0.0f) {
-        stompCooldown -= 0.016f; // 60FPS想定
+        stompCooldown -= 0.016f; 
         if (stompCooldown <= 0.0f) {
             wasStomping = false;
         }
@@ -71,10 +71,8 @@ void Player::Update(StageManager* stageManager)
 
     // 物理演算更新
     UpdatePhysics(stageManager);
-
-    // 当たり判定処理（ブロックシステムとの連携も含む）
     HandleCollisions(stageManager);
-
+    
     // アニメーション更新
     UpdateAnimation();
 }
@@ -176,6 +174,8 @@ void Player::Draw(float cameraX)
     }
 }
 
+// Player.cpp の UpdatePhysics関数のHIT状態処理部分を修正
+
 void Player::UpdatePhysics(StageManager* stageManager)
 {
     // 自動歩行モード専用の処理
@@ -184,8 +184,29 @@ void Player::UpdatePhysics(StageManager* stageManager)
         return;
     }
 
-    // ダメージ状態中は入力を制限
-    bool canControl = (currentState != HIT || hitTimer > HIT_DURATION * 0.6f);
+    // HIT状態の制御
+    bool canControl = true;
+    if (currentState == HIT) {
+        hitTimer += 0.016f;
+        canControl = (hitTimer > HIT_DURATION * 0.5f);
+    }
+
+    // HIT→IDLE/WALKINGへの復帰を強制
+    if (onGround && currentState == HIT && canControl) {
+        bool leftPressed = CheckHitKey(KEY_INPUT_LEFT);
+        bool rightPressed = CheckHitKey(KEY_INPUT_RIGHT);
+        if (leftPressed || rightPressed) {
+            currentState = WALKING;
+        }
+        else {
+            currentState = IDLE;
+        }
+        hitTimer = 0.0f;
+        knockbackDecay = 0.0f;
+    }
+
+
+    
 
     // スライディング状態の更新
     if (currentState == SLIDING) {
@@ -204,6 +225,9 @@ void Player::UpdatePhysics(StageManager* stageManager)
             }
         }
 
+        // **位置更新を追加**
+        x += velocityX;
+        y += velocityY;
         return;
     }
 
@@ -247,9 +271,18 @@ void Player::UpdatePhysics(StageManager* stageManager)
         }
         facingRight = false;
 
-        if (onGround && currentState != HIT) {
-            currentState = (currentSpeed > 1.0f) ? WALKING : IDLE;
+        // HIT状態で、空中でも操作復帰できるように
+        if (currentState == HIT && canControl) {
+            if (onGround) {
+                currentState = WALKING;
+            }
+            else {
+                currentState = FALLING;
+            }
+            hitTimer = 0.0f;
+            knockbackDecay = 0.0f;
         }
+
     }
     else if (rightPressed && !downPressed) {
         targetSpeed = MAX_HORIZONTAL_SPEED;
@@ -270,7 +303,13 @@ void Player::UpdatePhysics(StageManager* stageManager)
         }
         facingRight = true;
 
-        if (onGround && currentState != HIT) {
+        // **修正: HIT状態でも動けるようになったら状態を更新**
+        if (onGround && currentState == HIT && canControl) {
+            currentState = WALKING;
+            hitTimer = 0.0f;
+            knockbackDecay = 0.0f;
+        }
+        else if (onGround && currentState != HIT) {
             currentState = (currentSpeed > 1.0f) ? WALKING : IDLE;
         }
     }
@@ -278,17 +317,9 @@ void Player::UpdatePhysics(StageManager* stageManager)
         // 改良された減速システム
         float currentFriction = FRICTION;
 
+        // **修正: HIT状態でのノックバック減速処理を簡素化**
         if (currentState == HIT && knockbackDecay > 0.0f) {
-            float decayStage = 1.0f - knockbackDecay;
-            if (decayStage < 0.3f) {
-                currentFriction = 0.95f;
-            }
-            else if (decayStage < 0.7f) {
-                currentFriction = 0.88f;
-            }
-            else {
-                currentFriction = 0.82f;
-            }
+            currentFriction = 0.92f; // ノックバック中は滑りやすい
         }
         else {
             if (currentSpeed > 6.0f) {
@@ -308,7 +339,13 @@ void Player::UpdatePhysics(StageManager* stageManager)
             velocityX = 0.0f;
         }
 
-        if (onGround && currentState != JUMPING && currentState != FALLING && currentState != HIT) {
+        // **修正: HIT状態から回復**
+        if (onGround && currentState == HIT && canControl && fabsf(velocityX) < 0.5f) {
+            currentState = IDLE;
+            hitTimer = 0.0f;
+            knockbackDecay = 0.0f;
+        }
+        else if (onGround && currentState != JUMPING && currentState != FALLING && currentState != HIT) {
             if (fabsf(velocityX) < 0.5f) {
                 currentState = IDLE;
             }
@@ -331,7 +368,7 @@ void Player::UpdatePhysics(StageManager* stageManager)
     bool spacePressed = CheckHitKey(KEY_INPUT_SPACE) != 0;
 
     if (canControl && spacePressed && !spaceWasPressedLastFrame && onGround &&
-        currentState != JUMPING && currentState != HIT && currentState != SLIDING) {
+        currentState != JUMPING && currentState != SLIDING) {
 
         float jumpPower = JUMP_POWER;
         if (fabsf(velocityX) > 6.0f) {
@@ -342,26 +379,57 @@ void Player::UpdatePhysics(StageManager* stageManager)
         currentState = JUMPING;
         onGround = false;
         SoundManager::GetInstance().PlaySE(SoundManager::SFX_JUMP);
+
+        // **修正: HIT状態からジャンプで回復**
+        if (currentState == HIT) {
+            hitTimer = 0.0f;
+            knockbackDecay = 0.0f;
+        }
+
+        OutputDebugStringA("Player: Jump executed!\n");
     }
 
     spaceWasPressedLastFrame = spacePressed;
 
-    // 重力適用
-    if (!onGround) {
+     if (!onGround) {
+        float currentGravity = GRAVITY;
+        
+        // ★1. ジャンプボタンを離した時の早期落下
         if (currentState == JUMPING && !spacePressed && velocityY < 0) {
-            velocityY *= 0.65f;
+            velocityY *= JUMP_RELEASE_MULTIPLIER; // より強い減速
+        }
+        
+        // ★2. ジャンプ頂点付近での重力軽減（ふわっと効果）
+        if (fabsf(velocityY) < APEX_THRESHOLD) {
+            currentGravity *= APEX_GRAVITY_REDUCTION; // 頂点付近で重力を軽減
+            
+            // デバッグ出力（頂点付近のふわっと効果）
+            static int apexDebugCounter = 0;
+            apexDebugCounter++;
+            if (apexDebugCounter % 30 == 0) {
+                OutputDebugStringA("Player: Apex float effect active!\n");
+            }
+        }
+        
+        // ★3. 上昇中と下降中で異なる重力
+        if (velocityY < 0) {
+            // 上昇中：通常重力または軽減重力
+            velocityY += currentGravity;
+        } else {
+            // 下降中：少し強い重力（でも元の値より弱い）
+            velocityY += currentGravity * 1.1f;
         }
 
-        velocityY += GRAVITY;
-
-        if (velocityY < -25.0f) {
-            velocityY = -25.0f;
+        // ★4. 速度制限
+        if (velocityY < -20.0f) {  // 上昇速度上限を引き上げ
+            velocityY = -20.0f;
         }
-        if (velocityY > MAX_FALL_SPEED) {
+        if (velocityY > MAX_FALL_SPEED) {  // 落下速度上限は低く保つ
             velocityY = MAX_FALL_SPEED;
         }
 
-        if (velocityY > 0 && currentState == JUMPING) {
+        // ★5. 状態遷移
+        if (velocityY > 1.0f && currentState == JUMPING) {  // 落下判定を緩く
             currentState = FALLING;
         }
     }
@@ -370,13 +438,19 @@ void Player::UpdatePhysics(StageManager* stageManager)
             velocityY = 0;
         }
     }
+
+    // **重要: 位置更新を復活**
+    x += velocityX;
+    y += velocityY;
 }
 
-// **修正版HandleCollisions: ブロックシステムとの統合対応**
 void Player::HandleCollisions(StageManager* stageManager)
 {
     const float COLLISION_WIDTH = 80.0f;
     float collisionHeight = GetSlidingCollisionHeight();
+
+    // **重要: ブロックシステムとの統合のため、GameSceneから渡されるblockSystemを参照**
+    // この関数は後でGameSceneから呼び出される形に変更する
 
     // ===== X方向の移動と衝突判定 =====
     float newX = x + velocityX;
@@ -388,6 +462,7 @@ void Player::HandleCollisions(StageManager* stageManager)
         if (currentState == SLIDING) {
             EndSliding();
         }
+        return; // 早期リターン
     }
     else if (newX + COLLISION_WIDTH / 2 > Stage::STAGE_WIDTH) {
         x = Stage::STAGE_WIDTH - COLLISION_WIDTH / 2;
@@ -395,44 +470,32 @@ void Player::HandleCollisions(StageManager* stageManager)
         if (currentState == SLIDING) {
             EndSliding();
         }
+        return; // 早期リターン
     }
-    else {
-        // **修正: ブロックシステムとの衝突チェックを優先**
-        bool blockCollision = false;
 
-        // まずブロックシステムでの衝突をチェック
-        // この部分はGameSceneでblockSystem.HandlePlayerCollision()が呼ばれることを想定
-
-        // 通常のステージとの衝突チェック
-        if (!blockCollision && CheckXCollision(newX, y, COLLISION_WIDTH, collisionHeight, stageManager)) {
-            velocityX = 0.0f;
-            newX = AdjustXPosition(x, velocityX > 0, COLLISION_WIDTH, stageManager);
-            if (currentState == SLIDING) {
-                EndSliding();
-            }
+    // **通常のステージとの衝突チェック（ブロック衝突は後でGameSceneで処理）**
+    if (CheckXCollision(newX, y, COLLISION_WIDTH, collisionHeight, stageManager)) {
+        velocityX = 0.0f;
+        newX = AdjustXPosition(x, velocityX > 0, COLLISION_WIDTH, stageManager);
+        if (currentState == SLIDING) {
+            EndSliding();
         }
-        x = newX;
     }
+    x = newX;
 
     // ===== Y方向の移動と衝突判定 =====
     float newY = y + velocityY;
 
     if (velocityY > 0) {
-        // 下方向移動（落下）- ブロック上への着地も含む
-        HandleDownwardMovement(newY, COLLISION_WIDTH, collisionHeight, stageManager);
+        // 下方向移動（落下）
+        HandleDownwardMovementStageOnly(newY, COLLISION_WIDTH, collisionHeight, stageManager);
     }
     else if (velocityY < 0) {
-        // 上方向移動（ジャンプ）- ブロック下への衝突も含む
-        HandleUpwardMovement(newY, COLLISION_WIDTH, collisionHeight, stageManager);
+        // 上方向移動（ジャンプ）
+        HandleUpwardMovementStageOnly(newY, COLLISION_WIDTH, collisionHeight, stageManager);
     }
     else {
-        // Y方向の速度が0の場合、地面チェック
-        if (onGround && !IsOnGround(x, y, COLLISION_WIDTH, collisionHeight, stageManager)) {
-            onGround = false;
-            if (currentState != SLIDING) {
-                currentState = FALLING;
-            }
-        }
+        // Y方向の速度が0の場合
         y = newY;
     }
 
@@ -442,6 +505,146 @@ void Player::HandleCollisions(StageManager* stageManager)
     }
 }
 
+void Player::HandleDownwardMovementStageOnly(float newY, float width, float height, StageManager* stageManager)
+{
+    float footY = newY + height / 2;
+    float leftFoot = x - width / 3;
+    float rightFoot = x + width / 3;
+    float centerFoot = x;
+
+    // **ステージ地面のみをチェック**
+    bool leftHit = CheckPointCollision(leftFoot, footY, 8.0f, 8.0f, stageManager);
+    bool centerHit = CheckPointCollision(centerFoot, footY, 8.0f, 8.0f, stageManager);
+    bool rightHit = CheckPointCollision(rightFoot, footY, 8.0f, 8.0f, stageManager);
+
+    if (leftHit || centerHit || rightHit) {
+        // ステージ地面に着地
+        float groundY = FindPreciseGroundY(x, newY, width, stageManager);
+        if (groundY != -1) {
+            y = groundY - height / 2;
+            velocityY = 0.0f;
+
+            if (!onGround) {
+                onGround = true;
+                SetLandingState();
+            }
+        }
+    }
+    else {
+        // **修正: 自由落下時も位置更新**
+        y = newY;
+
+        // **重要: ブロック上にいる可能性があるので、onGroundの変更は慎重に**
+        // この判定はGameSceneのブロック処理後に行う
+    }
+}
+
+// ステージ地面のみの判定
+bool Player::IsOnStageGround(float playerX, float playerY, float width, float height, StageManager* stageManager)
+{
+    float footY = playerY + height / 2 + 4;
+    float leftFoot = playerX - width / 3;
+    float rightFoot = playerX + width / 3;
+    float centerFoot = playerX;
+
+    return CheckPointCollision(leftFoot, footY, 8.0f, 8.0f, stageManager) ||
+        CheckPointCollision(centerFoot, footY, 8.0f, 8.0f, stageManager) ||
+        CheckPointCollision(rightFoot, footY, 8.0f, 8.0f, stageManager);
+}
+
+void Player::HandleCollisionsWithBlocks(StageManager* stageManager, BlockSystem* blockSystem)
+{
+    const float COLLISION_WIDTH = 80.0f;
+    float collisionHeight = GetSlidingCollisionHeight();
+
+    // **1. 横方向の衝突処理**
+    if (fabsf(velocityX) > 0.1f) {
+        if (blockSystem->CheckCollision(x, y, COLLISION_WIDTH, collisionHeight)) {
+            // ブロックとの横衝突
+            if (velocityX > 0) {
+                // 右移動中の衝突 - 左に押し戻し
+                float adjustedX = x;
+                for (int i = 0; i < 32 && adjustedX > 0; i++) {
+                    adjustedX -= 2.0f;
+                    if (!blockSystem->CheckCollision(adjustedX, y, COLLISION_WIDTH, collisionHeight)) {
+                        x = adjustedX;
+                        break;
+                    }
+                }
+            }
+            else {
+                // 左移動中の衝突 - 右に押し戻し
+                float adjustedX = x;
+                for (int i = 0; i < 32; i++) {
+                    adjustedX += 2.0f;
+                    if (!blockSystem->CheckCollision(adjustedX, y, COLLISION_WIDTH, collisionHeight)) {
+                        x = adjustedX;
+                        break;
+                    }
+                }
+            }
+            velocityX = 0.0f;
+            if (currentState == SLIDING) {
+                EndSliding();
+            }
+        }
+    }
+
+    // **2. 上方向の移動（ブロック下面への衝突）**
+    if (velocityY < 0.0f) {
+        float headY = y - collisionHeight / 2;
+        if (blockSystem->CheckCollision(x, headY, COLLISION_WIDTH, 16.0f)) {
+            // ブロック下面にぶつかった
+            velocityY = 0.0f;
+            if (currentState == JUMPING) {
+                currentState = FALLING;
+            }
+        }
+    }
+
+    // **3. 地面状態の確認（ブロック上にいるかチェック）**
+    if (onGround && velocityY >= 0.0f) {
+        bool onStageGround = IsOnStageGround(x, y, COLLISION_WIDTH, collisionHeight, stageManager);
+        bool onBlockGround = blockSystem->CheckPlayerLandingOnBlocksImproved(x, y, COLLISION_WIDTH, collisionHeight);
+
+        if (!onStageGround && !onBlockGround) {
+            onGround = false;
+            if (currentState != JUMPING && currentState != SLIDING) {
+                currentState = FALLING;
+            }
+        }
+    }
+}
+
+// ステージのみの上方向移動処理
+void Player::HandleUpwardMovementStageOnly(float newY, float width, float height, StageManager* stageManager)
+{
+    float headY = newY - height / 2;
+    float leftHead = x - width / 3;
+    float rightHead = x + width / 3;
+    float centerHead = x;
+
+    // ステージの天井チェック
+    bool leftHit = CheckPointCollision(leftHead, headY, 8.0f, 8.0f, stageManager);
+    bool centerHit = CheckPointCollision(centerHead, headY, 8.0f, 8.0f, stageManager);
+    bool rightHit = CheckPointCollision(rightHead, headY, 8.0f, 8.0f, stageManager);
+
+    if (leftHit || centerHit || rightHit) {
+        float ceilingY = FindPreciseCeilingY(x, newY, width, stageManager);
+        if (ceilingY != -1) {
+            y = ceilingY + height / 2;
+            velocityY = 0.0f;
+
+            if (currentState == JUMPING) {
+                currentState = FALLING;
+            }
+            onGround = false;
+        }
+    }
+    else {
+        y = newY;
+    }
+}
 bool Player::CheckXCollision(float newX, float currentY, float width, float height, StageManager* stageManager)
 {
     float checkPoints[] = {
@@ -462,7 +665,13 @@ void Player::HandleDownwardMovement(float newY, float width, float height, Stage
 {
     float collisionHeight = (currentState == SLIDING) ? GetSlidingCollisionHeight() : height;
 
-    // 足元の複数点でチェック
+    // **修正: ジャンプ中は地面判定をスキップ**
+    if (currentState == JUMPING && velocityY < 0) {
+        y = newY;
+        return;
+    }
+
+    // 足元の判定点
     float footY = newY + collisionHeight / 2;
     float leftFoot = x - width / 3;
     float rightFoot = x + width / 3;
@@ -483,49 +692,30 @@ void Player::HandleDownwardMovement(float newY, float width, float height, Stage
             // **onGroundの状態変化を安定化**
             if (!onGround) {
                 onGround = true;
+                SetLandingState();
 
-                // **着地時の状態設定を改善**
-                if (currentState == JUMPING || currentState == FALLING) {
-                    // **入力状態をチェックして適切な状態に設定**
-                    bool hasInput = CheckHitKey(KEY_INPUT_LEFT) || CheckHitKey(KEY_INPUT_RIGHT);
-
-                    if (currentState == SLIDING) {
-                        // スライディング中は状態を維持
-                    }
-                    else if (CheckHitKey(KEY_INPUT_DOWN) && !hasInput) {
-                        currentState = DUCKING;
-                    }
-                    else if (hasInput) {
-                        currentState = WALKING;
-                    }
-                    else {
-                        currentState = IDLE;
-                    }
-                }
+                OutputDebugStringA("Player: Landed on stage ground\n");
             }
-
-            OutputDebugStringA("Player: Landed on stage ground\n");
         }
     }
     else {
-        // **自由落下 - onGroundをfalseに設定する前に少し待つ**
+        // **自由落下**
         y = newY;
 
-        // **地面から離れた時の状態変化を緩やかに**
-        if (onGround) {
-            // **少しの距離なら地面判定を維持（安定化のため）**
-            float currentFootY = y + collisionHeight / 2;
+        // **地面から離れた時の処理を慎重に**
+        if (onGround && velocityY > 2.0f) { // 十分な落下速度がある場合のみ
             bool stillNearGround = IsOnGround(x, y, width, collisionHeight, stageManager);
-
             if (!stillNearGround) {
                 onGround = false;
                 if (currentState != JUMPING && currentState != SLIDING) {
                     currentState = FALLING;
                 }
+                OutputDebugStringA("Player: Left ground, now falling\n");
             }
         }
     }
 }
+
 
 
 // **修正版HandleUpwardMovement: ブロック下への衝突を正しく処理**
@@ -562,6 +752,27 @@ void Player::HandleUpwardMovement(float newY, float width, float height, StageMa
     else {
         // 自由移動
         y = newY;
+    }
+}
+
+
+void Player::SetLandingState()
+{
+    if (currentState == JUMPING || currentState == FALLING) {
+        bool hasInput = CheckHitKey(KEY_INPUT_LEFT) || CheckHitKey(KEY_INPUT_RIGHT);
+
+        if (currentState == SLIDING) {
+            // スライディング中は状態を維持
+        }
+        else if (CheckHitKey(KEY_INPUT_DOWN) && !hasInput) {
+            currentState = DUCKING;
+        }
+        else if (hasInput) {
+            currentState = WALKING;
+        }
+        else {
+            currentState = IDLE;
+        }
     }
 }
 
@@ -761,27 +972,36 @@ void Player::UpdateDamageState()
     if (currentState == HIT) {
         hitTimer += 0.016f;
 
+        // **修正: シンプルな回復処理に変更**
         if (hitTimer >= HIT_DURATION) {
+            hitTimer = 0.0f;
+            knockbackDecay = 0.0f;
+
+            // 状態遷移（地面にいるならIDLE、空中ならFALLING）
             if (onGround) {
-                if (fabsf(velocityX) > 0.5f) {
-                    currentState = WALKING;
-                }
-                else {
-                    currentState = IDLE;
-                }
+                currentState = IDLE;
             }
             else {
                 currentState = FALLING;
             }
+            // タイマーとノックバックをリセット
             hitTimer = 0.0f;
+            knockbackDecay = 0.0f;
+
+            // **デバッグ出力**
+            OutputDebugStringA("Player: Fully recovered from HIT state!\n");
         }
 
+        // ノックバック減衰処理（シンプル化）
         if (knockbackDecay > 0.0f) {
-            knockbackDecay -= 0.016f;
+            knockbackDecay -= 0.02f; // より速く減衰
             if (knockbackDecay <= 0.0f) {
                 knockbackDecay = 0.0f;
+                // ノックバックが完全に終了したら速度を減速
+                velocityX *= 0.5f;
             }
         }
+        
     }
 }
 
@@ -796,31 +1016,44 @@ void Player::UpdateInvulnerability()
 }
 
 void Player::TakeDamage(int damage, float knockbackDirection)
-{
-    if (invulnerabilityTimer > 0.0f) return;
+{    // 既に無敵なら無視
+    if (IsInvulnerable()) return;
 
+    // 状態をHITに変更し、タイマー初期化
     currentState = HIT;
-    hitTimer = 0.0f;
-    invulnerabilityTimer = INVULNERABILITY_DURATION;
+    hitTimer = 0.0f;  // ← これがないと一生HITのままになる可能性
+
+    // ノックバック反映
+    velocityX = knockbackDirection * KNOCKBACK_FORCE;
+    velocityY = KNOCKBACK_VERTICAL;
+    onGround = false;
     knockbackDecay = 1.0f;
 
-    if (knockbackDirection != 0.0f) {
-        float knockbackForce = KNOCKBACK_FORCE;
-
-        if (onGround) {
-            knockbackForce *= 1.2f;
-            velocityY = KNOCKBACK_VERTICAL;
-            onGround = false;
-        }
-        else {
-            knockbackForce *= 0.8f;
-        }
-
-        velocityX = knockbackDirection * knockbackForce;
-        facingRight = (knockbackDirection > 0.0f);
+    // ノックバック方向が指定されていない場合は、現在の向きの逆方向
+    if (knockbackDirection == 0.0f) {
+        knockbackDirection = facingRight ? -1.0f : 1.0f;
     }
 
-    OutputDebugStringA("Player: Taking damage with improved knockback!\n");
+    // ノックバック力を適用
+    float knockbackForce = KNOCKBACK_FORCE;
+
+    if (onGround) {
+        // 地面にいる場合は上方向にも飛ばす
+        velocityY = KNOCKBACK_VERTICAL;
+        onGround = false;
+    }
+
+    // 水平方向のノックバック
+    velocityX = knockbackDirection * knockbackForce;
+    velocityY = KNOCKBACK_VERTICAL;
+    // ノックバック方向に向きを変える
+    facingRight = (knockbackDirection > 0.0f);
+
+    // **デバッグ出力を強化**
+    char debugMsg[256];
+    sprintf_s(debugMsg, "Player: Taking damage! HIT state started. Direction: %.2f, VelX: %.2f, VelY: %.2f\n",
+        knockbackDirection, velocityX, velocityY);
+    OutputDebugStringA(debugMsg);
 }
 
 void Player::ApplyGravityOnly(StageManager* stageManager)

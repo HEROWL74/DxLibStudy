@@ -20,6 +20,7 @@ public:
     bool IsExitRequested()  const { return exitRequested; }
     bool IsTransitionComplete() const { return transitionState == Complete; }
     void ResetTransition() { transitionState = None; transitionFadeProgress = 0.0f; }
+    bool IsTutorialEnabled() const;
 
 private:
     // 画面 & ボタンサイズ
@@ -64,6 +65,13 @@ private:
         float glowIntensity;    // グロー効果用
         float pressProgress;    // プレスエフェクト用
     };
+    //チェックボックス構造体
+    struct CheckBox {
+        int x, y, w, h;
+        bool checked;
+        float hoverProgress;
+        bool hovered;
+    };
 
     // スライダー改良用構造体
     struct EnhancedSlider {
@@ -91,6 +99,10 @@ private:
     EnhancedSlider slider;
     EnhancedSlider bgmSlider;
     EnhancedSlider seSlider;
+    //チェックボックス関連
+    CheckBox tutorialEnabledCheckbox;
+    int checkboxCheckedHandle;
+    int checkboxUncheckedHandle;
 
     // 状態管理
     bool        startRequested;
@@ -152,4 +164,8 @@ private:
     float       alienGlowPhase;          // エイリアン風グロー効果
     float       starFieldPhase;          // 星空背景効果
     float       titleColorPhase;         // タイトルカラーアニメーション
+    // **新規追加: チュートリアル設定管理用メソッド**
+    void UpdateTutorialCheckbox();
+    void DrawTutorialCheckbox();
+
 };

@@ -103,14 +103,25 @@ void GameScene::Update()
         UpdatePlayerAutoWalk();
     }
     else {
-        // **元の順序に戻す**
-        gamePlayer.Update(&stageManager);
+        // 1. プレイヤーの物理演算のみ（位置更新は含む）
+        gamePlayer.UpdatePhysics(&stageManager);
 
-        // **ブロックシステムの更新（ヒット判定を含む）**
+        // 2. ステージとの衝突判定（ブロックは除外）
+        gamePlayer.HandleCollisions(&stageManager);
+
+        // 3. ブロックシステムの更新（ヒット判定含む）
         blockSystem.Update(&gamePlayer);
 
-        // **ブロック衝突処理は最後に実行（着地処理のみ）**
-        blockSystem.CheckAndResolvePlayerCollisions(&gamePlayer);
+        // 4. ブロックとの衝突処理
+        gamePlayer.HandleCollisionsWithBlocks(&stageManager, &blockSystem);
+
+        // 5. ブロック着地処理（最後に実行、厳密な条件）
+        if (gamePlayer.GetVelocityY() > 1.0f && !gamePlayer.IsOnGround()) {
+            blockSystem.HandleBlockLandingOnly(&gamePlayer);
+        }
+
+        // 6. アニメーション更新
+        gamePlayer.UpdateAnimation();
     }
 
     UpdatePlayerInvulnerability();
@@ -250,8 +261,13 @@ void GameScene::HandlePlayerEnteredDoor()
 
 void GameScene::UpdatePlayerEnemyInteractions()
 {
-    // **修正: より詳細な敵との衝突処理システム**
-    if (enemyManager.CheckPlayerEnemyCollisions(&gamePlayer)) {
+    // 敵のどれかを踏みつけたら、ダメージ判定は呼ばない
+    if (CheckIfPlayerStompedEnemy()) {
+        HandleSuccessfulStomp();
+        return;
+
+    }
+    else if (enemyManager.CheckPlayerEnemyCollisions(&gamePlayer)) {
         HandlePlayerEnemyCollision();
     }
 }
@@ -275,9 +291,11 @@ void GameScene::HandlePlayerEnemyCollision()
     else {
         // **踏みつけ成功時の処理**
         HandleSuccessfulStomp();
+        
     }
 }
-// **プレイヤーの状態リセット時にドア状態もリセット**
+// GameScene.cpp の HandlePlayerDamage関数を修正
+
 void GameScene::HandlePlayerDamage(int damage)
 {
     if (playerInvulnerable) return;
@@ -292,14 +310,34 @@ void GameScene::HandlePlayerDamage(int damage)
     // **HUDシステムに即座にライフ変更を通知**
     hudSystem.SetCurrentLife(playerLife);
 
+    // **修正: ノックバック方向を計算**
+    float knockbackDirection = 0.0f;
+    // 敵の位置を取得してノックバック方向を決定
+    const auto& enemies = enemyManager.GetEnemies();
+    for (const auto& enemy : enemies) {
+        if (enemy && enemy->IsActive() && !enemy->IsDead()) {
+            float enemyX = enemy->GetX();
+            float playerX = gamePlayer.GetX();
+
+            // プレイヤーと敵の位置関係からノックバック方向を決定
+            if (abs(enemyX - playerX) < 100.0f) { // 近い敵からのダメージ
+                knockbackDirection = (playerX > enemyX) ? 1.0f : -1.0f;
+                break;
+            }
+        }
+    }
+
+    // **修正: TakeDamageにノックバック方向を渡す**
+    gamePlayer.TakeDamage(damage, knockbackDirection);
+
     // 無敵状態を開始
     playerInvulnerable = true;
     invulnerabilityTimer = 0.0f;
 
     // **デバッグ出力**
     char debugMsg[256];
-    sprintf_s(debugMsg, "GameScene: Player took %d damage! Life: %d -> %d\n",
-        damage, oldLife, playerLife);
+    sprintf_s(debugMsg, "GameScene: Player took %d damage! Life: %d -> %d, Knockback: %.2f\n",
+        damage, oldLife, playerLife, knockbackDirection);
     OutputDebugStringA(debugMsg);
 
     // プレイヤーが死亡した場合の処理
@@ -917,15 +955,13 @@ float GameScene::SmoothLerp(float current, float target, float speed)
     return current + distance * t;
 }
 
-// **新機能: プレイヤーが敵を踏んだかの詳細判定**
 bool GameScene::CheckIfPlayerStompedEnemy()
 {
     float playerX = gamePlayer.GetX();
     float playerY = gamePlayer.GetY();
     float playerVelY = gamePlayer.GetVelocityY();
 
-    // **アクティブな敵をチェック**
-    const auto& enemies = enemyManager.GetEnemies(); // EnemyManagerのGetEnemies()を使用
+    const auto& enemies = enemyManager.GetEnemies();
 
     for (const auto& enemy : enemies) {
         if (!enemy || !enemy->IsActive() || enemy->IsDead()) continue;
@@ -933,7 +969,7 @@ bool GameScene::CheckIfPlayerStompedEnemy()
         float enemyX = enemy->GetX();
         float enemyY = enemy->GetY();
 
-        // **基本的な重なり判定**
+        // 基本的な重なり判定
         const float PLAYER_WIDTH = 80.0f;
         const float PLAYER_HEIGHT = 100.0f;
         const float ENEMY_WIDTH = 48.0f;
@@ -946,43 +982,39 @@ bool GameScene::CheckIfPlayerStompedEnemy()
 
         if (!isOverlapping) continue;
 
-        // **踏みつけ判定**
-        bool isStompFromAbove = (playerVelY > 0 &&
-            playerY < enemyY &&
-            playerY + PLAYER_HEIGHT / 2 >= enemyY - ENEMY_HEIGHT / 2);
+        // 踏みつけ判定の条件を厳格化
+        bool isStompFromAbove = (
+            playerVelY > 1.0f &&                    // 下向きの速度が十分
+            playerY < enemyY - 10.0f &&             // プレイヤーが敵より上
+            playerY + PLAYER_HEIGHT / 2 >= enemyY - ENEMY_HEIGHT / 2 - 5.0f  // 足が敵の頭付近
+            );
 
         if (isStompFromAbove) {
-            // **敵の種類による処理分岐**
             if (enemy->GetType() == EnemyBase::NORMAL_SLIME) {
-                // **NormalSlime: 踏みつけ成功**
-                ApplyStompBounce(); // プレイヤーに跳ね返り効果
-
-                // デバッグ出力
-                OutputDebugStringA("GameScene: Successfully stomped NormalSlime!\n");
+                // NormalSlimeを踏みつけで倒す
+                enemy->TakeDamage(100);  // 敵を倒す
+                ApplyStompBounce();
+                OutputDebugStringA("GameScene: Successfully stomped and killed NormalSlime!\n");
                 return true;
             }
             else if (enemy->GetType() == EnemyBase::SPIKE_SLIME) {
-                // **SpikeSlime: トゲが出ているかでダメージが決まる**
                 SpikeSlime* spikeSlime = static_cast<SpikeSlime*>(enemy.get());
-
-                // **トゲが出ている場合は踏んでもダメージ**
                 if (spikeSlime->AreSpikesOut()) {
-                    // **トゲが出ている場合は踏み失敗（ダメージを受ける）**
-                    return false; // 踏みつけ失敗（ダメージを受ける）
+                    // トゲが出ている場合は踏み失敗（ダメージを受ける）
+                    return false;
                 }
                 else {
-                    // **トゲが出ていない場合は踏みつけ成功（敵がスタン）**
-                    ApplyStompBounce(); // プレイヤーに跳ね返り効果
-
-                    // デバッグ出力
-                    OutputDebugStringA("GameScene: Successfully stomped SpikeSlime (spikes retracted)!\n");
+                    // トゲが引っ込んでいる場合は踏みつけ成功
+                    enemy->TakeDamage(100);  // 敵を倒す
+                    ApplyStompBounce();
+                    OutputDebugStringA("GameScene: Successfully stomped and killed SpikeSlime!\n");
                     return true;
                 }
             }
         }
     }
 
-    return false; // 踏みつけは発生していない
+    return false;
 }
 // **新機能: 踏みつけ成功時の処理**
 void GameScene::HandleSuccessfulStomp()

@@ -276,26 +276,31 @@ void LoadingScene::Draw()
 
 void LoadingScene::DrawBackground()
 {
+    const int SCREEN_W = 1920;
+    const int SCREEN_H = 1080;
+
     if (backgroundTexture != -1) {
         // 背景画像を画面全体に描画
-        DrawExtendGraph(0, 0, 1920, 1080, backgroundTexture, TRUE);
+        DrawExtendGraph(0, 0, SCREEN_W, SCREEN_H, backgroundTexture, TRUE);
     }
     else {
         // 背景画像がない場合は、グラデーション風の背景を描画
-        for (int y = 0; y < 1080; y++) {
-            int alpha = 255 - (y * 100 / 1080);
+        for (int y = 0; y < SCREEN_H; y++) {
+            int alpha = 255 - (y * 100 / SCREEN_H);
             int color = GetColor(20 + alpha / 10, 30 + alpha / 8, 50 + alpha / 5);
-            DrawLine(0, y, 1920, y, color);
+            DrawLine(0, y, SCREEN_W, y, color);
         }
     }
 }
 
 void LoadingScene::DrawProgressBar()
 {
+    const int SCREEN_W = 1920;
+    const int SCREEN_H = 1080;
     const int BAR_WIDTH = 600;
     const int BAR_HEIGHT = 20;
-    const int BAR_X = (1920 - BAR_WIDTH) / 2;  // 完全に中央配置
-    const int BAR_Y = 1080 / 2 + 80;  // 少し上に移動
+    const int BAR_X = SCREEN_W / 2 - BAR_WIDTH / 2;  // **修正: 完全中央配置**
+    const int BAR_Y = SCREEN_H / 2 + 80;
 
     // プログレスバーの背景
     SetDrawBlendMode(DX_BLENDMODE_ALPHA, 100);
@@ -331,16 +336,19 @@ void LoadingScene::DrawProgressBar()
     // 進行度テキスト（完全中央配置）
     std::string progressText = std::to_string((int)(displayProgress * 100)) + "%";
     int textWidth = GetDrawStringWidthToHandle(progressText.c_str(),
-        progressText.length(), fontHandle);
-    DrawStringToHandle(1920 / 2 - textWidth / 2, BAR_Y + BAR_HEIGHT + 15,
+        (int)progressText.length(), fontHandle);
+    int textX = SCREEN_W / 2 - textWidth / 2;  // **修正: 完全中央配置**
+    DrawStringToHandle(textX, BAR_Y + BAR_HEIGHT + 15,
         progressText.c_str(), GetColor(255, 255, 255), fontHandle);
 }
 
 void LoadingScene::DrawLoadingIcon()
 {
+    const int SCREEN_W = 1920;
+    const int SCREEN_H = 1080;
     const int ICON_SIZE = 80;
-    const int ICON_X = 1920 / 2;  // 完全に中央
-    const int ICON_Y = 1080 / 2 - 80;  // 少し上に調整
+    const int ICON_X = SCREEN_W / 2;  // **修正: 画面中央**
+    const int ICON_Y = SCREEN_H / 2 - 80;
 
     if (loadingIconTexture != -1) {
         // アイコンの回転描画
@@ -361,7 +369,7 @@ void LoadingScene::DrawLoadingIcon()
         float scale = 1.0f + sinf(pulsePhase) * 0.2f;
         int radius = (int)(30 * scale);
 
-        // 回転する円弧
+        // 回転する円環
         for (int i = 0; i < 8; i++) {
             float angle = iconRotation + (i * DX_PI / 4);
             int x = ICON_X + (int)(cosf(angle) * radius);
@@ -374,38 +382,46 @@ void LoadingScene::DrawLoadingIcon()
         SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
     }
 }
-
-void LoadingScene::DrawLoadingText()  // 名前変更: DrawText → DrawLoadingText
+void LoadingScene::DrawLoadingText()
 {
+    const int SCREEN_W = 1920;
+    const int SCREEN_H = 1080;
+
     // タイトル（完全中央配置）
     int titleWidth = GetDrawStringWidthToHandle(loadingTitle.c_str(),
-        loadingTitle.length(), titleFontHandle);
-    DrawStringToHandle(1920 / 2 - titleWidth / 2, 1080 / 2 - 180,  // 少し上に移動
-        loadingTitle.c_str(), GetColor(255, 255, 255), titleFontHandle);
+        (int)loadingTitle.length(), titleFontHandle);
+    int titleX = SCREEN_W / 2 - titleWidth / 2;  // **修正: 完全中央配置**
+    int titleY = SCREEN_H / 2 - 180;
+
+    DrawStringToHandle(titleX, titleY, loadingTitle.c_str(),
+        GetColor(255, 255, 255), titleFontHandle);
 
     // 現在のタスク説明（完全中央配置）
     if (!currentTaskText.empty()) {
         int taskWidth = GetDrawStringWidthToHandle(currentTaskText.c_str(),
-            currentTaskText.length(), fontHandle);
+            (int)currentTaskText.length(), fontHandle);
+        int taskX = SCREEN_W / 2 - taskWidth / 2;  // **修正: 完全中央配置**
+        int taskY = SCREEN_H / 2 + 160;
 
         // 点滅効果
         float alpha = 0.7f + 0.3f * sinf(animationTimer * 2.0f);
         SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(255 * alpha));
-        DrawStringToHandle(1920 / 2 - taskWidth / 2, 1080 / 2 + 160,  // 位置調整
-            currentTaskText.c_str(), GetColor(200, 200, 255), fontHandle);
+        DrawStringToHandle(taskX, taskY, currentTaskText.c_str(),
+            GetColor(200, 200, 255), fontHandle);
         SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
     }
 }
-
 void LoadingScene::DrawFade()
 {
+    const int SCREEN_W = 1920;
+    const int SCREEN_H = 1080;
+
     if (fadeAlpha > 0.0f) {
         SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(255 * (1.0f - fadeAlpha)));
-        DrawBox(0, 0, 1920, 1080, GetColor(0, 0, 0), TRUE);
+        DrawBox(0, 0, SCREEN_W, SCREEN_H, GetColor(0, 0, 0), TRUE);
         SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
     }
 }
-
 void LoadingScene::AddCustomTask(const std::string& description,
     std::function<bool()> task, float weight)
 {

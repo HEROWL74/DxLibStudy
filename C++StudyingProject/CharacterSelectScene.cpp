@@ -16,6 +16,7 @@ CharacterSelectScene::CharacterSelectScene()
     , mousePressedPrev(false)
     , backspacePressed(false)
     , backspacePressedPrev(false)
+    ,tutorialEnabled(true) //デフォルトで有効にしておく
 {
 }
 
@@ -87,27 +88,29 @@ void CharacterSelectScene::Initialize()
         characters.push_back(character);
     }
 
-    // UIボタン設定
+    // UIボタン設定の修正
     uiButtons.clear();
     int buttonY = SCREEN_H - 150;
-    int buttonCenterX = SCREEN_W / 2 - 100; // 100ピクセル左に移動
+    int buttonCenterX = SCREEN_W / 2 - 100;
 
-    // TUTORIALボタン（**新追加：一番左**）
-    UIButton tutorialButton;
-    tutorialButton.x = buttonCenterX - 400;
-    tutorialButton.y = buttonY;
-    tutorialButton.w = 180;
-    tutorialButton.h = 60;
-    tutorialButton.label = "TUTORIAL";
-    tutorialButton.scale = NORMAL_SCALE;
-    tutorialButton.glowIntensity = 0.0f;
-    tutorialButton.hovered = false;
-    tutorialButton.enabled = true; // 常に有効
-    uiButtons.push_back(tutorialButton);
+    // **TUTORIALボタン（条件付きで追加）**
+    if (tutorialEnabled) {
+        UIButton tutorialButton;
+        tutorialButton.x = buttonCenterX - 300;  // 左端に配置
+        tutorialButton.y = buttonY;
+        tutorialButton.w = 180;
+        tutorialButton.h = 60;
+        tutorialButton.label = "TUTORIAL";
+        tutorialButton.scale = NORMAL_SCALE;
+        tutorialButton.glowIntensity = 0.0f;
+        tutorialButton.hovered = false;
+        tutorialButton.enabled = true;
+        uiButtons.push_back(tutorialButton);
+    }
 
-    // SELECTボタン
+    // **SELECTボタン（チュートリアル有無に関係なく中央に配置）**
     UIButton selectButton;
-    selectButton.x = buttonCenterX - 200;
+    selectButton.x = buttonCenterX - 90;  // 常に中央
     selectButton.y = buttonY;
     selectButton.w = 180;
     selectButton.h = 60;
@@ -115,12 +118,12 @@ void CharacterSelectScene::Initialize()
     selectButton.scale = NORMAL_SCALE;
     selectButton.glowIntensity = 0.0f;
     selectButton.hovered = false;
-    selectButton.enabled = false; // 初期は無効
+    selectButton.enabled = false;
     uiButtons.push_back(selectButton);
 
-    // BACKボタン
+    // **BACKボタン（右側に配置）**
     UIButton backButton;
-    backButton.x = buttonCenterX + 20;
+    backButton.x = buttonCenterX + 120;  // 右側
     backButton.y = buttonY;
     backButton.w = 180;
     backButton.h = 60;
@@ -128,7 +131,7 @@ void CharacterSelectScene::Initialize()
     backButton.scale = NORMAL_SCALE;
     backButton.glowIntensity = 0.0f;
     backButton.hovered = false;
-    backButton.enabled = true; // 常に有効
+    backButton.enabled = true;
     uiButtons.push_back(backButton);
 }
 
@@ -246,6 +249,8 @@ void CharacterSelectScene::Draw()
     }
 }
 
+// CharacterSelectScene.cpp の UpdateCharacters関数を修正
+
 void CharacterSelectScene::UpdateCharacters()
 {
     hoveredCharacterIndex = -1;
@@ -298,10 +303,18 @@ void CharacterSelectScene::UpdateCharacters()
             characterSelected = true;
             selectionState = SELECTED;
 
-            // SELECTボタンを有効化
-            if (uiButtons.size() > 1) {
-                uiButtons[1].enabled = true;
+            // **修正: SELECTボタンを動的に検索して有効化**
+            for (auto& button : uiButtons) {
+                if (button.label == "SELECT") {
+                    button.enabled = true;
+                    OutputDebugStringA("CharacterSelectScene: SELECT button enabled dynamically\n");
+                    break;
+                }
             }
+
+            char debugMsg[256];
+            sprintf_s(debugMsg, "CharacterSelectScene: Character %d selected, SELECT button enabled\n", i);
+            OutputDebugStringA(debugMsg);
         }
     }
 }
@@ -339,6 +352,10 @@ void CharacterSelectScene::UpdateCharacterPositions()
     }
 }
 
+// CharacterSelectScene.cpp の UpdateUIButtons 関数を修正
+
+// CharacterSelectScene.cpp の UpdateUIButtons関数を完全修正
+
 void CharacterSelectScene::UpdateUIButtons()
 {
     for (int i = 0; i < (int)uiButtons.size(); i++) {
@@ -358,7 +375,8 @@ void CharacterSelectScene::UpdateUIButtons()
         // **デバッグ情報：マウスオーバー状態**
         if (over) {
             char debugMsg[256];
-            sprintf_s(debugMsg, "CharacterSelectScene: Button %d (%s) hovered\n", i, button.label.c_str());
+            sprintf_s(debugMsg, "CharacterSelectScene: Button %d (%s) hovered at (%d,%d) size(%d,%d)\n",
+                i, button.label.c_str(), button.x, button.y, button.w, button.h);
             OutputDebugStringA(debugMsg);
         }
 
@@ -369,56 +387,55 @@ void CharacterSelectScene::UpdateUIButtons()
                 i, button.label.c_str(), button.enabled ? "true" : "false");
             OutputDebugStringA(debugMsg);
 
-            if (i == 0) { // **TUTORIALボタン（新追加）**
+            // **ボタンラベルで動的判定**
+            if (button.label == "TUTORIAL") {
                 if (button.enabled) {
                     // キャラクターが選択されていない場合は最初のキャラクターを自動選択
                     if (selectedCharacterIndex < 0) {
-                        selectedCharacterIndex = 0; // デフォルトで最初のキャラクターを選択
+                        selectedCharacterIndex = 0;
                         characters[0].selected = true;
-
                         OutputDebugStringA("CharacterSelectScene: Auto-selected first character for tutorial\n");
                     }
                     tutorialRequested = true;
                     selectionState = CONFIRMED;
-
-                    // 効果音
                     SoundManager::GetInstance().PlaySE(SoundManager::SFX_SELECT);
-
-                    OutputDebugStringA("CharacterSelectScene: TUTORIAL button clicked - tutorialRequested set to true\n");
+                    OutputDebugStringA("CharacterSelectScene: TUTORIAL button clicked\n");
                 }
             }
-            else if (i == 1) { // SELECTボタン
+            else if (button.label == "SELECT") {
                 if (button.enabled) {
                     selectConfirmed = true;
                     selectionState = CONFIRMED;
-
-                    // 効果音
                     SoundManager::GetInstance().PlaySE(SoundManager::SFX_SELECT);
-
                     OutputDebugStringA("CharacterSelectScene: SELECT button clicked\n");
                 }
+                else {
+                    OutputDebugStringA("CharacterSelectScene: SELECT button clicked but disabled\n");
+                }
             }
-            else if (i == 2) { // BACKボタン
+            else if (button.label == "BACK") {
                 if (selectionState == SELECTED) {
                     // 選択状態から回転状態に戻る
                     selectionState = SELECTING;
                     selectedCharacterIndex = -1;
                     characterSelected = false;
 
-                    // 全キャラクターの選択状態をクリア
                     for (auto& c : characters) {
                         c.selected = false;
                     }
 
-                    // SELECTボタンを無効化
-                    if (uiButtons.size() > 1) {
-                        uiButtons[1].enabled = false;
+                    // SELECTボタンを無効化（動的にラベルで検索）
+                    for (auto& btn : uiButtons) {
+                        if (btn.label == "SELECT") {
+                            btn.enabled = false;
+                            OutputDebugStringA("CharacterSelectScene: SELECT button disabled in BACK processing\n");
+                            break;
+                        }
                     }
 
                     OutputDebugStringA("CharacterSelectScene: Returning to selection mode\n");
                 }
                 else {
-                    // 選択中状態からタイトル画面に戻る
                     backRequested = true;
                     OutputDebugStringA("CharacterSelectScene: BACK to title requested\n");
                 }
@@ -580,12 +597,26 @@ void CharacterSelectScene::ResetState()
     }
 
     // UIボタンの状態をリセット
-    if (uiButtons.size() > 1) {
-        uiButtons[1].enabled = false; // SELECTボタンを無効化
-        for (auto& button : uiButtons) {
-            button.hovered = false;
-            button.scale = NORMAL_SCALE;
-            button.glowIntensity = 0.0f;
+    for (auto& button : uiButtons) {
+        if (button.label == "SELECT") {
+            button.enabled = false; // SELECTボタンを無効化
         }
+        button.hovered = false;
+        button.scale = NORMAL_SCALE;
+        button.glowIntensity = 0.0f;
+    }
+}
+
+// 新規追加メソッド
+void CharacterSelectScene::SetTutorialEnabled(bool enabled)
+{
+    if (tutorialEnabled != enabled) {
+        tutorialEnabled = enabled;
+        Initialize(); // ボタン配置を再初期化
+
+        char debugMsg[128];
+        sprintf_s(debugMsg, "CharacterSelectScene: Tutorial button %s\n",
+            enabled ? "enabled" : "disabled");
+        OutputDebugStringA(debugMsg);
     }
 }

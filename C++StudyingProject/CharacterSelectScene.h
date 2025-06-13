@@ -19,6 +19,7 @@ public:
     bool IsBackRequested() const { return backRequested; }
     bool IsTutorialRequested() const { return tutorialRequested; }  // **新追加**
     int GetSelectedCharacter() const { return selectedCharacterIndex; }
+    void SetTutorialEnabled(bool enabled); // **新規追加**
     void ResetState(); // 状態リセット用関数を追加
 
 private:
@@ -113,4 +114,6 @@ private:
     float EaseOutBack(float t);
     float EaseInOutCubic(float t);
     float Lerp(float a, float b, float t);
+
+    bool tutorialEnabled; // **新規追加: チュートリアルボタンの表示制御*
 };

@@ -17,10 +17,15 @@ public:
         DEAD            // 死亡完了
     };
 
-    // 敵のタイプ
+    // 敵のタイプ - ★修正: 新しい敵タイプを追加
     enum EnemyType {
         NORMAL_SLIME,
         SPIKE_SLIME,
+        BEE,            // ★追加
+        FLY,            // ★追加  
+        LADYBUG,        // ★追加
+        SAW,            // ★追加
+        SLIME_BLOCK,    // ★追加
         // 将来的に他の敵も追加可能
         GOBLIN,
         SKELETON
@@ -89,7 +94,7 @@ protected:
     float patrolDistance;          // パトロール距離
     bool patrolDirection;          // パトロール方向（true=右、false=左）
 
-    // スプライト
+    // スプライト - ★修正: jumpメンバーを追加
     struct EnemySprites {
         int idle;
         int walk_a;
@@ -98,6 +103,7 @@ protected:
         int damaged;
         int dead;
         int flat;      // 潰れた状態（スライム用）
+        int jump;      // ★追加: ジャンプ/飛行状態用
     } sprites;
 
     // 物理定数

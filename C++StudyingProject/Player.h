@@ -3,6 +3,8 @@
 #include "StageManager.h"
 #include <string>
 
+class BlockSystem;
+
 class Player {
 public:
     // プレイヤー状態
@@ -43,7 +45,7 @@ public:
     void SetPosition(float newX, float newY);
     void ResetPosition();
 
-    // **新規追加: ブロックシステム連携用の関数**
+    // 新規追加: ブロックシステム拡張用の関数
     void SetOnGround(bool ground) { onGround = ground; }
     void SetState(State newState) { currentState = newState; }
 
@@ -75,18 +77,28 @@ public:
     void SetVelocityX(float velX) { velocityX = velX; }
     void SetVelocityY(float velY) { velocityY = velY; }
 
+    // GameSceneから呼び出される複合衝突処理
+    void HandleCollisionsWithBlocks(StageManager* stageManager, class BlockSystem* blockSystem);
+    void UpdatePhysics(StageManager* stageManager);
+    void UpdateAnimation();
+    void HandleCollisions(StageManager* stageManager);
 private:
     // キャラクタースプライト構造体
     struct CharacterSprites {
         int front, idle, walk_a, walk_b, jump, duck, hit, climb_a, climb_b;
     };
 
-    // 物理定数
-    static constexpr float GRAVITY = 0.8f;
-    static constexpr float JUMP_POWER = -20.0f;
-    static constexpr float MOVE_SPEED = 8.0f;
+    // ★改良された物理定数 - ふわっとジャンプ
+    static constexpr float GRAVITY = 0.4f;              // 重力を弱く（ふわっと効果）
+    static constexpr float JUMP_POWER = -14.0f;         // ジャンプ力を強く
+    static constexpr float MOVE_SPEED = 4.0f;
     static constexpr float WALK_ANIM_SPEED = 0.15f;
-    static constexpr float MAX_FALL_SPEED = 16.0f;
+    static constexpr float MAX_FALL_SPEED = 12.0f;      // 落下速度上限を下げる
+
+    // ★追加: ジャンプ関連の詳細定数
+    static constexpr float JUMP_RELEASE_MULTIPLIER = 0.5f;  // ジャンプボタン離した時の減速率
+    static constexpr float APEX_GRAVITY_REDUCTION = 0.6f;   // ジャンプ頂点付近での重力軽減
+    static constexpr float APEX_THRESHOLD = 2.0f;           // 頂点判定の速度閾値
 
     // 段階的加速度システムの定数
     static constexpr float FRICTION = 0.85f;
@@ -142,9 +154,8 @@ private:
     bool isAutoWalking = false;
 
     // ===== 基本的なヘルパー関数 =====
-    void UpdatePhysics(StageManager* stageManager);
-    void UpdateAnimation();
-    void HandleCollisions(StageManager* stageManager);
+    void HandleDownwardMovementStageOnly(float newY, float width, float height, StageManager* stageManager);
+    bool IsOnStageGround(float playerX, float playerY, float width, float height, StageManager* stageManager);
     int GetCurrentSprite();
     void LoadCharacterSprites(int characterIndex);
     std::string GetCharacterColorName(int index);
@@ -162,10 +173,14 @@ private:
 
     // ===== 詳細な衝突判定システム =====
 
+    void HandleUpwardMovementStageOnly(float newY, float width, float height, StageManager* stageManager);
+
     // メイン衝突判定関数
     bool CheckXCollision(float newX, float currentY, float width, float height, StageManager* stageManager);
     void HandleDownwardMovement(float newY, float width, float height, StageManager* stageManager);
     void HandleUpwardMovement(float newY, float width, float height, StageManager* stageManager);
+
+    void SetLandingState();
 
     // 詳細な衝突判定
     bool CheckPointCollision(float centerX, float centerY, float width, float height, StageManager* stageManager);
@@ -194,4 +209,5 @@ private:
     static constexpr float BASE_SHADOW_SIZE_X = 40.0f;
     static constexpr float BASE_SHADOW_SIZE_Y = 16.0f;
     static constexpr int BASE_SHADOW_ALPHA = 150;
+
 };

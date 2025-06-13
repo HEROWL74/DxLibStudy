@@ -18,7 +18,7 @@ public:
     void Draw();
 
     bool IsExitRequested() const { return exitRequested; }
-    bool IsCompleted() const { return tutorialCompleted; }
+    bool IsCompleted() const { return false; }
 
 private:
     // âÊñ ÉTÉCÉY

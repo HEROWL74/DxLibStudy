@@ -61,6 +61,28 @@ void TutorialScene::Initialize(int selectedCharacter)
     selectedCharacterIndex = selectedCharacter;
     characterName = GetCharacterDisplayName(selectedCharacter);
 
+    // **状態を完全にリセット**
+    exitRequested = false;
+    tutorialCompleted = false;
+    currentStep = STEP_WELCOME;
+    stepTimer = 0.0f;
+    messageTimer = 0.0f;
+    messageVisible = true;
+
+    // **チュートリアル進行状況をリセット**
+    hasMovedLeft = false;
+    hasMovedRight = false;
+    hasJumped = false;
+    hasDucked = false;
+    hasSlid = false;
+
+    // **フェード状態をリセット**
+    fadeAlpha = 1.0f;  // 黒画面から開始
+    fadingIn = true;
+    fadingOut = false;
+
+    // 既存の初期化処理...
+
     // テクスチャとフォント読み込み
     backgroundHandle = LoadGraph("Sprites/Backgrounds/background_fade_trees.png");
     fontHandle = CreateFontToHandle(NULL, 32, 3);
@@ -93,10 +115,17 @@ void TutorialScene::Initialize(int selectedCharacter)
     particles.clear();
     floatingTexts.clear();
 
+    // **UI効果をリセット**
+    uiPulseTimer = 0.0f;
+    iconRotation = 0.0f;
+    progressBarGlow = 0.0f;
+    stepJustChanged = false;
+    stepChangeEffectTimer = 0.0f;
+
     // BGM開始
     SoundManager::GetInstance().PlayBGM(SoundManager::BGM_GAME);
 
-    OutputDebugStringA("TutorialScene: Initialized with enhanced effects\n");
+    OutputDebugStringA("TutorialScene: Fully initialized and ready for new tutorial session\n");
 }
 
 void TutorialScene::InitializeTutorialStage()
@@ -180,7 +209,7 @@ void TutorialScene::Update()
             OutputDebugStringA("TutorialScene: R key pressed - returning to character selection\n");
         }
         else if (escPressed && !escPressedPrev) {
-            tutorialCompleted = true;
+            exitRequested = true;
             OutputDebugStringA("TutorialScene: ESC key pressed - proceeding to game\n");
         }
     }
