@@ -48,6 +48,8 @@ public:
     void SetVisible(bool visible) { this->visible = visible; }
     bool IsVisible() const { return visible; }
 
+    void NotifyDamage();
+
 private:
     // テクスチャハンドル
     struct HeartTextures {
@@ -113,6 +115,7 @@ private:
     void DrawPlayerIcon();
     void DrawCoins();
     void DrawStars();  // **星描画関数（新機能）**
+  
     void DrawNumber(int number, int x, int y);
     HeartState GetHeartState(int heartIndex) const;
     int GetPlayerIconHandle() const;

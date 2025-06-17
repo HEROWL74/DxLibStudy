@@ -22,6 +22,9 @@ public:
     void ResetTransition() { transitionState = None; transitionFadeProgress = 0.0f; }
     bool IsTutorialEnabled() const;
 
+    //デバッグ用メソッド
+    void ForceResetCredits();
+
 private:
     // 画面 & ボタンサイズ
     static const int SCREEN_W = 1920;
@@ -167,5 +170,27 @@ private:
     // **新規追加: チュートリアル設定管理用メソッド**
     void UpdateTutorialCheckbox();
     void DrawTutorialCheckbox();
+
+    enum CreditsState {
+        CreditsHidden,
+        CreditsShowing,
+        CreditsVisible,
+        CreditsHiding
+    };
+
+    CreditsState creditsState;
+    float creditsAnimProgress;
+    float creditsFadeProgress;
+    float creditsSlideProgress;
+    float creditsScrollOffset;      // スクロール用
+    float creditsContentHeight;    // コンテンツの総高さ
+    bool creditsAutoScroll;        // 自動スクロール有効/無効
+
+    // **クレジット関連メソッド**
+    void UpdateCredits();
+    void DrawCreditsPanel();
+    void ResetCreditsState();
+
+    void DrawOptionsPanel();
 
 };

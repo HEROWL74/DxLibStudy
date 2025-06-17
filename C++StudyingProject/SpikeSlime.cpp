@@ -194,7 +194,6 @@ void SpikeSlime::HandleStunState()
     }
 }
 
-// **修正: プレイヤーとの衝突処理 - SpikeSlimeは踏んでもダメージ**
 void SpikeSlime::OnPlayerCollision(Player* player)
 {
     if (!player) return;
@@ -204,52 +203,74 @@ void SpikeSlime::OnPlayerCollision(Player* player)
     float enemyTop = y - COLLISION_HEIGHT / 2;
 
     // **詳細な踏み判定: プレイヤーが上から踏んだ場合**
-    bool isStompedFromAbove = (playerY < enemyTop && playerVelY > 0);
+    bool isStompedFromAbove = (
+        playerVelY > 0.5f &&                    // 下向きの速度
+        playerY < y - 10.0f &&                  // プレイヤーが敵より上
+        playerY + 50.0f >= enemyTop             // 足が敵の頭部付近
+        );
 
     if (isStompedFromAbove) {
         if (isSpikesOut) {
-            // **トゲが出ている時に踏まれるとプレイヤーがダメージ**
-            // 実際のダメージ処理はGameScene側で実装される
-            // ここでは敵側の反応のみ実装
+            // **トゲが出ているときに踏まれるとプレイヤーがダメージ**
 
-            // **トゲ接触のエフェクトやサウンド**
-            // PlaySoundEffect("spike_contact");
-            // SpawnParticleEffect(x, y, "spike_spark");
+            if (!player->IsInvulnerable()) {
+                // ノックバック方向を計算
+                float knockbackDirection = (player->GetX() > x) ? 1.0f : -1.0f;
+
+                // **プレイヤーにダメージを与える**
+                player->TakeDamage(2, knockbackDirection); // トゲダメージは2
+
+                OutputDebugStringA("SpikeSlime: Player stepped on spikes - taking damage!\n");
+            }
 
             // **敵は特にダメージを受けない（トゲで守られている）**
 
         }
         else {
-            // **トゲが出ていない時に踏まれるとスタン状態になる**
+            // **トゲが引っ込んでいるときに踏まれるとスタン状態に**
             spikeState = SPIKE_STUNNED;
             stunTimer = 0.0f;
             currentState = DAMAGED;
             velocityX = 0.0f;
             isSpikesOut = false;
 
-            // **スタン時のエフェクト**
-            // PlaySoundEffect("slime_stun");
-            // SpawnParticleEffect(x, y, "stun_effect");
+            OutputDebugStringA("SpikeSlime: Stomped while spikes retracted - stunned!\n");
+
+            // **注意: プレイヤーの跳ね返りはEnemyManagerで処理済み**
         }
     }
     else {
         // **横や下からの接触**
         if (isSpikesOut) {
-            // **トゲが出ている時の横接触は大ダメージ**
-            // 実際のダメージ処理はGameScene側で実装される
+            // **トゲが出ているときの横接触は大ダメージ**
 
-            // **強力な接触エフェクト**
-            // PlaySoundEffect("spike_damage");
-            // SpawnParticleEffect(x, y, "spike_burst");
+            if (!player->IsInvulnerable()) {
+                // ノックバック方向を計算
+                float knockbackDirection = (player->GetX() > x) ? 1.0f : -1.0f;
+
+                // **強力なダメージ**
+                player->TakeDamage(2, knockbackDirection); // トゲダメージは2
+
+                OutputDebugStringA("SpikeSlime: Player hit spikes from side - heavy damage!\n");
+            }
 
         }
         else {
             // **通常のダメージ**
-            // 実際のダメージ処理はGameScene側で実装される
+
+            if (!player->IsInvulnerable()) {
+                // ノックバック方向を計算
+                float knockbackDirection = (player->GetX() > x) ? 1.0f : -1.0f;
+
+                // **通常ダメージ**
+                player->TakeDamage(1, knockbackDirection);
+
+                OutputDebugStringA("SpikeSlime: Normal side collision - standard damage!\n");
+            }
 
             // **通常接触時の敵の反応（軽いノックバック）**
-            float knockbackDirection = (player->GetX() > x) ? -1.0f : 1.0f;
-            velocityX = knockbackDirection * 1.5f;
+            float enemyKnockback = (player->GetX() > x) ? -1.0f : 1.0f;
+            velocityX = enemyKnockback * 1.5f;
         }
     }
 }

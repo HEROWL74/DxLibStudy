@@ -91,15 +91,15 @@ private:
 
     // 改良された物理定数 - 適切な速度バランスとふわっとジャンプ
         static constexpr float GRAVITY = 0.35f;             // ふわっとした重力
-    static constexpr float JUMP_POWER = -10.0f;         // 強化されたジャンプ力
+    static constexpr float JUMP_POWER = -15.0f;         // 強化されたジャンプ力
     static constexpr float MAX_FALL_SPEED = 9.0f;       // 落下速度上限を下げる（ストンッと防止）
 
     // 水平移動速度を調整（遅くする）
     static constexpr float MOVE_SPEED = 3.0f;           // 4.0f → 3.0f に減速
     static constexpr float WALK_ANIM_SPEED = 0.15f;
     static constexpr float FRICTION = 0.88f;            // 0.85f → 0.88f に増加（止まりやすく）
-    static constexpr float ACCELERATION = 0.6f;         // 0.8f → 0.6f に減少（加速を緩やかに）
-    static constexpr float MAX_HORIZONTAL_SPEED = 8.0f; // 10.0f → 8.0f に減速
+    static constexpr float ACCELERATION = 0.2f;         // 0.8f → 0.6f に減少（加速を緩やかに）
+    static constexpr float MAX_HORIZONTAL_SPEED = 6.0f; // 10.0f → 8.0f に減速
 
     // ジャンプ関連の詳細調整（ふわっと効果強化）
     static constexpr float JUMP_RELEASE_MULTIPLIER = 0.3f;  // 0.5f → 0.3f（ボタン離し時の減速を強化）

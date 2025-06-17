@@ -21,6 +21,8 @@ BlockAthleticsScene::BlockAthleticsScene()
     , playerLife(6)  // ライフの初期化を追加
     , gameTimer(0.0f)
     , bestTime(0.0f)
+    ,clearStateTimer(0.0f)
+    ,clearAnimTimer(0.0f)
     , escPressed(false), escPressedPrev(false)
     , spacePressed(false), spacePressedPrev(false)
     , leftPressed(false), rightPressed(false)
@@ -66,6 +68,16 @@ BlockAthleticsScene::~BlockAthleticsScene()
     DeleteGraph(crateHandle);
     DeleteGraph(explosiveCrateHandle);
     DeleteGraph(coinHandle);
+
+    // **破片テクスチャの解放を追加**
+    for (int blockType = 0; blockType < 7; blockType++) {
+        for (int fragmentIndex = 0; fragmentIndex < 4; fragmentIndex++) {
+            if (fragmentHandles[blockType][fragmentIndex] != -1) {
+                DeleteGraph(fragmentHandles[blockType][fragmentIndex]);
+                fragmentHandles[blockType][fragmentIndex] = -1;
+            }
+        }
+    }
 }
 
 void BlockAthleticsScene::Initialize(int selectedCharacter)
@@ -75,6 +87,16 @@ void BlockAthleticsScene::Initialize(int selectedCharacter)
 
     // テクスチャ読み込み
     LoadTextures();
+
+    // **重要: 破片テクスチャの読み込みを追加**
+    LoadFragmentTextures();
+
+    // 破片ハンドル配列を初期化
+    for (int i = 0; i < 7; i++) {
+        for (int j = 0; j < 4; j++) {
+            fragmentHandles[i][j] = -1;
+        }
+    }
 
     // ステージ初期化
     InitializeStage();
@@ -89,7 +111,7 @@ void BlockAthleticsScene::Initialize(int selectedCharacter)
     hudSystem.Initialize();
     hudSystem.SetPlayerCharacter(selectedCharacterIndex);
     hudSystem.SetMaxLife(6);
-    hudSystem.SetCurrentLife(6);  // 初期ライフ設定
+    hudSystem.SetCurrentLife(6);
     hudSystem.SetPosition(30, 30);
     hudSystem.SetVisible(true);
 
@@ -100,7 +122,8 @@ void BlockAthleticsScene::Initialize(int selectedCharacter)
     gameTimer = 0.0f;
     coinsCollected = 0;
     cratesDestroyed = 0;
-    playerLife = 6;  // ライフの初期化を追加
+    playerLife = 6;
+    ResetClearTimers();
 
     // カメラ初期化
     cameraX = 0.0f;
@@ -108,11 +131,12 @@ void BlockAthleticsScene::Initialize(int selectedCharacter)
 
     // エフェクト初期化
     particles.clear();
+    blockFragments.clear(); // 破片配列もクリア
 
     // BGM開始
     SoundManager::GetInstance().PlayBGM(SoundManager::BGM_GAME);
 
-    OutputDebugStringA("BlockAthleticsScene: Initialized successfully\n");
+    OutputDebugStringA("BlockAthleticsScene: Initialized successfully with fragment system\n");
 }
 
 void BlockAthleticsScene::LoadTextures()
@@ -174,232 +198,321 @@ void BlockAthleticsScene::CreateFragmentFromTexture(int originalHandle, BlockTyp
         int srcX = (i % 2) * fragmentWidth;
         int srcY = (i / 2) * fragmentHeight;
 
-        // 新しいテクスチャ作成
-        int fragmentHandle = MakeScreen(fragmentWidth, fragmentHeight, TRUE);
+        // DerivationGraphを使用して破片テクスチャを作成
+        fragmentHandles[blockType][i] = DerivationGraph(
+            srcX, srcY, fragmentWidth, fragmentHeight, originalHandle
+        );
 
-        if (fragmentHandle != -1) {
-            // 元の描画先を保存
-            int prevTarget = GetDrawScreen();
-
-            // 新しいテクスチャに描画
-            SetDrawScreen(fragmentHandle);
-            ClearDrawScreen();
-
-            // 元テクスチャの一部を描画
-            DrawRectGraph(0, 0, srcX, srcY, fragmentWidth, fragmentHeight, originalHandle, TRUE, FALSE);
-
-            // 描画先を復元
-            SetDrawScreen(prevTarget);
-
-            // ハンドルを保存
-            fragmentHandles[blockType][i] = fragmentHandle;
-
+        if (fragmentHandles[blockType][i] != -1) {
             char debugMsg[128];
-            sprintf_s(debugMsg, "BlockAthleticsScene: Created fragment %d for block type %d\n", i, blockType);
+            sprintf_s(debugMsg, "BlockAthleticsScene: Created fragment %d for block type %d (handle: %d)\n",
+                i, blockType, fragmentHandles[blockType][i]);
             OutputDebugStringA(debugMsg);
+        }
+        else {
+            char errorMsg[128];
+            sprintf_s(errorMsg, "BlockAthleticsScene: Failed to create fragment %d for block type %d\n",
+                i, blockType);
+            OutputDebugStringA(errorMsg);
         }
     }
 }
-
 void BlockAthleticsScene::InitializeStage()
 {
     blocks.clear();
     totalCoins = 0;
     totalCrates = 0;
 
-    // より遊びやすい平地中心のアスレチックコース設計
-    // === セクション1: スタートエリア ===
-    // スタート地点の安全地帯
-    for (int x = 0; x < 4; x++) {
+    // ===== セクション1: 広々スタートエリア =====
+    // 超安全なスタート地点（広い平地）
+    for (int x = 0; x < 12; x++) {
         Block dirtBlock = { BLOCK_DIRT, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE, true, false, 0.0f, false };
         blocks.push_back(dirtBlock);
         Block dirtTopBlock = { BLOCK_DIRT_TOP, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 2, true, false, 0.0f, false };
         blocks.push_back(dirtTopBlock);
     }
 
-    // === セクション2: 基本ジャンプ練習エリア ===
-    // 段差ジャンプ（低め）
-    Block stoneTop1 = { BLOCK_STONE_TOP, BLOCK_SIZE * 6, STAGE_HEIGHT - BLOCK_SIZE * 2, true, false, 0.0f, false };
-    blocks.push_back(stoneTop1);
-    Block stone1 = { BLOCK_STONE, BLOCK_SIZE * 6, STAGE_HEIGHT - BLOCK_SIZE, true, false, 0.0f, false };
-    blocks.push_back(stone1);
-
-    Block stoneTop2 = { BLOCK_STONE_TOP, BLOCK_SIZE * 8, STAGE_HEIGHT - BLOCK_SIZE * 3, true, false, 0.0f, false };
-    blocks.push_back(stoneTop2);
-    Block stone2 = { BLOCK_STONE, BLOCK_SIZE * 8, STAGE_HEIGHT - BLOCK_SIZE * 2, true, false, 0.0f, false };
-    blocks.push_back(stone2);
-    Block stone3 = { BLOCK_STONE, BLOCK_SIZE * 8, STAGE_HEIGHT - BLOCK_SIZE, true, false, 0.0f, false };
-    blocks.push_back(stone3);
-
-    // 最初のコイン（低い位置）
-    Block coin1 = { BLOCK_COIN, BLOCK_SIZE * 7, STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, false };
-    blocks.push_back(coin1);
-    totalCoins++;
-
-    // === セクション3: 障害物回避エリア ===
-    // クレートの壁（低め）
-    for (int y = 0; y < 2; y++) {
-        Block crate = { BLOCK_CRATE, BLOCK_SIZE * 10, STAGE_HEIGHT - BLOCK_SIZE * (2 + y), true, true, 0.0f, true };
-        blocks.push_back(crate);
-        totalCrates++;
+    // スタートエリアの地上コイン（安全に歩いて取得）
+    for (int i = 0; i < 4; i++) {
+        Block coin = { BLOCK_COIN, BLOCK_SIZE * (2 + i * 2), STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, false };
+        blocks.push_back(coin);
+        totalCoins++;
     }
 
-    // 回避用の足場（適度な高さ）
-    Block dirtTop1 = { BLOCK_DIRT_TOP, BLOCK_SIZE * 12, STAGE_HEIGHT - BLOCK_SIZE * 3, true, false, 0.0f, false };
-    blocks.push_back(dirtTop1);
-    Block dirt1 = { BLOCK_DIRT, BLOCK_SIZE * 12, STAGE_HEIGHT - BLOCK_SIZE * 2, true, false, 0.0f, false };
-    blocks.push_back(dirt1);
+    // ===== ギミック1: 近距離コイン階段（ジャンプ可能距離） =====
+    // 各段の距離を1.5ブロック間隔に縮める
+    for (int i = 0; i < 4; i++) {
+        int baseX = 14 + i * 2; // 4ブロック間隔から2ブロック間隔に短縮
 
-    // === セクション4: 精密ジャンプエリア ===
-    // 小さな足場の連続（低め）
-    for (int i = 0; i < 5; i++) {
-        int x = 14 + i * 2;
-        int height = 2 + (i % 2); // 高さを2-3ブロックに制限
-        Block stoneTop = { BLOCK_STONE_TOP, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * height, true, false, 0.0f, false };
-        blocks.push_back(stoneTop);
+        // 幅2ブロックの安全な足場
+        for (int w = 0; w < 2; w++) {
+            Block stairBase = { BLOCK_STONE, (float)((baseX + w) * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * (2 + i), true, false, 0.0f, false };
+            blocks.push_back(stairBase);
+            Block stairTop = { BLOCK_STONE_TOP, (float)((baseX + w) * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * (3 + i), true, false, 0.0f, false };
+            blocks.push_back(stairTop);
+        }
+
+        // 中央にコイン配置
+        Block stairCoin = { BLOCK_COIN, (float)(baseX * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * (4 + i), true, true, 0.0f, false };
+        blocks.push_back(stairCoin);
+        totalCoins++;
     }
 
-    // 空中のコイン（届く高さ）
-    Block coin2 = { BLOCK_COIN, BLOCK_SIZE * 15, STAGE_HEIGHT - BLOCK_SIZE * 4, true, true, 0.0f, false };
-    blocks.push_back(coin2);
-    totalCoins++;
-    Block coin3 = { BLOCK_COIN, BLOCK_SIZE * 19, STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, false };
-    blocks.push_back(coin3);
-    totalCoins++;
-
-    // === セクション5: 平地エリア ===
-    // 地上の足場
-    for (int x = 24; x < 27; x++) {
+    // ===== セクション2: 接続平地エリア =====
+    // 階段から連続する平地
+    for (int x = 22; x < 30; x++) {
         Block dirtTop = { BLOCK_DIRT_TOP, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 2, true, false, 0.0f, false };
         blocks.push_back(dirtTop);
         Block dirt = { BLOCK_DIRT, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE, true, false, 0.0f, false };
         blocks.push_back(dirt);
     }
 
-    // 地上のコイン
-    Block coin4 = { BLOCK_COIN, BLOCK_SIZE * 25, STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, false };
-    blocks.push_back(coin4);
-    totalCoins++;
-
-    // === セクション6: 爆発クレートの迷路（低め） ===
-    // L字型の爆発クレート配置（地上）
+    // 平地に散らばったコイン
     for (int i = 0; i < 3; i++) {
-        Block explosive1 = { BLOCK_EXPLOSIVE, BLOCK_SIZE * (28 + i), STAGE_HEIGHT - BLOCK_SIZE * 2, true, true, 0.0f, true };
-        blocks.push_back(explosive1);
-        totalCrates++;
+        Block groundCoin = { BLOCK_COIN, BLOCK_SIZE * (24 + i * 2), STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, false };
+        blocks.push_back(groundCoin);
+        totalCoins++;
     }
-    Block explosive2 = { BLOCK_EXPLOSIVE, BLOCK_SIZE * 30, STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, true };
-    blocks.push_back(explosive2);
-    totalCrates++;
 
-    // 回避ルート（低い足場）
-    Block stoneTop3 = { BLOCK_STONE_TOP, BLOCK_SIZE * 32, STAGE_HEIGHT - BLOCK_SIZE * 2, true, false, 0.0f, false };
-    blocks.push_back(stoneTop3);
-    Block stone4 = { BLOCK_STONE, BLOCK_SIZE * 32, STAGE_HEIGHT - BLOCK_SIZE, true, false, 0.0f, false };
-    blocks.push_back(stone4);
-
-    // === セクション7: 段差エリア ===
-    // 適度な段差の足場
-    for (int i = 0; i < 4; i++) {
-        int x = 34 + i * 3;
-        int height = 2 + (i % 2); // 2-3ブロックの高さ
-        Block dirtTop = { BLOCK_DIRT_TOP, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * height, true, false, 0.0f, false };
-        blocks.push_back(dirtTop);
-        if (height > 2) {
-            Block dirt = { BLOCK_DIRT, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * (height - 1), true, false, 0.0f, false };
-            blocks.push_back(dirt);
+    // ===== ギミック2: 近接宝箱エリア =====
+    // 地上からすぐにアクセス可能な宝箱
+    for (int x = 31; x < 35; x++) {
+        for (int y = 1; y <= 2; y++) {
+            if (x == 31 || x == 34 || y == 1) { // L字型の壁
+                Block treasureWall = { BLOCK_CRATE, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * (1 + y), true, true, 0.0f, true };
+                blocks.push_back(treasureWall);
+                totalCrates++;
+            }
         }
     }
 
-    // 段差のコイン
-    Block coin5 = { BLOCK_COIN, BLOCK_SIZE * 37, STAGE_HEIGHT - BLOCK_SIZE * 4, true, true, 0.0f, false };
-    blocks.push_back(coin5);
-    totalCoins++;
+    // 宝箱へのなだらかなアクセス
+    Block accessStep = { BLOCK_DIRT_TOP, (float)(30 * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 2, true, false, 0.0f, false };
+    blocks.push_back(accessStep);
 
-    // === セクション8: 最終チャレンジエリア（適度な高さ） ===
-    // 塔（高さを抑制）
-    for (int y = 0; y < 4; y++) {
-        Block stone = { BLOCK_STONE, BLOCK_SIZE * 46, STAGE_HEIGHT - BLOCK_SIZE * (1 + y), true, false, 0.0f, false };
-        blocks.push_back(stone);
-    }
-    Block stoneTop4 = { BLOCK_STONE_TOP, BLOCK_SIZE * 46, STAGE_HEIGHT - BLOCK_SIZE * 5, true, false, 0.0f, false };
-    blocks.push_back(stoneTop4);
-
-    // 塔への足場（届く高さ）
-    Block dirtTop2 = { BLOCK_DIRT_TOP, BLOCK_SIZE * 44, STAGE_HEIGHT - BLOCK_SIZE * 2, true, false, 0.0f, false };
-    blocks.push_back(dirtTop2);
-    Block dirtTop3 = { BLOCK_DIRT_TOP, BLOCK_SIZE * 45, STAGE_HEIGHT - BLOCK_SIZE * 3, true, false, 0.0f, false };
-    blocks.push_back(dirtTop3);
-
-    // 塔のコイン（届く高さ）
-    Block coin6 = { BLOCK_COIN, BLOCK_SIZE * 46, STAGE_HEIGHT - BLOCK_SIZE * 6, true, true, 0.0f, false };
-    blocks.push_back(coin6);
-    totalCoins++;
-
-    // === セクション9: ゴールエリア ===
-    // ゴール前の最後の障害（低め）
-    for (int x = 48; x < 52; x++) {
-        Block crate = { BLOCK_CRATE, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 2, true, true, 0.0f, true };
-        blocks.push_back(crate);
-        totalCrates++;
+    // 宝箱内のコイン
+    for (int i = 0; i < 2; i++) {
+        Block treasureCoin = { BLOCK_COIN, (float)((32 + i) * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, false };
+        blocks.push_back(treasureCoin);
+        totalCoins++;
     }
 
-    // 最終コインボーナス（届く高さ）
-    Block coin7 = { BLOCK_COIN, BLOCK_SIZE * 55, STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, false };
-    blocks.push_back(coin7);
+    // ===== ギミック3: 密集ジグザグ道（1ブロック間隔） =====
+    // ジャンプで確実に届く1ブロック間隔
+    for (int i = 0; i < 6; i++) {
+        int x = 37 + i; // 1ブロック間隔
+        int y = 2 + (i % 2); // 高さ差も1ブロックのみ
+
+        // 幅2ブロックの安全な足場
+        for (int w = 0; w < 2; w++) {
+            Block zigzagPlatform = { BLOCK_STONE_TOP, (float)((x + w) * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * y, true, false, 0.0f, false };
+            blocks.push_back(zigzagPlatform);
+        }
+
+        // 中央にコイン
+        Block zigzagCoin = { BLOCK_COIN, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * (y + 1), true, true, 0.0f, false };
+        blocks.push_back(zigzagCoin);
+        totalCoins++;
+    }
+
+    // ===== セクション3: 休憩平地 =====
+    for (int x = 45; x < 55; x++) {
+        Block restArea = { BLOCK_DIRT_TOP, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 2, true, false, 0.0f, false };
+        blocks.push_back(restArea);
+        Block restDirt = { BLOCK_DIRT, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE, true, false, 0.0f, false };
+        blocks.push_back(restDirt);
+    }
+
+    // 休憩エリアのボーナスコイン
+    for (int i = 0; i < 4; i++) {
+        Block restCoin = { BLOCK_COIN, BLOCK_SIZE * (47 + i * 2), STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, false };
+        blocks.push_back(restCoin);
+        totalCoins++;
+    }
+
+    // ===== ギミック4: コンパクト迷路（1ブロック間隔） =====
+    // 迷路のサイズを縮小し、通路を広く
+    for (int x = 57; x < 65; x++) {
+        for (int y = 2; y < 4; y++) {
+            // 1ブロックおきに壁を配置（十分な通路確保）
+            bool isWall = ((x - 57) % 2 == 0 && y == 3) ||
+                ((x - 57) % 2 == 1 && y == 2);
+
+            if (isWall) {
+                Block mazeWall = { BLOCK_CRATE, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * y, true, true, 0.0f, true };
+                blocks.push_back(mazeWall);
+                totalCrates++;
+            }
+        }
+    }
+
+    // 迷路上の簡単アクセスルート
+    for (int x = 57; x < 65; x++) {
+        Block safeRoute = { BLOCK_STONE_TOP, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 5, true, false, 0.0f, false };
+        blocks.push_back(safeRoute);
+    }
+
+    // 迷路内のコイン
+    Block mazeCoin1 = { BLOCK_COIN, BLOCK_SIZE * 59, STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, false };
+    blocks.push_back(mazeCoin1);
     totalCoins++;
-    Block coin8 = { BLOCK_COIN, BLOCK_SIZE * 57, STAGE_HEIGHT - BLOCK_SIZE * 4, true, true, 0.0f, false };
-    blocks.push_back(coin8);
+    Block mazeCoin2 = { BLOCK_COIN, BLOCK_SIZE * 63, STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, false };
+    blocks.push_back(mazeCoin2);
+    totalCoins++;
+    Block routeCoin = { BLOCK_COIN, BLOCK_SIZE * 61, STAGE_HEIGHT - BLOCK_SIZE * 6, true, true, 0.0f, false };
+    blocks.push_back(routeCoin);
     totalCoins++;
 
-    // === 追加エリア：平地コイン ===
-    // 地上に散らばったコイン
-    Block coin9 = { BLOCK_COIN, BLOCK_SIZE * 5, STAGE_HEIGHT - BLOCK_SIZE * 2, true, true, 0.0f, false };
-    blocks.push_back(coin9);
-    totalCoins++;
-    Block coin10 = { BLOCK_COIN, BLOCK_SIZE * 13, STAGE_HEIGHT - BLOCK_SIZE * 2, true, true, 0.0f, false };
-    blocks.push_back(coin10);
+    // ===== ギミック5: 低いコインタワー（密集階段） =====
+    // 中央の塔（低め、3段）
+    for (int y = 1; y <= 3; y++) {
+        Block towerStone = { BLOCK_STONE, BLOCK_SIZE * 70, STAGE_HEIGHT - BLOCK_SIZE * y, true, false, 0.0f, false };
+        blocks.push_back(towerStone);
+    }
+    Block towerTop = { BLOCK_STONE_TOP, BLOCK_SIZE * 70, STAGE_HEIGHT - BLOCK_SIZE * 4, true, false, 0.0f, false };
+    blocks.push_back(towerTop);
+
+    // 簡単な階段（隣接配置）
+    for (int i = 0; i < 3; i++) {
+        Block step = { BLOCK_DIRT_TOP, (float)((68 + i) * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * (2 + i), true, false, 0.0f, false };
+        blocks.push_back(step);
+
+        // 各段にコイン
+        Block stepCoin = { BLOCK_COIN, (float)((68 + i) * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * (3 + i), true, true, 0.0f, false };
+        blocks.push_back(stepCoin);
+        totalCoins++;
+    }
+
+    // 塔の頂上コイン
+    Block towerBonusCoin = { BLOCK_COIN, BLOCK_SIZE * 70, STAGE_HEIGHT - BLOCK_SIZE * 5, true, true, 0.0f, false };
+    blocks.push_back(towerBonusCoin);
     totalCoins++;
 
-    // ステージサイズ調整
-    STAGE_WIDTH = BLOCK_SIZE * 65; // より長いコースに
+    // ===== ギミック6: 隣接ブリッジ =====
+    // 連続する安全な橋
+    for (int x = 73; x < 78; x++) {
+        // 幅2ブロックの安全な橋
+        for (int w = 0; w < 2; w++) {
+            Block bridge = { BLOCK_CRATE, (float)((x + w * 0.5f) * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, true };
+            blocks.push_back(bridge);
+            totalCrates++;
+        }
 
-    OutputDebugStringA("BlockAthleticsScene: Accessible athletics course initialized\n");
+        // 下に安全ネット
+        for (int w = 0; w < 3; w++) {
+            Block safetyNet = { BLOCK_DIRT_TOP, (float)((x + w * 0.33f) * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 2, true, false, 0.0f, false };
+            blocks.push_back(safetyNet);
+        }
+    }
+
+    // 橋の中央にコイン
+    Block bridgeCoin = { BLOCK_COIN, BLOCK_SIZE * 75, STAGE_HEIGHT - BLOCK_SIZE * 4, true, true, 0.0f, false };
+    blocks.push_back(bridgeCoin);
+    totalCoins++;
+
+    // ===== ギミック7: 小さなピラミッド（隣接設計） =====
+    // 3段の小さなピラミッド
+    for (int level = 0; level < 3; level++) {
+        for (int x = 0; x <= (2 - level); x++) {
+            Block pyramidStone = { BLOCK_STONE, (float)((82 + x) * BLOCK_SIZE),
+                                 STAGE_HEIGHT - BLOCK_SIZE * (2 + level), true, false, 0.0f, false };
+            blocks.push_back(pyramidStone);
+
+            // コイン（各段）
+            Block pyramidCoin = { BLOCK_COIN, (float)((82 + x) * BLOCK_SIZE),
+                                STAGE_HEIGHT - BLOCK_SIZE * (3 + level), true, true, 0.0f, false };
+            blocks.push_back(pyramidCoin);
+            totalCoins++;
+        }
+    }
+
+    // ===== セクション4: 最終平地エリア =====
+    for (int x = 87; x < 95; x++) {
+        Block finalGround = { BLOCK_DIRT_TOP, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 2, true, false, 0.0f, false };
+        blocks.push_back(finalGround);
+        Block finalDirt = { BLOCK_DIRT, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE, true, false, 0.0f, false };
+        blocks.push_back(finalDirt);
+    }
+
+    // 最終エリアのボーナスコイン
+    for (int i = 0; i < 3; i++) {
+        Block finalCoin = { BLOCK_COIN, BLOCK_SIZE * (89 + i * 2), STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, false };
+        blocks.push_back(finalCoin);
+        totalCoins++;
+    }
+
+    // ===== ギミック8: 簡単アクセス隠し部屋 =====
+    // 地上からすぐアクセス可能
+    for (int x = 97; x < 101; x++) {
+        for (int y = 2; y < 3; y++) {
+            if (x == 97 || x == 100) {
+                if (!(x == 98)) { // 広い入口
+                    Block secretWall = { BLOCK_CRATE, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * y, true, true, 0.0f, true };
+                    blocks.push_back(secretWall);
+                    totalCrates++;
+                }
+            }
+        }
+    }
+
+    // 隠し部屋の中に豪華なコイン
+    for (int i = 0; i < 3; i++) {
+        Block secretCoin = { BLOCK_COIN, (float)((98 + i) * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, false };
+        blocks.push_back(secretCoin);
+        totalCoins++;
+    }
+
+    // ===== ゴール前の連続エリア =====
+    for (int x = 103; x < 110; x++) {
+        Block preGoal = { BLOCK_DIRT_TOP, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 2, true, false, 0.0f, false };
+        blocks.push_back(preGoal);
+        Block preGoalDirt = { BLOCK_DIRT, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE, true, false, 0.0f, false };
+        blocks.push_back(preGoalDirt);
+    }
+
+    // 最後のお祝いコイン
+    Block celebrationCoin = { BLOCK_COIN, BLOCK_SIZE * 106, STAGE_HEIGHT - BLOCK_SIZE * 3, true, true, 0.0f, false };
+    blocks.push_back(celebrationCoin);
+    totalCoins++;
+
+    // ===== ゴールエリアの台座（隣接配置） =====
+    for (int x = 112; x < 118; x++) {
+        for (int y = 1; y <= 2; y++) {
+            Block goalStone = { BLOCK_STONE, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * y, true, false, 0.0f, false };
+            blocks.push_back(goalStone);
+        }
+        Block goalTop = { BLOCK_STONE_TOP, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 3, true, false, 0.0f, false };
+        blocks.push_back(goalTop);
+    }
+
+    // ステージサイズ設定（大幅短縮）
+    STAGE_WIDTH = BLOCK_SIZE * 120;
+
+    OutputDebugStringA("BlockAthleticsScene: Accessible jump-friendly course initialized\n");
 
     char debugMsg[256];
-    sprintf_s(debugMsg, "BlockAthleticsScene: Course stats - Coins: %d, Crates: %d, Length: %d blocks\n",
+    sprintf_s(debugMsg, "BlockAthleticsScene: Accessible course stats - Coins: %d, Crates: %d, Length: %d blocks\n",
         totalCoins, totalCrates, STAGE_WIDTH / BLOCK_SIZE);
     OutputDebugStringA(debugMsg);
 }
 
 void BlockAthleticsScene::InitializeGoalArea()
 {
-    // ゴールエリアの設定（ステージ最後尾）
-    goalArea.x = STAGE_WIDTH - BLOCK_SIZE * 6;  // ゴールエリアを6ブロック分に拡大
-    goalArea.y = STAGE_HEIGHT - BLOCK_SIZE * 5;  // 高さも5ブロック分
-    goalArea.width = BLOCK_SIZE * 6;
-    goalArea.height = BLOCK_SIZE * 5;
+    // ゴールエリアの設定（アクセス可能な設計に調整）
+    goalArea.x = STAGE_WIDTH - BLOCK_SIZE * 8;   // より近いゴールエリア
+    goalArea.y = STAGE_HEIGHT - BLOCK_SIZE * 4;  // 低めの高さ
+    goalArea.width = BLOCK_SIZE * 8;             // 幅8ブロック分
+    goalArea.height = BLOCK_SIZE * 4;            // 高さは4ブロック分
     goalArea.isActive = false;  // 初期状態では非アクティブ
     goalArea.animationPhase = 0.0f;
     goalArea.goalTextureHandle = -1;
     goalArea.flagTextureHandle = -1;
 
-    // ゴールフラグの豪華な台座を作成
-    for (int x = 54; x < 60; x++) {
-        for (int y = 1; y <= 3; y++) {
-            Block stoneBlock = { BLOCK_STONE, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * y, true, false, 0.0f, false };
-            blocks.push_back(stoneBlock);
-        }
-        // 最上段は特別なトップブロック
-        Block stoneTop = { BLOCK_STONE_TOP, (float)(x * BLOCK_SIZE), STAGE_HEIGHT - BLOCK_SIZE * 4, true, false, 0.0f, false };
-        blocks.push_back(stoneTop);
-    }
-
     // ゴールの表示状態
     showGoalHint = false;
     goalHintTimer = 0.0f;
 
-    OutputDebugStringA("BlockAthleticsScene: Goal area initialized\n");
+    OutputDebugStringA("BlockAthleticsScene: Jump-accessible goal area initialized\n");
 }
 
 void BlockAthleticsScene::InitializePlayer()
@@ -414,14 +527,14 @@ void BlockAthleticsScene::InitializePlayer()
     player.facingRight = true;
     player.animationFrame = 0;
     player.animationTimer = 0.0f;
-    player.jumpPower = -18.0f;  // ふわっとしたジャンプ力に調整
-    player.moveSpeed = 10.0f;   // 移動速度はそのまま
+    player.jumpPower = -20.0f;  // ふわっとしたジャンプ力に調整
+    player.moveSpeed = 6.0f;   // 移動速度はそのまま
 }
 
 void BlockAthleticsScene::Update()
 {
     if (currentState == STATE_PLAYING) {
-        gameTimer += 0.016f; // 60FPS想定
+        gameTimer += 0.016f;
     }
 
     UpdateInput();
@@ -433,18 +546,40 @@ void BlockAthleticsScene::Update()
         UpdateBlockDestruction();
         UpdateGoalArea();
     }
+    else if (currentState == STATE_COMPLETED) {
+        // **メンバ変数タイマーを使用**
+        clearStateTimer += 0.016f;
+        clearAnimTimer += 0.016f;
+
+        // 15秒後に自動復帰
+        if (clearStateTimer >= 15.0f) {
+            exitRequested = true;
+            ResetClearTimers();
+            OutputDebugStringA("BlockAthleticsScene: Auto-return after 15 seconds\n");
+        }
+
+        // ESCで即座に復帰
+        if (escPressed && !escPressedPrev) {
+            exitRequested = true;
+            ResetClearTimers();
+            OutputDebugStringA("BlockAthleticsScene: Manual return with ESC\n");
+        }
+
+        // エフェクトは継続
+        UpdateEffects();
+        UpdateBlockFragments();
+    }
 
     UpdateCamera();
     UpdateEffects();
     UpdateBlockFragments();
 
-    // HUDを常に更新（ライフ表示のため）
     hudSystem.SetCurrentLife(playerLife);
 
-    // ESCキーで終了
-    if (escPressed && !escPressedPrev) {
+    // プレイ中のESC処理
+    if (escPressed && !escPressedPrev && currentState == STATE_PLAYING) {
         exitRequested = true;
-        OutputDebugStringA("BlockAthleticsScene: ESC pressed - exiting\n");
+        OutputDebugStringA("BlockAthleticsScene: ESC pressed during play - exiting\n");
     }
 }
 
@@ -465,7 +600,7 @@ void BlockAthleticsScene::UpdateGoalArea()
         }
 
         // 特別なサウンド再生
-        SoundManager::GetInstance().PlaySE(SoundManager::SFX_COIN);  // ゴール用の音があれば変更
+        SoundManager::GetInstance().PlaySE(SoundManager::SFX_COIN);
 
         OutputDebugStringA("BlockAthleticsScene: GOAL AREA ACTIVATED!\n");
     }
@@ -493,18 +628,8 @@ void BlockAthleticsScene::UpdateGoalArea()
             playerCenterY >= goalArea.y && playerCenterY <= goalArea.y + goalArea.height) {
 
             if (currentState == STATE_PLAYING) {
-                currentState = STATE_COMPLETED;
-                gameCompleted = true;
-
-                // 盛大なクリアエフェクト
-                for (int i = 0; i < 100; i++) {
-                    CreateParticles(goalArea.x + goalArea.width / 2, goalArea.y + goalArea.height / 2,
-                        GetColor(255, 215, 0), 5);
-                    CreateParticles(goalArea.x + goalArea.width / 2, goalArea.y + goalArea.height / 2,
-                        GetColor(255, 255, 255), 3);
-                }
-
-                OutputDebugStringA("BlockAthleticsScene: GOAL REACHED! Game completed!\n");
+                // **修正: クリア処理を改善**
+                CompleteGame();
             }
         }
     }
@@ -598,27 +723,39 @@ void BlockAthleticsScene::UpdateEffects()
 void BlockAthleticsScene::DrawBlockFragments()
 {
     for (const auto& fragment : blockFragments) {
-        if (fragment.life > 0 && fragment.graphicHandle != -1) {
-            int alpha = (int)(255 * (fragment.life / fragment.maxLife));
-            int size = (int)(BLOCK_SIZE / 2 * fragment.scale); // 1/2サイズの破片
+        if (fragment.life <= 0) continue;
 
-            int screenX = (int)(fragment.x - cameraX);
-            int screenY = (int)fragment.y;
+        int alpha = (int)(255 * (fragment.life / fragment.maxLife));
+        int size = (int)(BLOCK_SIZE / 2 * fragment.scale); // 1/2サイズの破片
 
-            // 画面外カリング
-            if (screenX < -size || screenX > SCREEN_W + size) continue;
+        int screenX = (int)(fragment.x - cameraX);
+        int screenY = (int)fragment.y;
 
-            SetDrawBlendMode(DX_BLENDMODE_ALPHA, alpha);
+        // 画面外カリング
+        if (screenX < -size || screenX > SCREEN_W + size) continue;
 
-            // 回転描画
+        // 透明度設定
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, alpha);
+
+        // テクスチャがある場合は回転描画
+        if (fragment.graphicHandle != -1) {
             float centerX = screenX + size / 2;
             float centerY = screenY + size / 2;
 
-            DrawRotaGraph((int)centerX, (int)centerY, fragment.scale, fragment.rotation,
+            // 回転描画
+            DrawRotaGraph3((int)centerX, (int)centerY,
+                size / 2, size / 2,  // 中心座標（相対）
+                fragment.scale, fragment.scale,  // X,Y拡大率
+                fragment.rotation,  // 回転角
                 fragment.graphicHandle, TRUE);
-
-            SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
         }
+        else {
+            // テクスチャがない場合は色付きの矩形で代用
+            DrawBox(screenX, screenY, screenX + size, screenY + size,
+                fragment.color, TRUE);
+        }
+
+        SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
     }
 }
 
@@ -735,26 +872,24 @@ void BlockAthleticsScene::UpdateCollisions()
         // コインのみ収集処理
         if (blocks[i].type != BLOCK_COIN) continue;
 
-        // プレイヤーとコインの衝突判定
-        float blockLeft = blocks[i].x;
-        float blockRight = blocks[i].x + BLOCK_SIZE;
-        float blockTop = blocks[i].y;
-        float blockBottom = blocks[i].y + BLOCK_SIZE;
+        // **改善: より寛容な当たり判定**
+        float blockCenterX = blocks[i].x + BLOCK_SIZE / 2;
+        float blockCenterY = blocks[i].y + BLOCK_SIZE / 2;
+        float playerCenterX = player.x + BLOCK_SIZE / 2;
+        float playerCenterY = player.y + BLOCK_SIZE / 2;
 
-        float playerLeft = player.x;
-        float playerRight = player.x + BLOCK_SIZE;
-        float playerTop = player.y;
-        float playerBottom = player.y + BLOCK_SIZE;
+        // 距離による円形の当たり判定（より取りやすく）
+        float distance = sqrtf((playerCenterX - blockCenterX) * (playerCenterX - blockCenterX) +
+            (playerCenterY - blockCenterY) * (playerCenterY - blockCenterY));
 
-        // 衝突チェック（少し余裕を持たせる）
-        if (playerRight > blockLeft + 10 && playerLeft < blockRight - 10 &&
-            playerBottom > blockTop + 10 && playerTop < blockBottom - 10) {
+        // **当たり判定範囲を拡大（ブロックサイズの80%）**
+        float collisionRange = BLOCK_SIZE * 0.8f;
 
+        if (distance <= collisionRange) {
             HandlePlayerBlockCollision(blocks[i], i);
         }
     }
 }
-
 void BlockAthleticsScene::HandlePlayerBlockCollision(const Block& block, int blockIndex)
 {
     switch (block.type) {
@@ -830,8 +965,45 @@ void BlockAthleticsScene::HandleBlockDestruction()
 
 void BlockAthleticsScene::CreateBlockFragments(float x, float y, BlockType blockType)
 {
+    // 破片テクスチャが正しく読み込まれているかチェック
+    bool hasValidFragments = false;
+    for (int i = 0; i < 4; i++) {
+        if (fragmentHandles[blockType][i] != -1) {
+            hasValidFragments = true;
+            break;
+        }
+    }
+
+    if (!hasValidFragments) {
+        // 破片テクスチャがない場合は通常のパーティクルエフェクトで代用
+        int particleColor = GetColor(139, 69, 19);
+        switch (blockType) {
+        case BLOCK_DIRT:
+        case BLOCK_DIRT_TOP:
+            particleColor = GetColor(139, 69, 19);
+            break;
+        case BLOCK_STONE:
+        case BLOCK_STONE_TOP:
+            particleColor = GetColor(128, 128, 128);
+            break;
+        case BLOCK_CRATE:
+            particleColor = GetColor(160, 82, 45);
+            break;
+        case BLOCK_EXPLOSIVE:
+            particleColor = GetColor(255, 100, 0);
+            break;
+        case BLOCK_COIN:
+            particleColor = GetColor(255, 215, 0);
+            break;
+        }
+        CreateParticles(x + BLOCK_SIZE / 2, y + BLOCK_SIZE / 2, particleColor, 20);
+        return;
+    }
+
     // 4つの破片を生成（2x2の格子状に分割）
     for (int i = 0; i < 4; i++) {
+        if (fragmentHandles[blockType][i] == -1) continue;
+
         BlockFragment fragment;
 
         // 破片の初期位置（ブロックを4分割）
@@ -858,32 +1030,60 @@ void BlockAthleticsScene::CreateBlockFragments(float x, float y, BlockType block
         }
 
         // 速度設定（基本方向 + ランダム）
-        float baseSpeed = 4.0f + (rand() % 200) * 0.01f;
+        float baseSpeed = 5.0f + (rand() % 300) * 0.01f;
         float randomAngle = ((rand() % 120) - 60) * 0.0174f; // ±60度のランダム
 
         float cosA = cosf(randomAngle);
         float sinA = sinf(randomAngle);
 
         fragment.velocityX = (directionX * cosA - directionY * sinA) * baseSpeed;
-        fragment.velocityY = (directionX * sinA + directionY * cosA) * baseSpeed - 3.0f; // 上向き成分
+        fragment.velocityY = (directionX * sinA + directionY * cosA) * baseSpeed - 4.0f; // 上向き成分
 
         // 回転設定
         fragment.rotation = (float)(rand() % 360) * 0.0174f;
-        fragment.rotationSpeed = ((rand() % 400) - 200) * 0.005f;
+        fragment.rotationSpeed = ((rand() % 600) - 300) * 0.01f;
 
         // ライフ設定
-        fragment.life = fragment.maxLife = 3.0f + (rand() % 200) * 0.01f;
+        fragment.life = fragment.maxLife = 2.5f + (rand() % 200) * 0.01f;
 
         // 見た目設定
-        fragment.scale = 0.9f + (rand() % 20) * 0.01f;
+        fragment.scale = 0.8f + (rand() % 40) * 0.01f;
         fragment.fragmentType = i;
         fragment.originalBlockType = blockType;
         fragment.graphicHandle = fragmentHandles[blockType][i];
 
+        // 色情報（テクスチャがない場合のフォールバック）
+        switch (blockType) {
+        case BLOCK_DIRT:
+        case BLOCK_DIRT_TOP:
+            fragment.color = GetColor(139, 69, 19);
+            break;
+        case BLOCK_STONE:
+        case BLOCK_STONE_TOP:
+            fragment.color = GetColor(128, 128, 128);
+            break;
+        case BLOCK_CRATE:
+            fragment.color = GetColor(160, 82, 45);
+            break;
+        case BLOCK_EXPLOSIVE:
+            fragment.color = GetColor(255, 100, 0);
+            break;
+        case BLOCK_COIN:
+            fragment.color = GetColor(255, 215, 0);
+            break;
+        default:
+            fragment.color = GetColor(200, 200, 200);
+            break;
+        }
+
         blockFragments.push_back(fragment);
     }
 
- 
+    // デバッグログ
+    char debugMsg[128];
+    sprintf_s(debugMsg, "BlockAthleticsScene: Created %d fragments for block type %d\n",
+        4, blockType);
+    OutputDebugStringA(debugMsg);
 }
 
 void BlockAthleticsScene::CollectCoin(int blockIndex)
@@ -891,17 +1091,32 @@ void BlockAthleticsScene::CollectCoin(int blockIndex)
     blocks[blockIndex].isActive = false;
     coinsCollected++;
 
-    // 派手なコイン収集エフェクト
-    CreateParticles(blocks[blockIndex].x + BLOCK_SIZE / 2, blocks[blockIndex].y + BLOCK_SIZE / 2,
-        GetColor(255, 215, 0), 15);
-    CreateParticles(blocks[blockIndex].x + BLOCK_SIZE / 2, blocks[blockIndex].y + BLOCK_SIZE / 2,
-        GetColor(255, 255, 100), 10);
-    CreateSparkleEffect(blocks[blockIndex].x + BLOCK_SIZE / 2, blocks[blockIndex].y + BLOCK_SIZE / 2);
+    float coinX = blocks[blockIndex].x + BLOCK_SIZE / 2;
+    float coinY = blocks[blockIndex].y + BLOCK_SIZE / 2;
+
+    // ギミック判定とエフェクト
+    string gimmickType = DetectGimmickType(coinX, coinY);
+
+    if (gimmickType != "normal") {
+        // 特別なギミックコインの場合
+        CreateGimmickClearEffect(coinX, coinY, 3);
+
+        // ギミック完了チェック
+        if (IsGimmickCompleted(gimmickType)) {
+            CreateGimmickDiscoveryEffect(coinX, coinY, gimmickType);
+        }
+    }
+    else {
+        // 通常のコイン収集エフェクト
+        CreateParticles(coinX, coinY, GetColor(255, 215, 0), 15);
+        CreateSparkleEffect(coinX, coinY);
+    }
 
     SoundManager::GetInstance().PlaySE(SoundManager::SFX_COIN);
 
     char debugMsg[128];
-    sprintf_s(debugMsg, "BlockAthleticsScene: Coin collected! %d/%d\n", coinsCollected, totalCoins);
+    sprintf_s(debugMsg, "BlockAthleticsScene: Coin collected (%s)! %d/%d\n",
+        gimmickType.c_str(), coinsCollected, totalCoins);
     OutputDebugStringA(debugMsg);
 }
 
@@ -976,7 +1191,7 @@ void BlockAthleticsScene::RespawnPlayer()
     // ライフを1つ減らす
     if (playerLife > 0) {
         playerLife--;
-        hudSystem.SetCurrentLife(playerLife); // HUDを即座に更新
+        hudSystem.SetCurrentLife(playerLife);
 
         // ダメージエフェクト
         CreateParticles(player.x + BLOCK_SIZE / 2, player.y + BLOCK_SIZE / 2, GetColor(255, 0, 0), 20);
@@ -999,18 +1214,12 @@ void BlockAthleticsScene::RespawnPlayer()
     // リスポーンエフェクト
     CreateParticles(player.x + BLOCK_SIZE / 2, player.y + BLOCK_SIZE / 2, GetColor(0, 255, 255), 15);
 
-    // ライフが0になったらゲームオーバー
+    // ライフが0になったらゲームリセット
     if (playerLife <= 0) {
-        // ゲームオーバー処理
-        playerLife = 6; // ライフを全回復
-        hudSystem.SetCurrentLife(playerLife);
+        // **修正: 完全なゲームリセットを実行**
+        ResetGame();
 
-        // 全てのアイテムをリセット
-        InitializeStage();
-        coinsCollected = 0;
-        cratesDestroyed = 0;
-
-        OutputDebugStringA("BlockAthleticsScene: Game Over! Stage reset with full life\n");
+        OutputDebugStringA("BlockAthleticsScene: Game Over! Full game reset executed\n");
     }
 
     OutputDebugStringA("BlockAthleticsScene: Player respawned!\n");
@@ -1283,6 +1492,52 @@ void BlockAthleticsScene::DrawParticles()
     }
 }
 
+void BlockAthleticsScene::DrawGimmickProgress()
+{
+    // ギミック進行状況パネル
+    SetDrawBlendMode(DX_BLENDMODE_ALPHA, 180);
+    DrawBox(SCREEN_W - 400, 100, SCREEN_W - 50, 300, GetColor(20, 20, 40), TRUE);
+    SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+
+    DrawBox(SCREEN_W - 400, 100, SCREEN_W - 50, 300, GetColor(100, 150, 255), FALSE);
+
+    DrawStringToHandle(SCREEN_W - 390, 110, "ギミック攻略状況", GetColor(255, 255, 255), fontHandle);
+
+    // 主要ギミックの完了状況
+    string gimmicks[] = {
+        "coin_stairs", "treasure_box", "explosive_maze",
+        "coin_tower", "secret_room"
+    };
+    string gimmickNames[] = {
+        "コイン階段", "宝箱", "爆発迷路",
+        "コインタワー", "隠し部屋"
+    };
+
+    for (int i = 0; i < 5; i++) {
+        bool completed = IsGimmickCompleted(gimmicks[i]);
+        int color = completed ? GetColor(100, 255, 100) : GetColor(255, 200, 100);
+        string status = completed ? " ✓" : " ...";
+
+        string displayText = gimmickNames[i] + status;
+        DrawStringToHandle(SCREEN_W - 380, 140 + i * 25, displayText.c_str(), color, fontHandle);
+    }
+
+    // 全ギミック完了ボーナス表示
+    int completedCount = 0;
+    for (int i = 0; i < 5; i++) {
+        if (IsGimmickCompleted(gimmicks[i])) completedCount++;
+    }
+
+    if (completedCount == 5) {
+        DrawStringToHandle(SCREEN_W - 390, 270, "全ギミック制覇！", GetColor(255, 215, 0), fontHandle);
+    }
+    else {
+        char progressText[64];
+        sprintf_s(progressText, "制覇: %d/5", completedCount);
+        DrawStringToHandle(SCREEN_W - 390, 270, progressText, GetColor(200, 200, 200), fontHandle);
+    }
+}
+
 void BlockAthleticsScene::DrawUI()
 {
     // プロフェッショナルなHUDシステム描画
@@ -1290,127 +1545,222 @@ void BlockAthleticsScene::DrawUI()
 
     // スタイリッシュなゲーム情報パネル
     SetDrawBlendMode(DX_BLENDMODE_ALPHA, 220);
-    DrawBox(30, 200, 500, 400, GetColor(10, 10, 30), TRUE);
+    DrawBox(30, 200, 600, 450, GetColor(10, 10, 30), TRUE);
     SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
 
     // パネルの光る枠線
     for (int i = 0; i < 3; i++) {
-        DrawBox(30 - i, 200 - i, 500 + i, 400 + i, GetColor(100 + i * 30, 200 + i * 20, 255), FALSE);
+        DrawBox(30 - i, 200 - i, 600 + i, 450 + i, GetColor(100 + i * 30, 200 + i * 20, 255), FALSE);
     }
 
     // タイトル（グラデーション風）
-    string title = "BLOCK ATHLETICS CHAMPIONSHIP";
+    string title = "GIMMICK ATHLETICS COURSE";
     DrawStringToHandle(40, 210, title.c_str(), GetColor(255, 215, 0), largeFontHandle);
 
     string subtitle = "Featuring: " + characterName;
     DrawStringToHandle(45, 255, subtitle.c_str(), GetColor(200, 255, 200), fontHandle);
 
-    // 進行状況（プログレスバー付き）
+    // 進行状況とギミック情報
     char progressText[256];
 
-    // クレート破壊
-    sprintf_s(progressText, "OBSTACLES CLEARED: %d/%d", cratesDestroyed, totalCrates);
-    DrawStringToHandle(40, 290, progressText, GetColor(255, 255, 255), fontHandle);
+    // コイン収集（強調表示）
+    sprintf_s(progressText, "TREASURES FOUND: %d/%d", coinsCollected, totalCoins);
+    int coinColor = (coinsCollected >= totalCoins) ? GetColor(100, 255, 100) : GetColor(255, 215, 0);
+    DrawStringToHandle(40, 290, progressText, coinColor, fontHandle);
 
-    // クレートプログレスバー
-    float crateProgress = totalCrates > 0 ? (float)cratesDestroyed / totalCrates : 0.0f;
-    DrawProgressBar(40, 315, 200, 15, crateProgress, GetColor(255, 100, 100), GetColor(100, 50, 50));
+    // コインプログレスバー
+    float coinProgress = totalCoins > 0 ? (float)coinsCollected / totalCoins : 0.0f;
+    DrawProgressBar(40, 315, 250, 15, coinProgress, GetColor(255, 215, 0), GetColor(100, 100, 50));
+
+    // ギミック破壊状況
+    sprintf_s(progressText, "GIMMICKS CLEARED: %d/%d", cratesDestroyed, totalCrates);
+    DrawStringToHandle(40, 345, progressText, GetColor(255, 100, 100), fontHandle);
+
+    // ギミックプログレスバー
+    float gimmickProgress = totalCrates > 0 ? (float)cratesDestroyed / totalCrates : 0.0f;
+    DrawProgressBar(40, 370, 250, 15, gimmickProgress, GetColor(255, 100, 100), GetColor(100, 50, 50));
 
     // タイム表示（大きく目立つ）
     sprintf_s(progressText, "TIME: %.2fs", gameTimer);
-    DrawStringToHandle(300, 290, progressText, GetColor(100, 255, 255), largeFontHandle);
+    DrawStringToHandle(350, 290, progressText, GetColor(100, 255, 255), largeFontHandle);
+
+    // ベストタイム表示
+    if (bestTime > 0.0f) {
+        sprintf_s(progressText, "BEST: %.2fs", bestTime);
+        DrawStringToHandle(350, 330, progressText, GetColor(255, 215, 0), fontHandle);
+    }
 
     // 完了率表示
     float totalProgress = ((float)coinsCollected / totalCoins + (float)cratesDestroyed / totalCrates) / 2.0f;
     sprintf_s(progressText, "COMPLETION: %.1f%%", totalProgress * 100);
-    DrawStringToHandle(300, 340, progressText, GetColor(255, 200, 255), fontHandle);
+    DrawStringToHandle(350, 370, progressText, GetColor(255, 200, 255), fontHandle);
 
-    // プロフェッショナルな操作説明（日本語）
+    // ギミック解説パネル
     SetDrawBlendMode(DX_BLENDMODE_ALPHA, 200);
-    DrawBox(30, SCREEN_H - 200, 800, SCREEN_H - 30, GetColor(20, 20, 40), TRUE);
+    DrawBox(30, SCREEN_H - 250, 900, SCREEN_H - 30, GetColor(20, 20, 40), TRUE);
     SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
 
     // 操作説明の枠線
-    DrawBox(30, SCREEN_H - 200, 800, SCREEN_H - 30, GetColor(100, 150, 255), FALSE);
+    DrawBox(30, SCREEN_H - 250, 900, SCREEN_H - 30, GetColor(100, 150, 255), FALSE);
 
-    DrawStringToHandle(40, SCREEN_H - 190, "【操作方法】", GetColor(255, 255, 255), largeFontHandle);
-    DrawStringToHandle(40, SCREEN_H - 150, "◄► 矢印キー: コースを移動", GetColor(200, 255, 200), fontHandle);
-    DrawStringToHandle(40, SCREEN_H - 120, "SPACE: パワージャンプ", GetColor(255, 255, 100), fontHandle);
-    DrawStringToHandle(40, SCREEN_H - 90, "↓ 下キー: 急降下", GetColor(100, 200, 255), fontHandle);
-    DrawStringToHandle(40, SCREEN_H - 60, "目標: 全てのコインを集めてゴールに到達！", GetColor(255, 200, 100), fontHandle);
+    DrawStringToHandle(40, SCREEN_H - 240, "【優しいギミックコース攻略法】", GetColor(255, 255, 255), largeFontHandle);
+
+    // ギミック説明（2列レイアウト）- より親しみやすい説明
+    // 左列
+    DrawStringToHandle(40, SCREEN_H - 200, "◆ 幅広コイン階段: ゆったり段々コインを登って収集", GetColor(255, 215, 0), fontHandle);
+    DrawStringToHandle(40, SCREEN_H - 175, "◆ 地上宝箱: 地面から簡単アクセスでお宝ゲット", GetColor(255, 100, 100), fontHandle);
+    DrawStringToHandle(40, SCREEN_H - 150, "◆ 安全ジグザグ道: 幅広足場で安心して進める", GetColor(150, 255, 150), fontHandle);
+    DrawStringToHandle(40, SCREEN_H - 125, "◆ 複数ルート迷路: 3つの安全な道から選択可能", GetColor(255, 150, 0), fontHandle);
+    DrawStringToHandle(40, SCREEN_H - 100, "◆ 低めコインタワー: 幅広階段で楽々登頂", GetColor(100, 200, 255), fontHandle);
+
+    // 右列
+    DrawStringToHandle(480, SCREEN_H - 200, "◆ 安全ブリッジ: 幅広橋で安心して渡れる", GetColor(200, 150, 100), fontHandle);
+    DrawStringToHandle(480, SCREEN_H - 175, "◆ 低いピラミッド: 4段の優しいピラミッド探索", GetColor(255, 255, 100), fontHandle);
+    DrawStringToHandle(480, SCREEN_H - 150, "◆ 大きな隠し部屋: 見つけやすい秘密の入口", GetColor(150, 255, 255), fontHandle);
+    DrawStringToHandle(480, SCREEN_H - 125, "◆ 広い休憩エリア: たくさんの平地で安心休憩", GetColor(255, 150, 255), fontHandle);
+    DrawStringToHandle(480, SCREEN_H - 100, "◆ 豪華ゴール台座: 低く広い最終ゴールエリア", GetColor(255, 215, 0), fontHandle);
+
+    // 基本操作（下部）- 優しい説明に変更
+    DrawStringToHandle(40, SCREEN_H - 75, "操作: ◄►のんびり移動 SPACE:ふわっとジャンプ ↓:ソフト急降下 B:ブロック破壊", GetColor(200, 255, 200), fontHandle);
+    DrawStringToHandle(40, SCREEN_H - 50, "目標: リラックスしてコインを集めて、楽しくゴールを目指そう！", GetColor(255, 200, 100), fontHandle);
 
 #ifdef _DEBUG
     // デバッグ時のみのテスト用操作説明
-    DrawStringToHandle(40, SCREEN_H - 30, "テスト: 1/2キーでライフ減少/増加", GetColor(150, 150, 150), fontHandle);
+    DrawStringToHandle(650, SCREEN_H - 75, "テスト: 1/2キーでライフ減少/増加", GetColor(150, 150, 150), fontHandle);
 #endif
 
     // 右下にESC情報
     DrawStringToHandle(SCREEN_W - 300, SCREEN_H - 50, "ESC: メニューに戻る", GetColor(150, 150, 150), fontHandle);
 
+    // **ギミック進行状況表示を追加**
+    DrawGimmickProgress();
+
     // ゲーム完了時の豪華な表示
     if (currentState == STATE_COMPLETED) {
-        // 半透明オーバーレイ
-        SetDrawBlendMode(DX_BLENDMODE_ALPHA, 240);
-        DrawBox(0, 0, SCREEN_W, SCREEN_H, GetColor(0, 10, 30), TRUE);
-        SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
-
-        // 大きな完了パネル
-        SetDrawBlendMode(DX_BLENDMODE_ALPHA, 250);
-        DrawBox(SCREEN_W / 2 - 400, SCREEN_H / 2 - 200, SCREEN_W / 2 + 400, SCREEN_H / 2 + 200, GetColor(10, 30, 60), TRUE);
-        SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
-
-        // 光る枠線
-        for (int i = 0; i < 5; i++) {
-            int brightness = 100 + i * 30;
-            DrawBox(SCREEN_W / 2 - 400 - i, SCREEN_H / 2 - 200 - i, SCREEN_W / 2 + 400 + i, SCREEN_H / 2 + 200 + i,
-                GetColor(brightness, brightness + 50, 255), FALSE);
-        }
-
-        // 完了メッセージ
-        string completedText = "チャンピオンシップ クリア！";
-        int textWidth = GetDrawStringWidthToHandle(completedText.c_str(), (int)completedText.length(), largeFontHandle);
-        DrawStringToHandle(SCREEN_W / 2 - textWidth / 2, SCREEN_H / 2 - 120, completedText.c_str(), GetColor(255, 215, 0), largeFontHandle);
-
-        // 詳細結果
-        char resultText[256];
-        sprintf_s(resultText, "クリアタイム: %.2f秒", gameTimer);
-        int timeWidth = GetDrawStringWidthToHandle(resultText, strlen(resultText), fontHandle);
-        DrawStringToHandle(SCREEN_W / 2 - timeWidth / 2, SCREEN_H / 2 - 60, resultText, GetColor(100, 255, 255), fontHandle);
-
-        sprintf_s(resultText, "コイン収集: %d/%d (%.1f%%)", coinsCollected, totalCoins,
-            (float)coinsCollected / totalCoins * 100);
-        int coinWidth = GetDrawStringWidthToHandle(resultText, strlen(resultText), fontHandle);
-        DrawStringToHandle(SCREEN_W / 2 - coinWidth / 2, SCREEN_H / 2 - 20, resultText, GetColor(255, 215, 0), fontHandle);
-
-        sprintf_s(resultText, "障害物クリア: %d/%d", cratesDestroyed, totalCrates);
-        int crateWidth = GetDrawStringWidthToHandle(resultText, strlen(resultText), fontHandle);
-        DrawStringToHandle(SCREEN_W / 2 - crateWidth / 2, SCREEN_H / 2 + 20, resultText, GetColor(255, 100, 100), fontHandle);
-
-        // 評価
-        string gradeText = "";
-        if (coinsCollected == totalCoins && gameTimer < 60.0f) {
-            gradeText = "ランク: S+ (パーフェクト！)";
-        }
-        else if (coinsCollected == totalCoins) {
-            gradeText = "ランク: S (素晴らしい！)";
-        }
-        else if (coinsCollected >= totalCoins * 0.8f) {
-            gradeText = "ランク: A (良い！)";
-        }
-        else {
-            gradeText = "ランク: B (がんばった！)";
-        }
-
-        int gradeWidth = GetDrawStringWidthToHandle(gradeText.c_str(), (int)gradeText.length(), largeFontHandle);
-        DrawStringToHandle(SCREEN_W / 2 - gradeWidth / 2, SCREEN_H / 2 + 80, gradeText.c_str(), GetColor(255, 255, 100), largeFontHandle);
-
-        // 終了指示
-        string exitText = "ESCキーでキャラクター選択に戻る";
-        int exitWidth = GetDrawStringWidthToHandle(exitText.c_str(), (int)exitText.length(), fontHandle);
-        DrawStringToHandle(SCREEN_W / 2 - exitWidth / 2, SCREEN_H / 2 + 140, exitText.c_str(), GetColor(200, 200, 200), fontHandle);
+        DrawGameClearScreen();
     }
 }
 
+void BlockAthleticsScene::DrawGameClearScreen()
+{
+
+    //メンバ関数のタイマーを使用する
+    int overlayAlpha = (int)(200 + sinf(clearAnimTimer * 2) * 40);
+    // 半透明オーバーレイ（アニメーション付き）
+    static float clearAnimTimer = 0.0f;
+    clearAnimTimer += 0.016f;
+
+  
+    SetDrawBlendMode(DX_BLENDMODE_ALPHA, overlayAlpha);
+    DrawBox(0, 0, SCREEN_W, SCREEN_H, GetColor(0, 10, 30), TRUE);
+    SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+
+    // 大きな完了パネル（脈打つエフェクト）
+    float panelScale = 1.0f + sinf(clearAnimTimer * 3) * 0.05f;
+    int panelWidth = (int)(800 * panelScale);
+    int panelHeight = (int)(400 * panelScale);
+
+    SetDrawBlendMode(DX_BLENDMODE_ALPHA, 250);
+    DrawBox(SCREEN_W / 2 - panelWidth / 2, SCREEN_H / 2 - panelHeight / 2,
+        SCREEN_W / 2 + panelWidth / 2, SCREEN_H / 2 + panelHeight / 2,
+        GetColor(10, 30, 60), TRUE);
+    SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+
+    // 光る枠線（虹色エフェクト）
+    for (int i = 0; i < 5; i++) {
+        int r = (int)(128 + sinf(clearAnimTimer + i * 0.5f) * 127);
+        int g = (int)(128 + sinf(clearAnimTimer + i * 0.5f + 2.1f) * 127);
+        int b = (int)(128 + sinf(clearAnimTimer + i * 0.5f + 4.2f) * 127);
+
+        DrawBox(SCREEN_W / 2 - panelWidth / 2 - i, SCREEN_H / 2 - panelHeight / 2 - i,
+            SCREEN_W / 2 + panelWidth / 2 + i, SCREEN_H / 2 + panelHeight / 2 + i,
+            GetColor(r, g, b), FALSE);
+    }
+
+    // 完了メッセージ（波打つエフェクト）
+    string completedText = "チャンピオンシップ クリア！";
+    int textWidth = GetDrawStringWidthToHandle(completedText.c_str(), (int)completedText.length(), largeFontHandle);
+
+    for (int i = 0; i < 3; i++) {
+        int offsetY = (int)(sinf(clearAnimTimer * 4 + i) * 5);
+        DrawStringToHandle(SCREEN_W / 2 - textWidth / 2 + i, SCREEN_H / 2 - 120 + offsetY,
+            completedText.c_str(), GetColor(255, 215, 0), largeFontHandle);
+    }
+
+    // 詳細結果
+    char resultText[256];
+    sprintf_s(resultText, "クリアタイム: %.2f秒", gameTimer);
+    int timeWidth = GetDrawStringWidthToHandle(resultText, strlen(resultText), fontHandle);
+    DrawStringToHandle(SCREEN_W / 2 - timeWidth / 2, SCREEN_H / 2 - 60, resultText, GetColor(100, 255, 255), fontHandle);
+
+    // ベストタイム更新表示
+    if (gameTimer <= bestTime || bestTime == gameTimer) {
+        string newRecordText = "★ NEW RECORD! ★";
+        int recordWidth = GetDrawStringWidthToHandle(newRecordText.c_str(), (int)newRecordText.length(), largeFontHandle);
+
+        int blinkAlpha = (int)(255 * (0.5f + 0.5f * sinf(clearAnimTimer * 8)));
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, blinkAlpha);
+        DrawStringToHandle(SCREEN_W / 2 - recordWidth / 2, SCREEN_H / 2 - 30,
+            newRecordText.c_str(), GetColor(255, 0, 0), largeFontHandle);
+        SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+    }
+
+    sprintf_s(resultText, "コイン収集: %d/%d (%.1f%%)", coinsCollected, totalCoins,
+        (float)coinsCollected / totalCoins * 100);
+    int coinWidth = GetDrawStringWidthToHandle(resultText, strlen(resultText), fontHandle);
+    DrawStringToHandle(SCREEN_W / 2 - coinWidth / 2, SCREEN_H / 2 + 20, resultText, GetColor(255, 215, 0), fontHandle);
+
+    sprintf_s(resultText, "障害物クリア: %d/%d", cratesDestroyed, totalCrates);
+    int crateWidth = GetDrawStringWidthToHandle(resultText, strlen(resultText), fontHandle);
+    DrawStringToHandle(SCREEN_W / 2 - crateWidth / 2, SCREEN_H / 2 + 50, resultText, GetColor(255, 100, 100), fontHandle);
+
+    // 評価
+    string gradeText = "";
+    if (coinsCollected == totalCoins && gameTimer < 60.0f) {
+        gradeText = "ランク: S+ (パーフェクト！)";
+    }
+    else if (coinsCollected == totalCoins) {
+        gradeText = "ランク: S (素晴らしい！)";
+    }
+    else if (coinsCollected >= totalCoins * 0.8f) {
+        gradeText = "ランク: A (良い！)";
+    }
+    else {
+        gradeText = "ランク: B (がんばった！)";
+    }
+
+    int gradeWidth = GetDrawStringWidthToHandle(gradeText.c_str(), (int)gradeText.length(), largeFontHandle);
+    DrawStringToHandle(SCREEN_W / 2 - gradeWidth / 2, SCREEN_H / 2 + 100, gradeText.c_str(), GetColor(255, 255, 100), largeFontHandle);
+
+    // **修正: 残り時間を計算して表示**
+    static float displayClearTimer = 0.0f;
+    displayClearTimer += 0.016f;
+
+    float remainingTime = 15.0f - displayClearTimer;
+    if (remainingTime < 0) remainingTime = 0;
+
+    // 終了指示（残り時間付き）
+    char exitText[256];
+    sprintf_s(exitText, "ESCキーでキャラクター選択に戻る（自動復帰まで %.1f秒）", remainingTime);
+
+    int blinkAlpha = (int)(255 * (0.7f + 0.3f * sinf(clearAnimTimer * 4)));
+    SetDrawBlendMode(DX_BLENDMODE_ALPHA, blinkAlpha);
+    int exitWidth = GetDrawStringWidthToHandle(exitText, strlen(exitText), fontHandle);
+    DrawStringToHandle(SCREEN_W / 2 - exitWidth / 2, SCREEN_H / 2 + 160, exitText, GetColor(200, 200, 200), fontHandle);
+    SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+
+    // **特別メッセージ（クリア達成を祝福）**
+    if (clearAnimTimer < 3.0f) {
+        string celebrationText = "🎉 素晴らしいパフォーマンス！ 🎉";
+        int celebWidth = GetDrawStringWidthToHandle(celebrationText.c_str(), (int)celebrationText.length(), largeFontHandle);
+
+        int celebAlpha = (int)(255 * (1.0f - clearAnimTimer / 3.0f));
+        SetDrawBlendMode(DX_BLENDMODE_ALPHA, celebAlpha);
+        DrawStringToHandle(SCREEN_W / 2 - celebWidth / 2, SCREEN_H / 2 + 200,
+            celebrationText.c_str(), GetColor(255, 255, 0), largeFontHandle);
+        SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
+    }
+}
 // プログレスバー描画関数
 void BlockAthleticsScene::DrawProgressBar(int x, int y, int width, int height, float progress, int fillColor, int bgColor)
 {
@@ -1501,12 +1851,16 @@ void BlockAthleticsScene::ResetGame()
     gameTimer = 0.0f;
     coinsCollected = 0;
     cratesDestroyed = 0;
+    playerLife = 6; // ライフをフル回復
 
     // プレイヤーをリセット
     InitializePlayer();
 
-    // ブロックをリセット
+    // **重要: ブロックを完全に再生成**
     InitializeStage();
+
+    // **重要: ゴールエリアも再初期化**
+    InitializeGoalArea();
 
     // カメラをリセット
     cameraX = 0.0f;
@@ -1514,13 +1868,23 @@ void BlockAthleticsScene::ResetGame()
 
     // エフェクトをクリア
     particles.clear();
+    blockFragments.clear();
 
-    OutputDebugStringA("BlockAthleticsScene: Game reset\n");
+    // HUD更新
+    hudSystem.SetCurrentLife(playerLife);
+
+    OutputDebugStringA("BlockAthleticsScene: Game reset with full regeneration\n");
 }
 
 void BlockAthleticsScene::DestroyBlock(int blockIndex)
 {
     Block& block = blocks[blockIndex];
+
+    float blockX = block.x + BLOCK_SIZE / 2;
+    float blockY = block.y + BLOCK_SIZE / 2;
+
+    // ギミック判定
+    string gimmickType = DetectGimmickType(blockX, blockY);
 
     // ブロックを非アクティブに
     block.isActive = false;
@@ -1530,40 +1894,43 @@ void BlockAthleticsScene::DestroyBlock(int blockIndex)
         cratesDestroyed++;
     }
 
-    // 4分割エフェクト生成
-    CreateBlockFragments(block.x, block.y, block.type);
-
-    // 破壊音
-    SoundManager::GetInstance().PlaySE(SoundManager::SFX_HIT);
-
-    // パーティクルエフェクト
-    int particleColor = GetColor(139, 69, 19); // デフォルト色
-    switch (block.type) {
-    case BLOCK_DIRT:
-    case BLOCK_DIRT_TOP:
-        particleColor = GetColor(139, 69, 19);
-        break;
-    case BLOCK_STONE:
-    case BLOCK_STONE_TOP:
-        particleColor = GetColor(128, 128, 128);
-        break;
-    case BLOCK_CRATE:
-        particleColor = GetColor(160, 82, 45);
-        break;
-    case BLOCK_EXPLOSIVE:
-        particleColor = GetColor(255, 100, 0);
-        CreateExplosionEffect(block.x + BLOCK_SIZE / 2, block.y + BLOCK_SIZE / 2);
-        break;
+    // ギミック別の特別エフェクト
+    if (gimmickType == "treasure_box") {
+        CreateGimmickDiscoveryEffect(blockX, blockY, "Treasure Box Opened!");
+        // 宝箱オープン音（コイン音を代用）
+        SoundManager::GetInstance().PlaySE(SoundManager::SFX_COIN);
+    }
+    else if (gimmickType == "explosive_maze" || gimmickType == "explosive_tower") {
+        CreateExplosionEffect(blockX, blockY);
+        // 爆発音
+        SoundManager::GetInstance().PlaySE(SoundManager::SFX_HIT);
+    }
+    else if (gimmickType == "secret_room") {
+        CreateGimmickDiscoveryEffect(blockX, blockY, "Secret Room Discovered!");
+    }
+    else {
+        // 通常の破壊エフェクト
+        switch (block.type) {
+        case BLOCK_EXPLOSIVE:
+            CreateExplosionEffect(blockX, blockY);
+            break;
+        case BLOCK_CRATE:
+            CreateDebrisEffect(blockX, blockY);
+            break;
+        default:
+            CreateParticles(blockX, blockY, GetColor(150, 150, 150), 12);
+            break;
+        }
+        SoundManager::GetInstance().PlaySE(SoundManager::SFX_HIT);
     }
 
-    CreateParticles(block.x + BLOCK_SIZE / 2, block.y + BLOCK_SIZE / 2, particleColor, 15);
+    // 破片エフェクト生成
+    CreateBlockFragments(block.x, block.y, block.type);
 
-    Particle p;
-        p.velocityY = (rand() % 150 - 200) * 0.1f;
-    p.life = p.maxLife = 1.5f + (rand() % 150) * 0.01f;
-    p.color = GetColor(255, 255,255);
-    p.scale = 0.8f + (rand() % 150) * 0.005f;
-    particles.push_back(p);
+    char debugMsg[128];
+    sprintf_s(debugMsg, "BlockAthleticsScene: Block destroyed in %s gimmick at (%f, %f)\n",
+        gimmickType.c_str(), block.x, block.y);
+    OutputDebugStringA(debugMsg);
 }
 
 
@@ -1715,4 +2082,221 @@ void BlockAthleticsScene::CreateFastFallParticles()
 
     }
 
+}
+
+void BlockAthleticsScene::CompleteGame()
+{
+    currentState = STATE_COMPLETED;
+    gameCompleted = true;
+
+    // **タイマーをリセット**
+    ResetClearTimers();
+
+    // 豪華なクリアエフェクト
+    CreateGameClearEffects();
+
+    // クリア音
+    SoundManager::GetInstance().PlaySE(SoundManager::SFX_COIN);
+
+    // ベストタイム更新チェック
+    if (bestTime == 0.0f || gameTimer < bestTime) {
+        bestTime = gameTimer;
+        OutputDebugStringA("BlockAthleticsScene: NEW BEST TIME!\n");
+    }
+
+    OutputDebugStringA("BlockAthleticsScene: GOAL REACHED! Game completed!\n");
+}
+
+// **新規追加: 豪華なクリアエフェクト**
+void BlockAthleticsScene::CreateGameClearEffects()
+{
+    float centerX = goalArea.x + goalArea.width / 2;
+    float centerY = goalArea.y + goalArea.height / 2;
+
+    // 1. 大量の金色パーティクル（円形に広がる）
+    for (int i = 0; i < 100; i++) {
+        float angle = (float)i * 0.0628f; // 360度を100分割
+        float radius = 50.0f + (rand() % 100);
+        float speed = 3.0f + (rand() % 400) * 0.01f;
+
+        Particle p;
+        p.x = centerX + cosf(angle) * 30;
+        p.y = centerY + sinf(angle) * 30;
+        p.velocityX = cosf(angle) * speed;
+        p.velocityY = sinf(angle) * speed - 2.0f;
+        p.life = p.maxLife = 4.0f + (rand() % 200) * 0.01f;
+        p.color = GetColor(255, 215, 0);
+        p.scale = 1.2f + (rand() % 80) * 0.01f;
+        particles.push_back(p);
+    }
+
+    // 2. 白いスパークル（上向きに噴出）
+    for (int i = 0; i < 60; i++) {
+        Particle p;
+        p.x = centerX + (rand() % 200 - 100);
+        p.y = centerY + (rand() % 50);
+        p.velocityX = (rand() % 200 - 100) * 0.05f;
+        p.velocityY = -5.0f - (rand() % 300) * 0.01f;
+        p.life = p.maxLife = 5.0f;
+        p.color = GetColor(255, 255, 255);
+        p.scale = 0.8f + (rand() % 60) * 0.01f;
+        particles.push_back(p);
+    }
+
+    // 3. 虹色の花火効果
+    for (int wave = 0; wave < 3; wave++) {
+        for (int i = 0; i < 20; i++) {
+            float angle = (float)i * 0.314f; // 20分割
+            float speed = 4.0f + wave * 2.0f;
+
+            Particle p;
+            p.x = centerX;
+            p.y = centerY;
+            p.velocityX = cosf(angle) * speed;
+            p.velocityY = sinf(angle) * speed - 1.0f;
+            p.life = p.maxLife = 3.0f + wave * 0.5f;
+
+            // 虹色
+            switch (i % 6) {
+            case 0: p.color = GetColor(255, 0, 0); break;   // 赤
+            case 1: p.color = GetColor(255, 127, 0); break; // オレンジ
+            case 2: p.color = GetColor(255, 255, 0); break; // 黄
+            case 3: p.color = GetColor(0, 255, 0); break;   // 緑
+            case 4: p.color = GetColor(0, 0, 255); break;   // 青
+            case 5: p.color = GetColor(127, 0, 255); break; // 紫
+            }
+
+            p.scale = 1.0f + wave * 0.3f;
+            particles.push_back(p);
+        }
+    }
+
+    OutputDebugStringA("BlockAthleticsScene: Game clear effects created!\n");
+}
+
+void BlockAthleticsScene::ResetClearTimers()
+{
+    clearStateTimer = 0.0f;
+    clearAnimTimer = 0.0f;
+}
+
+// ギミック発見時の特別エフェクト
+void BlockAthleticsScene::CreateGimmickDiscoveryEffect(float x, float y, const string& gimmickName)
+{
+    // 発見エフェクト（虹色の輪）
+    for (int i = 0; i < 20; i++) {
+        float angle = (float)i * 0.314f;
+        Particle p;
+        p.x = x;
+        p.y = y;
+        p.velocityX = cosf(angle) * 6.0f;
+        p.velocityY = sinf(angle) * 6.0f - 2.0f;
+        p.life = p.maxLife = 3.0f;
+
+        // 虹色
+        switch (i % 6) {
+        case 0: p.color = GetColor(255, 0, 0); break;   // 赤
+        case 1: p.color = GetColor(255, 127, 0); break; // オレンジ
+        case 2: p.color = GetColor(255, 255, 0); break; // 黄
+        case 3: p.color = GetColor(0, 255, 0); break;   // 緑
+        case 4: p.color = GetColor(0, 0, 255); break;   // 青
+        case 5: p.color = GetColor(127, 0, 255); break; // 紫
+        }
+
+        p.scale = 1.5f;
+        particles.push_back(p);
+    }
+
+    // 特別なサウンド
+    SoundManager::GetInstance().PlaySE(SoundManager::SFX_COIN);
+
+    char debugMsg[256];
+    sprintf_s(debugMsg, "BlockAthleticsScene: Discovered gimmick: %s\n", gimmickName.c_str());
+    OutputDebugStringA(debugMsg);
+}
+
+// ギミッククリア時のエフェクト
+void BlockAthleticsScene::CreateGimmickClearEffect(float x, float y, int coinCount)
+{
+    // 成功エフェクト（金色の爆発）
+    for (int i = 0; i < 30; i++) {
+        Particle p;
+        float angle = (float)(rand() % 360) * 0.0174f;
+        float speed = 4.0f + (rand() % 300) * 0.02f;
+
+        p.x = x + (rand() % 60 - 30);
+        p.y = y + (rand() % 60 - 30);
+        p.velocityX = cosf(angle) * speed;
+        p.velocityY = sinf(angle) * speed - 3.0f;
+        p.life = p.maxLife = 2.5f + (rand() % 100) * 0.01f;
+        p.color = GetColor(255, 215, 0);
+        p.scale = 1.0f + (rand() % 50) * 0.02f;
+        particles.push_back(p);
+    }
+
+    // ボーナスで白いキラキラも追加
+    for (int i = 0; i < coinCount * 5; i++) {
+        Particle p;
+        p.x = x + (rand() % 120 - 60);
+        p.y = y + (rand() % 120 - 60);
+        p.velocityX = (rand() % 100 - 50) * 0.1f;
+        p.velocityY = -2.0f - (rand() % 200) * 0.02f;
+        p.life = p.maxLife = 4.0f;
+        p.color = GetColor(255, 255, 255);
+        p.scale = 0.8f + (rand() % 40) * 0.01f;
+        particles.push_back(p);
+    }
+}
+
+string BlockAthleticsScene::DetectGimmickType(float x, float y)
+{
+    int blockX = (int)(x / BLOCK_SIZE);
+
+    // 各ギミックの位置範囲をチェック
+    if (blockX >= 10 && blockX <= 14) return "coin_stairs";
+    if (blockX >= 17 && blockX <= 19) return "treasure_box";
+    if (blockX >= 22 && blockX <= 37) return "zigzag_road";
+    if (blockX >= 40 && blockX <= 48) return "explosive_maze";
+    if (blockX >= 53 && blockX <= 57) return "coin_tower";
+    if (blockX >= 62 && blockX <= 70) return "crate_bridge";
+    if (blockX >= 75 && blockX <= 78) return "coin_pyramid";
+    if (blockX >= 85 && blockX <= 90) return "secret_room";
+    if (blockX >= 95 && blockX <= 105) return "double_decker";
+    if (blockX >= 110 && blockX <= 113) return "explosive_tower";
+
+    return "normal";
+}
+
+// ギミック完了判定
+bool BlockAthleticsScene::IsGimmickCompleted(const string& gimmickType)
+{
+    // 各ギミックエリアのコインがすべて収集されたかチェック
+    // 簡易実装：エリア内のアクティブなコインブロックをカウント
+
+    int startX = 0, endX = 0;
+
+    if (gimmickType == "coin_stairs") { startX = 10; endX = 14; }
+    else if (gimmickType == "treasure_box") { startX = 17; endX = 19; }
+    else if (gimmickType == "zigzag_road") { startX = 22; endX = 37; }
+    else if (gimmickType == "explosive_maze") { startX = 40; endX = 48; }
+    else if (gimmickType == "coin_tower") { startX = 53; endX = 57; }
+    else if (gimmickType == "crate_bridge") { startX = 62; endX = 70; }
+    else if (gimmickType == "coin_pyramid") { startX = 75; endX = 78; }
+    else if (gimmickType == "secret_room") { startX = 85; endX = 90; }
+    else if (gimmickType == "double_decker") { startX = 95; endX = 105; }
+    else if (gimmickType == "explosive_tower") { startX = 110; endX = 113; }
+    else return false;
+
+    // エリア内のアクティブなコインをカウント
+    int activeCoins = 0;
+    for (const auto& block : blocks) {
+        if (block.type == BLOCK_COIN && block.isActive) {
+            int blockX = (int)(block.x / BLOCK_SIZE);
+            if (blockX >= startX && blockX <= endX) {
+                activeCoins++;
+            }
+        }
+    }
+
+    return (activeCoins == 0); // エリア内のコインがすべてなくなったら完了
 }

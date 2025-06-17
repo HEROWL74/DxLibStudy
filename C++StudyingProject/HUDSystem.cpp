@@ -96,18 +96,21 @@ void HUDSystem::LoadTextures()
 
 void HUDSystem::Update()
 {
-    // **ダメージ検出とハート揺れ開始**
+    // **修正: ダメージ検出とハート揺れ開始**
     if (currentLife < previousLife) {
         // ライフが減った場合、ハート揺れを開始
         heartShakeTimer = 0.0f;
         heartShakeIntensity = 1.0f;
         heartShakePhase = 0.0f;
 
-        // デバッグ出力
-        OutputDebugStringA("HUDSystem: Player took damage! Starting heart shake animation.\n");
+        // **デバッグ出力を強化**
+        char debugMsg[256];
+        sprintf_s(debugMsg, "HUDSystem: Damage detected! Life: %d -> %d. Starting heart shake.\n",
+            previousLife, currentLife);
+        OutputDebugStringA(debugMsg);
     }
 
-    // 前フレームのライフを更新
+    // **前フレームのライフを更新**
     previousLife = currentLife;
 
     // **ハート揺れアニメーションの更新**
@@ -121,6 +124,7 @@ void HUDSystem::Update()
         if (heartShakeIntensity <= 0.0f) {
             heartShakeTimer = 0.0f;
             heartShakePhase = 0.0f;
+            OutputDebugStringA("HUDSystem: Heart shake animation completed.\n");
         }
     }
 }
@@ -314,11 +318,26 @@ std::string HUDSystem::GetCharacterColorName(int characterIndex) const
     }
 }
 
-void HUDSystem::SetCurrentLife(int currentLife)
+void HUDSystem::SetCurrentLife(int newLife)
 {
-    this->currentLife = max(0, min(currentLife, maxLife));
-}
+    int oldLife = this->currentLife;
+    this->currentLife = max(0, min(newLife, maxLife));
 
+    // **ライフが減った場合は即座にアニメーション開始**
+    if (this->currentLife < oldLife) {
+        heartShakeTimer = 0.0f;
+        heartShakeIntensity = 1.0f;
+        heartShakePhase = 0.0f;
+
+        char debugMsg[256];
+        sprintf_s(debugMsg, "HUDSystem: SetCurrentLife damage detected! %d -> %d\n",
+            oldLife, this->currentLife);
+        OutputDebugStringA(debugMsg);
+    }
+
+    // **previousLifeも更新して重複検出を防ぐ**
+    previousLife = this->currentLife;
+}
 void HUDSystem::AddLife(int amount)
 {
     currentLife = min(currentLife + amount, maxLife);
@@ -367,4 +386,15 @@ void HUDSystem::DrawStars()
             );
         }
     }
+}
+
+// **新規追加: 外部からダメージを通知する関数**
+void HUDSystem::NotifyDamage()
+{
+    // **強制的にハート揺れアニメーションを開始**
+    heartShakeTimer = 0.0f;
+    heartShakeIntensity = 1.0f;
+    heartShakePhase = 0.0f;
+
+    OutputDebugStringA("HUDSystem: Damage notification received! Starting heart shake.\n");
 }

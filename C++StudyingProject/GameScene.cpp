@@ -108,33 +108,21 @@ void GameScene::Update()
         UpdatePlayerAutoWalk();
     }
     else {
-        // 1. プレイヤーの物理演算のみ（位置更新は含む）
-        gamePlayer.UpdatePhysics(&stageManager);
+        // **修正: 処理順序を変更**
 
-        // 2. ステージとの衝突判定（ブロックは除外）
-        gamePlayer.HandleCollisions(&stageManager);
-
-        // 3. ブロックシステムの更新（ヒット判定含む）
+        gamePlayer.UpdatePhysics(&stageManager);        // 1. 物理演算（位置更新なし）
+        gamePlayer.HandleCollisions(&stageManager);     // 2. ステージ衝突判定と位置更新
         blockSystem.Update(&gamePlayer);
+        blockSystem.CheckAndResolvePlayerCollisions(&gamePlayer); // 3. ブロック判定で最終調整
+       
+     
 
-        // 4. ブロックとの衝突処理
-        gamePlayer.HandleCollisionsWithBlocks(&stageManager, &blockSystem);
-
-        // 5. ブロック着地処理（最後に実行、厳密な条件）
-        if (gamePlayer.GetVelocityY() > 1.0f && !gamePlayer.IsOnGround()) {
-            blockSystem.HandleBlockLandingOnly(&gamePlayer);
-        }
-
-        // 6. アニメーション更新
-        gamePlayer.UpdateAnimation();
+        gamePlayer.UpdateAnimation();                   // 4. アニメーション更新
     }
 
+    // 残りの更新処理...
     UpdatePlayerInvulnerability();
-
-    // **3. コイン管理**
     UpdateCoins();
-
-    // **4. 重要: 敵との衝突判定を確実に実行**
     UpdatePlayerEnemyInteractions();
 
     // 他のシステム更新
@@ -264,51 +252,79 @@ void GameScene::HandlePlayerEnteredDoor()
 
 void GameScene::UpdatePlayerEnemyInteractions()
 {
-    // 無敵状態チェック
+    // **修正: 無敵状態チェック**
     if (playerInvulnerable) {
         return; // 無敵中は衝突判定をスキップ
     }
 
-    // 敵との衝突をチェック
-    if (enemyManager.CheckPlayerEnemyCollisions(&gamePlayer)) {
-        // 踏みつけチェック
-        if (CheckIfPlayerStompedEnemy()) {
-            HandleSuccessfulStomp();
-        }
-        else {
-            // 横からの衝突 = ダメージ
-            HandlePlayerEnemyCollision();
+    // **修正: EnemyManager の詳細な衝突判定を使用**
+    const auto& enemies = enemyManager.GetEnemies();
+
+    for (const auto& enemy : enemies) {
+        if (enemy && enemy->IsActive() && !enemy->IsDead()) {
+            // 詳細な衝突判定を実行
+            if (enemyManager.CheckDetailedPlayerEnemyCollision(&gamePlayer, enemy.get())) {
+
+                float playerX = gamePlayer.GetX();
+                float playerY = gamePlayer.GetY();
+                float playerVelY = gamePlayer.GetVelocityY();
+                float enemyX = enemy->GetX();
+                float enemyY = enemy->GetY();
+
+                // 踏みつけ判定
+                bool isStompFromAbove = (
+                    playerVelY > 1.0f &&
+                    playerY < enemyY - 15.0f &&
+                    playerY + 50.0f >= enemyY - 28.0f
+                    );
+
+                if (isStompFromAbove) {
+                    // **踏みつけ処理はEnemyManagerに任せる**
+                    enemyManager.HandleStompInteraction(&gamePlayer, enemy.get());
+                }
+                else {
+                    // **横からの衝突 - GameScene で直接ダメージ処理**
+
+                    // ダメージ量を決定
+                    int damageAmount = 1;
+                    if (enemy->GetType() == EnemyBase::SPIKE_SLIME) {
+                        SpikeSlime* spikeSlime = static_cast<SpikeSlime*>(enemy.get());
+                        if (spikeSlime->AreSpikesOut()) {
+                            damageAmount = 2;
+                        }
+                    }
+
+                    // ノックバック方向を計算
+                    float knockbackDirection = (playerX > enemyX) ? 1.0f : -1.0f;
+
+                    // **重要: GameScene の HandlePlayerDamage を呼び出し**
+                    HandlePlayerDamage(damageAmount);
+
+                    // **Player クラスにもダメージとノックバックを適用**
+                    gamePlayer.TakeDamage(damageAmount, knockbackDirection);
+
+                    // **敵固有の衝突処理も呼び出し**
+                    enemy->OnPlayerCollision(&gamePlayer);
+
+                    char debugMsg[256];
+                    sprintf_s(debugMsg, "GameScene: Enemy collision! Damage: %d, Life: %d -> %d\n",
+                        damageAmount, playerLife + damageAmount, playerLife);
+                    OutputDebugStringA(debugMsg);
+
+                    // 一度の衝突処理で終了
+                    return;
+                }
+            }
         }
     }
 }
-
-
-void GameScene::HandlePlayerEnemyCollision()
+void GameScene::TakeDamageFromEnemy(int damage, float knockbackDirection)
 {
-    // 無敵状態の場合は何もしない
-    if (playerInvulnerable) return;
-
-    // **敵との衝突によるダメージ処理**
-    bool playerStompedEnemy = CheckIfPlayerStompedEnemy();
-
-    if (!playerStompedEnemy) {
-        // **横からの接触によるダメージ**
-        HandlePlayerDamage(1); // 1ダメージ（ハーフハート）
-
-        // **デバッグ出力**
-        OutputDebugStringA("GameScene: Player hit by enemy - taking damage!\n");
+    // **無敵状態チェック**
+    if (playerInvulnerable) {
+        OutputDebugStringA("GameScene: Player is invulnerable - no damage!\n");
+        return;
     }
-    else {
-        // **踏みつけ成功時の処理**
-        HandleSuccessfulStomp();
-    }
-}
-// GameScene.cpp の HandlePlayerDamage関数を修正
-
-// HandlePlayerDamage を確実に動作するよう修正
-void GameScene::HandlePlayerDamage(int damage)
-{
-    if (playerInvulnerable) return;
 
     // **ライフ減少処理**
     int oldLife = playerLife;
@@ -321,6 +337,65 @@ void GameScene::HandlePlayerDamage(int damage)
 
     // **HUDシステムに即座にライフ変更を通知**
     hudSystem.SetCurrentLife(playerLife);
+
+    // **重要: Player::TakeDamage を呼び出してダメージ状態にする**
+    gamePlayer.TakeDamage(damage, knockbackDirection);
+
+    // **無敵状態を開始**
+    playerInvulnerable = true;
+    invulnerabilityTimer = 0.0f;
+
+    // **デバッグ出力**
+    char debugMsg[256];
+    sprintf_s(debugMsg, "GameScene: Player took %d damage from enemy! Life: %d -> %d, Knockback: %.2f\n",
+        damage, oldLife, playerLife, knockbackDirection);
+    OutputDebugStringA(debugMsg);
+
+    // **プレイヤーが死亡した場合の処理**
+    if (playerLife <= 0) {
+        // リスポーン処理
+        gamePlayer.ResetPosition();
+        playerLife = 6; // ライフを全回復
+
+        // HUDを更新
+        hudSystem.SetCurrentLife(playerLife);
+
+        // 無敵状態をリセット
+        playerInvulnerable = false;
+        invulnerabilityTimer = 0.0f;
+
+        // **各種状態をリセット**
+        doorOpened = false;
+        playerEnteringDoor = false;
+        goalReached = false;
+        goalSystem.ResetGoal();
+
+        OutputDebugStringA("GameScene: Player respawned with full life!\n");
+    }
+}
+
+
+// GameScene.cpp の HandlePlayerDamage関数を修正
+
+void GameScene::HandlePlayerDamage(int damage)
+{
+    if (playerInvulnerable) {
+        OutputDebugStringA("GameScene: Player is invulnerable - no damage!\n");
+        return;
+    }
+
+    // **ライフ減少処理**
+    int oldLife = playerLife;
+    playerLife -= damage;
+
+    // **ダメージ音を確実に再生**
+    SoundManager::GetInstance().PlaySE(SoundManager::SFX_HURT);
+
+    if (playerLife < 0) playerLife = 0;
+
+    // **重要: HUDシステムに即座にライフ変更を通知（ダメージアニメーション付き）**
+    hudSystem.SetCurrentLife(playerLife);
+    hudSystem.NotifyDamage(); // 確実にアニメーション開始
 
     // **ノックバック方向を計算**
     float knockbackDirection = 0.0f;
@@ -344,14 +419,16 @@ void GameScene::HandlePlayerDamage(int damage)
     playerInvulnerable = true;
     invulnerabilityTimer = 0.0f;
 
-    // **デバッグ出力**
+    // **詳細なデバッグ出力**
     char debugMsg[256];
-    sprintf_s(debugMsg, "GameScene: Player took %d damage! Life: %d -> %d, Knockback: %.2f\n",
-        damage, oldLife, playerLife, knockbackDirection);
+    sprintf_s(debugMsg, "GameScene: DAMAGE APPLIED! Life: %d -> %d, Damage: %d, Sound: YES, HUD: UPDATED\n",
+        oldLife, playerLife, damage);
     OutputDebugStringA(debugMsg);
 
     // **プレイヤーが死亡した場合の処理**
     if (playerLife <= 0) {
+        OutputDebugStringA("GameScene: Player died - respawning!\n");
+
         // リスポーン処理
         gamePlayer.ResetPosition();
         playerLife = 6; // ライフを全回復
@@ -436,10 +513,21 @@ void GameScene::UpdateHUD()
 {
     hudSystem.Update();
 
-    // **コイン数は UpdateCoins() で処理済み**
+    // **現在の状態をHUDに反映**
     hudSystem.SetCurrentLife(playerLife);
+    hudSystem.SetCoins(playerCoins);
     hudSystem.SetCollectedStars(playerStars);
     hudSystem.SetTotalStars(3);
+
+    // **デバッグ: ライフ状態を定期的に出力**
+    static int debugCounter = 0;
+    debugCounter++;
+    if (debugCounter % 180 == 0) { // 3秒ごと
+        char debugMsg[256];
+        sprintf_s(debugMsg, "GameScene: HUD Status - Life: %d/6, Coins: %d, Stars: %d/3, Invulnerable: %s\n",
+            playerLife, playerCoins, playerStars, playerInvulnerable ? "YES" : "NO");
+        OutputDebugStringA(debugMsg);
+    }
 }
 
 void GameScene::UpdateFade()
@@ -958,84 +1046,10 @@ float GameScene::SmoothLerp(float current, float target, float speed)
     return current + distance * t;
 }
 
-bool GameScene::CheckIfPlayerStompedEnemy()
-{
-    float playerX = gamePlayer.GetX();
-    float playerY = gamePlayer.GetY();
-    float playerVelY = gamePlayer.GetVelocityY();
 
-    const auto& enemies = enemyManager.GetEnemies();
 
-    for (const auto& enemy : enemies) {
-        if (!enemy || !enemy->IsActive() || enemy->IsDead()) continue;
 
-        float enemyX = enemy->GetX();
-        float enemyY = enemy->GetY();
 
-        // 基本的な重なり判定
-        const float PLAYER_WIDTH = 80.0f;
-        const float PLAYER_HEIGHT = 100.0f;
-        const float ENEMY_WIDTH = 48.0f;
-        const float ENEMY_HEIGHT = 56.0f;
-
-        bool isOverlapping = (playerX - PLAYER_WIDTH / 2 < enemyX + ENEMY_WIDTH / 2 &&
-            playerX + PLAYER_WIDTH / 2 > enemyX - ENEMY_WIDTH / 2 &&
-            playerY - PLAYER_HEIGHT / 2 < enemyY + ENEMY_HEIGHT / 2 &&
-            playerY + PLAYER_HEIGHT / 2 > enemyY - ENEMY_HEIGHT / 2);
-
-        if (!isOverlapping) continue;
-
-        // 踏みつけ判定の条件を厳格化
-        bool isStompFromAbove = (
-            playerVelY > 1.0f &&                    // 下向きの速度が十分
-            playerY < enemyY - 10.0f &&             // プレイヤーが敵より上
-            playerY + PLAYER_HEIGHT / 2 >= enemyY - ENEMY_HEIGHT / 2 - 5.0f  // 足が敵の頭付近
-            );
-
-        if (isStompFromAbove) {
-            if (enemy->GetType() == EnemyBase::NORMAL_SLIME) {
-                // NormalSlimeを踏みつけで倒す
-                enemy->TakeDamage(100);  // 敵を倒す
-                ApplyStompBounce();
-                OutputDebugStringA("GameScene: Successfully stomped and killed NormalSlime!\n");
-                return true;
-            }
-            else if (enemy->GetType() == EnemyBase::SPIKE_SLIME) {
-                SpikeSlime* spikeSlime = static_cast<SpikeSlime*>(enemy.get());
-                if (spikeSlime->AreSpikesOut()) {
-                    // トゲが出ている場合は踏み失敗（ダメージを受ける）
-                    return false;
-                }
-                else {
-                    // トゲが引っ込んでいる場合は踏みつけ成功
-                    enemy->TakeDamage(100);  // 敵を倒す
-                    ApplyStompBounce();
-                    OutputDebugStringA("GameScene: Successfully stomped and killed SpikeSlime!\n");
-                    return true;
-                }
-            }
-        }
-    }
-
-    return false;
-}
-// **新機能: 踏みつけ成功時の処理**
-void GameScene::HandleSuccessfulStomp()
-{
-    // **プレイヤーに跳ね返り効果を与える**
-    ApplyStompBounce();
-
-    // **効果音やエフェクトの再生**
-    // PlaySoundEffect("enemy_stomp");
-    // SpawnStompEffect(gamePlayer.GetX(), gamePlayer.GetY());
-}
-
-// **新機能: 踏みつけ時の跳ね返り効果**
-void GameScene::ApplyStompBounce()
-{
-    // **プレイヤーに上向きの速度を与える（小さなジャンプ効果）**
-    gamePlayer.ApplyStompBounce(-8.0f); // 上向きの速度を設定
-}
 
 // **新追加: 自動歩行専用の更新関数**
 void GameScene::UpdatePlayerAutoWalk()
@@ -1097,3 +1111,4 @@ void GameScene::ResetAllSystems()
     hudSystem.SetCoins(0);
     hudSystem.SetCollectedStars(0);
 }
+

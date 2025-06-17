@@ -223,4 +223,20 @@ private:
     void CreateBlockFragments(float x, float y, BlockType blockType);
     void UpdateBlockFragments();
     void DrawBlockFragments();
+
+    void CompleteGame();
+    void CreateGameClearEffects();
+    void DrawGameClearScreen();
+
+    float clearStateTimer;
+    float clearAnimTimer;
+
+    // **新規追加: ギミック関連メソッド**
+    void CreateGimmickDiscoveryEffect(float x, float y, const std::string& gimmickName);
+    void CreateGimmickClearEffect(float x, float y, int coinCount);
+    std::string DetectGimmickType(float x, float y);
+    bool IsGimmickCompleted(const std::string& gimmickType);
+    void DrawGimmickProgress();
+
+    void ResetClearTimers();
 };

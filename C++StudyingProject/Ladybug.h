@@ -15,6 +15,9 @@ public:
     void OnPlayerCollision(Player* player) override;
     int GetCurrentSprite() override;
 
+    // デバッグ関数
+    void PrintDebugInfo();
+
 private:
     // テントウムシ固有の状態
     enum LadybugState {
@@ -31,24 +34,27 @@ private:
     float flyPhase;             // 飛行位相
     float targetY;              // 目標Y座標
     float originalY;            // 地上Y座標
+    float lastPositionX;        // デバッグ用
 
     // テントウムシのパラメータ
     static constexpr float FLY_AMPLITUDE = 25.0f;      // 飛行振幅
     static constexpr float FLY_SPEED_PHASE = 0.1f;     // 飛行位相速度
     static constexpr float FLY_SPEED = 3.0f;           // 飛行速度
     static constexpr float WALK_SPEED = 1.5f;          // 歩行速度
-    static constexpr float REST_DURATION = 2.0f;       // 休憩時間
-    static constexpr float WALK_DURATION = 3.0f;       // 歩行時間
-    static constexpr float FLY_DURATION = 4.0f;        // 飛行時間
+    static constexpr float REST_DURATION = 2.0f;       // 休憩期間
+    static constexpr float WALK_DURATION = 3.0f;       // 歩行期間
+    static constexpr float FLY_DURATION = 4.0f;        // 飛行期間
     static constexpr float FLY_HEIGHT = 60.0f;         // 飛行高度
 
-    // テントウムシ固有の行動
+    // テントウムシ固有の行動（当たり判定なし）
     void UpdateLadybugMovement();
     void UpdateLadybugAnimation();
     void StartWalking();
     void StartFlying();
     void StartLanding();
-    void HandleGroundCollisionLadybug(StageManager* stageManager);
+
+    // 画面境界チェックのみ
+    void CheckScreenBoundaries();
 
     // テントウムシ固有のスプライト取得
     int GetLadybugSprite();

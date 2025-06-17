@@ -107,7 +107,6 @@ private:
 
     void ResetAllSystems();
 
-
    
 
     // ヘルパー関数
@@ -135,13 +134,12 @@ private:
 
     // **敵との相互作用用関数**
     void UpdatePlayerEnemyInteractions();
+    void TakeDamageFromEnemy(int damage, float knockbackDirection);
     void HandlePlayerDamage(int damage);
-    void HandlePlayerEnemyCollision();
+ 
     void UpdatePlayerInvulnerability();
 
-    bool CheckIfPlayerStompedEnemy();
-    void HandleSuccessfulStomp();
-    void ApplyStompBounce();
+  
 
     void UpdatePlayerAutoWalk();
 

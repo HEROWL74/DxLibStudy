@@ -5,8 +5,8 @@ Game::Game()
     , selectedCharacter(-1)
     , pendingLoadingType(LoadingScene::LOADING_GAME_START)
     , pendingStageIndex(-1)
-{}
-
+{
+}
 Game::~Game() {}
 
 bool Game::Initialize()
@@ -16,7 +16,7 @@ bool Game::Initialize()
     SetGraphMode(1920, 1080, 32);
     if (DxLib_Init() == -1) return false;
     SetDrawScreen(DX_SCREEN_BACK);
-
+    SetWindowIconID(101);
     // ÉVÅ[Éìèâä˙âª
     splashScene.Initialize();
     titleScene.Initialize();
@@ -164,13 +164,7 @@ void Game::Run()
                 SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
                 OutputDebugStringA("Game: Returned to CHARACTER_SELECT from BLOCK_MODE\n");
             }
-            else if (blockAthleticsScene.IsCompleted()) {
-                currentState = CHARACTER_SELECT;
-                characterSelectScene.SetTutorialEnabled(titleScene.IsTutorialEnabled());
-                SoundManager::GetInstance().StopBGM();
-                SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
-                OutputDebugStringA("Game: Block athletics completed, returned to CHARACTER_SELECT\n");
-            }
+        
             break;
         }
 

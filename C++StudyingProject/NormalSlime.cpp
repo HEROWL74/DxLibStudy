@@ -185,7 +185,6 @@ void NormalSlime::CheckFlattenedRecovery()
     }
 }
 
-// **改良されたプレイヤー衝突処理**
 void NormalSlime::OnPlayerCollision(Player* player)
 {
     if (!player || !active || currentState == DEAD) return;
@@ -202,7 +201,7 @@ void NormalSlime::OnPlayerCollision(Player* player)
         );
 
     if (isStompedFromAbove) {
-        // **踏みつけ処理：即座に潰れ状態に移行**
+        // **踏みつけ処理：即座に倒さず、アニメーション開始**
         slimeState = SLIME_FLATTENED;
         currentState = DAMAGED; // 一時的にDAMAGED状態
         flattenedTimer = 0.0f;
@@ -211,31 +210,36 @@ void NormalSlime::OnPlayerCollision(Player* player)
         velocityX = 0.0f;
         velocityY = 0.0f;
 
-        // **プレイヤーにマリオ風小ジャンプ効果を与える**
-        player->ApplyStompBounce(-12.0f); // より高いジャンプ
-
         // **デバッグ出力**
         OutputDebugStringA("NormalSlime: STOMPED! Starting flatten animation!\n");
+
+        // **注意: プレイヤーの跳ね返りはEnemyManagerで処理済み**
 
     }
     else {
         // **横からの接触: プレイヤーにダメージ**
-        // ノックバック方向を計算
-        float knockbackDirection = (player->GetX() > x) ? 1.0f : -1.0f;
 
-        // プレイヤーにダメージとノックバックを与える
-        player->TakeDamage(1, knockbackDirection);
+        // **プレイヤーが無敵状態でなければダメージを与える**
+        if (!player->IsInvulnerable()) {
+            // ノックバック方向を計算
+            float knockbackDirection = (player->GetX() > x) ? 1.0f : -1.0f;
+
+            // **修正: Player::TakeDamage のみを使用**
+            // GameSceneのライフ管理は、EnemyManager経由で処理される想定
+            player->TakeDamage(1, knockbackDirection);
+
+            // **デバッグ出力**
+            OutputDebugStringA("NormalSlime: Side collision - calling Player::TakeDamage!\n");
+        }
 
         // 敵にも少しノックバック
-        velocityX = -knockbackDirection * 1.5f;
+        float enemyKnockback = (player->GetX() > x) ? -1.0f : 1.0f;
+        velocityX = enemyKnockback * 1.5f;
 
         if (currentState != ATTACKING) {
             currentState = ATTACKING;
             stateTimer = 0.0f;
         }
-
-        // **デバッグ出力**
-        OutputDebugStringA("NormalSlime: Damaged player with knockback!\n");
     }
 }
 

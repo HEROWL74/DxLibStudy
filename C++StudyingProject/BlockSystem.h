@@ -140,4 +140,6 @@ private:
     void HandleBlockLandingStable(Player* player);
     void HandleBlockCeilingCollision(Player* player);
     void StabilizeGroundState(Player* player);
+
+    void UpdateBlockSafely(Block& block, Player* player);
 };

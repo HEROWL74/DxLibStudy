@@ -40,6 +40,12 @@
     <ClCompile Include="NormalSlime.cpp" />
     <ClCompile Include="Player.cpp" />
     <ClCompile Include="PurpleStage.cpp" />
+    <ResourceCompile Include="resource.rc">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+    </ResourceCompile>
     <ClCompile Include="ResultUISystem.cpp" />
     <ClCompile Include="SandStage.cpp" />
     <ClCompile Include="Saw.cpp" />
@@ -76,6 +82,7 @@
     <ClInclude Include="NormalSlime.h" />
     <ClInclude Include="Player.h" />
     <ClInclude Include="PurpleStage.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="ResultUISystem.h" />
     <ClInclude Include="SandStage.h" />
     <ClInclude Include="Saw.h" />

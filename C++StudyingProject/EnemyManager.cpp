@@ -22,6 +22,7 @@ void EnemyManager::Initialize()
 
 void EnemyManager::Update(Player* player, StageManager* stageManager)
 {
+
     // カメラ位置を取得（簡易実装）
     float cameraX = player ? player->GetX() - 960.0f : 0.0f; // 画面中央にプレイヤーを配置
 
@@ -346,17 +347,17 @@ bool EnemyManager::CheckPlayerEnemyCollisions(Player* player)
     return collisionOccurred;
 }
 
-// **完全修正版: より詳細な衝突処理**
 bool EnemyManager::CheckDetailedPlayerEnemyCollision(Player* player, EnemyBase* enemy)
 {
     if (!player || !enemy || !enemy->IsActive() || enemy->IsDead()) return false;
 
     float playerX = player->GetX();
     float playerY = player->GetY();
+    float playerVelY = player->GetVelocityY();
     float enemyX = enemy->GetX();
     float enemyY = enemy->GetY();
 
-    // 衝突判定のみ実行（踏みつけ判定は除去）
+    // 基本的な重なり判定
     const float PLAYER_WIDTH = 80.0f;
     const float PLAYER_HEIGHT = 100.0f;
     const float ENEMY_WIDTH = 48.0f;
@@ -367,58 +368,116 @@ bool EnemyManager::CheckDetailedPlayerEnemyCollision(Player* player, EnemyBase* 
         playerY - PLAYER_HEIGHT / 2 < enemyY + ENEMY_HEIGHT / 2 &&
         playerY + PLAYER_HEIGHT / 2 > enemyY - ENEMY_HEIGHT / 2);
 
-    if (isOverlapping) {
-        // 横・下からの接触として処理（ダメージ）
-        HandleSideCollisionInteraction(player, enemy);
+    if (!isOverlapping) return false;
+
+    // **修正: 踏みつけ判定を改善**
+    bool isStompFromAbove = (
+        playerVelY > 1.0f &&                    // 下向きの速度が十分
+        playerY < enemyY - 15.0f &&             // プレイヤーが敵より十分上
+        playerY + PLAYER_HEIGHT / 2 >= enemyY - ENEMY_HEIGHT / 2 - 8.0f  // 足が敵の頭付近
+        );
+
+    if (isStompFromAbove) {
+        // **踏みつけ処理**
+        HandleStompInteraction(player, enemy);
+
+        char debugMsg[256];
+        sprintf_s(debugMsg, "EnemyManager: Stomp detected! Player Y:%.1f, Enemy Y:%.1f, VelY:%.1f\n",
+            playerY, enemyY, playerVelY);
+        OutputDebugStringA(debugMsg);
+
         return true;
     }
+    else {
+        // **横からの衝突処理**
+        HandleSideCollisionInteraction(player, enemy);
 
-    return false;
+        OutputDebugStringA("EnemyManager: Side collision detected!\n");
+
+        return true;
+    }
 }
 
-// **完全修正版: 踏み付け処理**
 void EnemyManager::HandleStompInteraction(Player* player, EnemyBase* enemy)
 {
     if (!player || !enemy) return;
 
     if (enemy->GetType() == EnemyBase::NORMAL_SLIME) {
-        // **NormalSlime: 踏むと即座に倒す**
+        // **NormalSlime: 踏みつけアニメーションを開始（即座に倒さない）**
 
-        // **デバッグ出力**
-        OutputDebugStringA("EnemyManager: Stomping NormalSlime!\n");
-
-        // **敵の衝突処理を呼び出し（これで敵が死ぬ）**
+        // **敵の衝突処理を呼び出し（アニメーション開始）**
         enemy->OnPlayerCollision(player);
 
         // **プレイヤーに跳ね返り効果**
-        if (player) {
-            player->ApplyStompBounce(-8.0f);
-        }
+        player->ApplyStompBounce(-8.0f);
 
+        OutputDebugStringA("EnemyManager: NormalSlime stomp - starting flatten animation!\n");
     }
     else if (enemy->GetType() == EnemyBase::SPIKE_SLIME) {
         // **SpikeSlime: トゲの状態をチェック**
         SpikeSlime* spikeSlime = static_cast<SpikeSlime*>(enemy);
 
-        // スパイクが出ているかチェック（SpikeSlime側の内部状態による）
-        // この処理は実際にはSpikeSlime側のOnPlayerCollisionで処理される
-        enemy->OnPlayerCollision(player);
+        if (spikeSlime->AreSpikesOut()) {
+            // **トゲが出ている場合はダメージを受ける**
+            OutputDebugStringA("EnemyManager: Stepped on spikes - player takes damage!\n");
+            HandleSideCollisionInteraction(player, enemy);
+        }
+        else {
+            // **トゲが引っ込んでいる場合は踏みつけ成功**
+            enemy->OnPlayerCollision(player);
+            player->ApplyStompBounce(-8.0f);
 
-        // **プレイヤーへのダメージ処理は実際にはGameScene側で実装**
-        // ここでは衝突を検出したことを通知するのみ
+            OutputDebugStringA("EnemyManager: Successfully stomped SpikeSlime!\n");
+        }
+    }
+    else {
+        // **他の敵タイプの場合は通常の踏みつけ処理**
+        enemy->TakeDamage(100);
+        player->ApplyStompBounce(-8.0f);
+
+        char debugMsg[256];
+        sprintf_s(debugMsg, "EnemyManager: Stomped enemy type %d\n", (int)enemy->GetType());
+        OutputDebugStringA(debugMsg);
     }
 }
 
-// **完全修正版: 横・下からの接触処理**
 void EnemyManager::HandleSideCollisionInteraction(Player* player, EnemyBase* enemy)
 {
     if (!player || !enemy) return;
 
-    // **すべての横・下からの接触はダメージ**
-    // 実際のダメージ処理はGameScene側で処理される
+    // **プレイヤーが無敵状態の場合はダメージなし**
+    if (player->IsInvulnerable()) {
+        OutputDebugStringA("EnemyManager: Player is invulnerable - no damage!\n");
+        return;
+    }
 
-    // **敵固有の接触処理を呼び出し**
+    // **敵の種類に応じてダメージ量を決定**
+    int damageAmount = 1; // デフォルト
+
+    if (enemy->GetType() == EnemyBase::SPIKE_SLIME) {
+        SpikeSlime* spikeSlime = static_cast<SpikeSlime*>(enemy);
+        if (spikeSlime->AreSpikesOut()) {
+            damageAmount = 2; // トゲダメージは大きい
+        }
+    }
+
+    // **ノックバック方向を計算**
+    float knockbackDirection = (player->GetX() > enemy->GetX()) ? 1.0f : -1.0f;
+
+    // **敵固有の衝突処理を呼び出し（アニメーションなど）**
     enemy->OnPlayerCollision(player);
+
+    // **重要: プレイヤーにダメージとノックバックを直接適用**
+    // Player::TakeDamageでノックバック処理
+    player->TakeDamage(damageAmount, knockbackDirection);
+
+    // **GameSceneにダメージを通知する方法が必要**
+    // この部分は後で修正が必要
+
+    char debugMsg[256];
+    sprintf_s(debugMsg, "EnemyManager: Side collision - damage: %d, knockback: %.2f\n",
+        damageAmount, knockbackDirection);
+    OutputDebugStringA(debugMsg);
 }
 
 void EnemyManager::HandlePlayerEnemyCollision(Player* player, EnemyBase* enemy)
