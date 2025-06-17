@@ -21,8 +21,10 @@ bool Game::Initialize()
     splashScene.Initialize();
     titleScene.Initialize();
     characterSelectScene.Initialize();
-    tutorialScene.Initialize(0);  // **新追加：仮の初期化**
+    tutorialScene.Initialize(0);
     loadingScene.Initialize();
+    blockAthleticsScene.Initialize(0);
+    blockModeLoadingScene.Initialize(); 
 
     SoundManager::GetInstance().Initialize();
 
@@ -31,7 +33,7 @@ bool Game::Initialize()
 
 void Game::Run()
 {
-    while (ProcessMessage() == 0 && CheckHitKey(KEY_INPUT_ESCAPE) == 0)
+    while (ProcessMessage() == 0)
     {
         ClearDrawScreen();
 
@@ -66,7 +68,7 @@ void Game::Run()
         }
 
         case CHARACTER_SELECT: {
-            // **タイトルからの設定をキャラクター選択に反映**
+            // タイトルからの設定をキャラクター選択に反映
             static bool tutorialSettingApplied = false;
             if (!tutorialSettingApplied) {
                 characterSelectScene.SetTutorialEnabled(titleScene.IsTutorialEnabled());
@@ -83,7 +85,7 @@ void Game::Run()
                 loadingScene.StartLoading(pendingLoadingType, selectedCharacter, 0);
                 SoundManager::GetInstance().StopBGM();
                 characterSelectScene.ResetState();
-                tutorialSettingApplied = false; // **リセット時にフラグもクリア**
+                tutorialSettingApplied = false;
                 OutputDebugStringA("Game: Started loading for GAME_MAIN\n");
             }
             else if (characterSelectScene.IsTutorialRequested()) {
@@ -95,11 +97,23 @@ void Game::Run()
                 tutorialSettingApplied = false;
                 OutputDebugStringA("Game: Started TUTORIAL\n");
             }
+            // **修正: ブロックモードリクエストの処理**
+            else if (characterSelectScene.IsBlockModeRequested()) {
+                selectedCharacter = characterSelectScene.GetSelectedCharacter();
+
+                // **新規追加: ブロックモード専用ローディングに遷移**
+                currentState = BLOCK_LOADING;
+                blockModeLoadingScene.StartLoading(selectedCharacter);
+                SoundManager::GetInstance().StopBGM();
+                characterSelectScene.ResetState();
+                tutorialSettingApplied = false;
+                OutputDebugStringA("Game: Started BLOCK_LOADING for professional athletics experience\n");
+            }
             else if (characterSelectScene.IsBackRequested()) {
                 currentState = TITLE;
                 SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
                 characterSelectScene.ResetState();
-                tutorialSettingApplied = false; // **リセット時にフラグもクリア**
+                tutorialSettingApplied = false;
                 OutputDebugStringA("Game: Returned to TITLE\n");
             }
             break;
@@ -110,18 +124,52 @@ void Game::Run()
             tutorialScene.Draw();
 
             if (tutorialScene.IsCompleted()) {
-                // **チュートリアル完了後は必ずキャラクター選択に戻る**
                 currentState = CHARACTER_SELECT;
-                characterSelectScene.SetTutorialEnabled(titleScene.IsTutorialEnabled()); // **設定を再適用**
+                characterSelectScene.SetTutorialEnabled(titleScene.IsTutorialEnabled());
                 SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
                 OutputDebugStringA("Game: Tutorial completed, returned to CHARACTER_SELECT\n");
             }
             else if (tutorialScene.IsExitRequested()) {
-                // **チュートリアル中断時もキャラクター選択に戻る**
                 currentState = CHARACTER_SELECT;
-                characterSelectScene.SetTutorialEnabled(titleScene.IsTutorialEnabled()); // **設定を再適用**
+                characterSelectScene.SetTutorialEnabled(titleScene.IsTutorialEnabled());
                 SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
                 OutputDebugStringA("Game: Returned to CHARACTER_SELECT from TUTORIAL\n");
+            }
+            break;
+        }
+
+                     // **新規追加: ブロックモード専用ローディング状態**
+        case BLOCK_LOADING: {
+            blockModeLoadingScene.Update();
+            blockModeLoadingScene.Draw();
+
+            if (blockModeLoadingScene.IsLoadingComplete()) {
+                // **ローディング完了後、ブロックアスレチックモードに遷移**
+                currentState = BLOCK_MODE;
+                blockAthleticsScene.Initialize(selectedCharacter);
+                blockModeLoadingScene.ResetState();
+                OutputDebugStringA("Game: Block athletics loading completed, entered BLOCK_MODE\n");
+            }
+            break;
+        }
+
+        case BLOCK_MODE: {
+            blockAthleticsScene.Update();
+            blockAthleticsScene.Draw();
+
+            if (blockAthleticsScene.IsExitRequested()) {
+                currentState = CHARACTER_SELECT;
+                characterSelectScene.SetTutorialEnabled(titleScene.IsTutorialEnabled());
+                SoundManager::GetInstance().StopBGM();
+                SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
+                OutputDebugStringA("Game: Returned to CHARACTER_SELECT from BLOCK_MODE\n");
+            }
+            else if (blockAthleticsScene.IsCompleted()) {
+                currentState = CHARACTER_SELECT;
+                characterSelectScene.SetTutorialEnabled(titleScene.IsTutorialEnabled());
+                SoundManager::GetInstance().StopBGM();
+                SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
+                OutputDebugStringA("Game: Block athletics completed, returned to CHARACTER_SELECT\n");
             }
             break;
         }
@@ -147,22 +195,18 @@ void Game::Run()
 
         case GAME_MAIN: {
             gameScene.Update();
-
-            // **描画は常に実行（ポーズUI表示のため）**
             gameScene.Draw();
 
-            // **ゲーム終了リクエスト処理**
             if (gameScene.IsExitRequested()) {
                 currentState = TITLE;
 
-                // **音声管理**
+                // 音声管理
                 SoundManager::GetInstance().StopBGM();
                 SoundManager::GetInstance().StopAllSE();
                 SoundManager::GetInstance().PlayBGM(SoundManager::BGM_TITLE);
 
                 OutputDebugStringA("Game: Returned to TITLE from GAME - Title BGM restarted\n");
             }
-            // **ステージ変更リクエスト処理**
             else if (gameScene.IsStageChangeRequested()) {
                 currentState = LOADING;
                 pendingLoadingType = LoadingScene::LOADING_STAGE_CHANGE;

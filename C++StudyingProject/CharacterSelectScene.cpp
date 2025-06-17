@@ -5,7 +5,8 @@ using namespace std;
 CharacterSelectScene::CharacterSelectScene()
     : characterSelected(false)
     , backRequested(false)
-    , tutorialRequested(false)      // **新追加**
+    , tutorialRequested(false)
+    , blockModeRequested(false)      // **新規追加**
     , selectConfirmed(false)
     , selectedCharacterIndex(-1)
     , hoveredCharacterIndex(-1)
@@ -16,7 +17,7 @@ CharacterSelectScene::CharacterSelectScene()
     , mousePressedPrev(false)
     , backspacePressed(false)
     , backspacePressedPrev(false)
-    ,tutorialEnabled(true) //デフォルトで有効にしておく
+    , tutorialEnabled(true) // デフォルトで有効にしておく
 {
 }
 
@@ -88,45 +89,80 @@ void CharacterSelectScene::Initialize()
         characters.push_back(character);
     }
 
-    // UIボタン設定の修正
+    // **UIボタン設定の修正（4つのボタンに対応）**
     uiButtons.clear();
     int buttonY = SCREEN_H - 150;
     int buttonCenterX = SCREEN_W / 2 - 100;
+    int buttonWidth = 160;
+    int buttonHeight = 60;
+    int buttonSpacing = 20;
+
+    // **4つのボタンの総幅を計算**
+    int totalButtonsWidth = 0;
+    int buttonCount = 0;
+
+    // チュートリアルボタン（条件付き）
+    if (tutorialEnabled) buttonCount++;
+    buttonCount += 3; // SELECT, BLOCK MODE, BACK
+
+    totalButtonsWidth = buttonCount * buttonWidth + (buttonCount - 1) * buttonSpacing;
+    int startX = buttonCenterX - totalButtonsWidth / 2;
+
+    int currentX = startX;
 
     // **TUTORIALボタン（条件付きで追加）**
     if (tutorialEnabled) {
         UIButton tutorialButton;
-        tutorialButton.x = buttonCenterX - 300;  // 左端に配置
+        tutorialButton.x = currentX;
         tutorialButton.y = buttonY;
-        tutorialButton.w = 180;
-        tutorialButton.h = 60;
+        tutorialButton.w = buttonWidth;
+        tutorialButton.h = buttonHeight;
         tutorialButton.label = "TUTORIAL";
         tutorialButton.scale = NORMAL_SCALE;
         tutorialButton.glowIntensity = 0.0f;
         tutorialButton.hovered = false;
         tutorialButton.enabled = true;
         uiButtons.push_back(tutorialButton);
+
+        currentX += buttonWidth + buttonSpacing;
     }
 
-    // **SELECTボタン（チュートリアル有無に関係なく中央に配置）**
+    // **SELECTボタン**
     UIButton selectButton;
-    selectButton.x = buttonCenterX - 90;  // 常に中央
+    selectButton.x = currentX;
     selectButton.y = buttonY;
-    selectButton.w = 180;
-    selectButton.h = 60;
+    selectButton.w = buttonWidth;
+    selectButton.h = buttonHeight;
     selectButton.label = "SELECT";
     selectButton.scale = NORMAL_SCALE;
     selectButton.glowIntensity = 0.0f;
     selectButton.hovered = false;
-    selectButton.enabled = false;
+    selectButton.enabled = false; // 初期は無効
     uiButtons.push_back(selectButton);
 
-    // **BACKボタン（右側に配置）**
+    currentX += buttonWidth + buttonSpacing;
+
+    // **BLOCK MODEボタン（新規追加）**
+    UIButton blockModeButton;
+    blockModeButton.x = currentX;
+    blockModeButton.y = buttonY;
+    blockModeButton.w = buttonWidth;
+    blockModeButton.h = buttonHeight;
+    blockModeButton.label = "BLOCK MODE";
+    blockModeButton.scale = NORMAL_SCALE;
+    blockModeButton.glowIntensity = 0.0f;
+    blockModeButton.hovered = false;
+    blockModeButton.enabled = true; // 常に有効
+    uiButtons.push_back(blockModeButton);
+
+    currentX += buttonWidth + buttonSpacing;
+
+    // **BACKボタン**
     UIButton backButton;
-    backButton.x = buttonCenterX + 120;  // 右側
+    backButton.x = currentX;
     backButton.y = buttonY;
-    backButton.w = 180;
-    backButton.h = 60;
+    backButton.w = buttonWidth;
+    backButton.h = buttonHeight;
     backButton.label = "BACK";
     backButton.scale = NORMAL_SCALE;
     backButton.glowIntensity = 0.0f;
@@ -171,8 +207,11 @@ void CharacterSelectScene::Update()
             }
 
             // SELECTボタンを無効化
-            if (uiButtons.size() > 1) {
-                uiButtons[1].enabled = false;
+            for (auto& button : uiButtons) {
+                if (button.label == "SELECT") {
+                    button.enabled = false;
+                    break;
+                }
             }
         }
         else {
@@ -222,14 +261,14 @@ void CharacterSelectScene::Draw()
         DrawUIButton(button);
     }
 
-    // 操作説明
+    // **操作説明（ブロックモード対応版）**
     if (selectionState == SELECTING) {
-        DrawStringToHandle(50, SCREEN_H - 120, "Click on a character to select, or click TUTORIAL for quick practice", GetColor(200, 200, 200), fontHandle);
-        DrawStringToHandle(50, SCREEN_H - 80, "Press [Backspace] or BACK button to return to title", GetColor(150, 150, 150), fontHandle);
+        DrawStringToHandle(50, SCREEN_H - 140, "Click on a character to select, TUTORIAL for practice, or BLOCK MODE for block athletics", GetColor(200, 200, 200), fontHandle);
+        DrawStringToHandle(50, SCREEN_H - 100, "Press [Backspace] or BACK button to return to title", GetColor(150, 150, 150), fontHandle);
     }
     else if (selectionState == SELECTED) {
-        DrawStringToHandle(50, SCREEN_H - 120, "Click SELECT to start game, TUTORIAL to practice, or BACK to reselect", GetColor(200, 200, 200), fontHandle);
-        DrawStringToHandle(50, SCREEN_H - 80, "Press [Backspace] to return to character selection", GetColor(150, 150, 150), fontHandle);
+        DrawStringToHandle(50, SCREEN_H - 140, "Click SELECT to start game, TUTORIAL to practice, BLOCK MODE for athletics, or BACK to reselect", GetColor(200, 200, 200), fontHandle);
+        DrawStringToHandle(50, SCREEN_H - 100, "Press [Backspace] to return to character selection", GetColor(150, 150, 150), fontHandle);
     }
 
     // 選択されたキャラクターの名前表示
@@ -238,7 +277,7 @@ void CharacterSelectScene::Draw()
         string nameText = hoveredChar.name;
         int nameWidth = GetDrawStringWidthToHandle(nameText.c_str(), (int)nameText.length(), fontHandle);
         int nameX = SCREEN_W / 2 - nameWidth / 2;
-        int nameY = SCREEN_H - 200;
+        int nameY = SCREEN_H - 220;
 
         // 名前の背景
         SetDrawBlendMode(DX_BLENDMODE_ALPHA, 180);
@@ -248,8 +287,6 @@ void CharacterSelectScene::Draw()
         DrawStringToHandle(nameX, nameY, nameText.c_str(), GetColor(255, 215, 0), fontHandle);
     }
 }
-
-// CharacterSelectScene.cpp の UpdateCharacters関数を修正
 
 void CharacterSelectScene::UpdateCharacters()
 {
@@ -352,10 +389,6 @@ void CharacterSelectScene::UpdateCharacterPositions()
     }
 }
 
-// CharacterSelectScene.cpp の UpdateUIButtons 関数を修正
-
-// CharacterSelectScene.cpp の UpdateUIButtons関数を完全修正
-
 void CharacterSelectScene::UpdateUIButtons()
 {
     for (int i = 0; i < (int)uiButtons.size(); i++) {
@@ -372,19 +405,11 @@ void CharacterSelectScene::UpdateUIButtons()
         float targetGlow = over ? 1.0f : 0.0f;
         button.glowIntensity = Lerp(button.glowIntensity, targetGlow, GLOW_SPEED);
 
-        // **デバッグ情報：マウスオーバー状態**
-        if (over) {
-            char debugMsg[256];
-            sprintf_s(debugMsg, "CharacterSelectScene: Button %d (%s) hovered at (%d,%d) size(%d,%d)\n",
-                i, button.label.c_str(), button.x, button.y, button.w, button.h);
-            OutputDebugStringA(debugMsg);
-        }
-
         // クリック処理
         if (over && mousePressed && !mousePressedPrev) {
             char debugMsg[256];
-            sprintf_s(debugMsg, "CharacterSelectScene: Button %d (%s) clicked, enabled=%s\n",
-                i, button.label.c_str(), button.enabled ? "true" : "false");
+            sprintf_s(debugMsg, "CharacterSelectScene: Button (%s) clicked, enabled=%s\n",
+                button.label.c_str(), button.enabled ? "true" : "false");
             OutputDebugStringA(debugMsg);
 
             // **ボタンラベルで動的判定**
@@ -411,6 +436,21 @@ void CharacterSelectScene::UpdateUIButtons()
                 }
                 else {
                     OutputDebugStringA("CharacterSelectScene: SELECT button clicked but disabled\n");
+                }
+            }
+            // **新規追加: ブロックモードボタンの処理**
+            else if (button.label == "BLOCK MODE") {
+                if (button.enabled) {
+                    // キャラクターが選択されていない場合は最初のキャラクターを自動選択
+                    if (selectedCharacterIndex < 0) {
+                        selectedCharacterIndex = 0;
+                        characters[0].selected = true;
+                        OutputDebugStringA("CharacterSelectScene: Auto-selected first character for block mode\n");
+                    }
+                    blockModeRequested = true;
+                    selectionState = CONFIRMED;
+                    SoundManager::GetInstance().PlaySE(SoundManager::SFX_SELECT);
+                    OutputDebugStringA("CharacterSelectScene: BLOCK MODE button clicked\n");
                 }
             }
             else if (button.label == "BACK") {
@@ -579,7 +619,8 @@ void CharacterSelectScene::ResetState()
     // 全ての状態を初期化
     characterSelected = false;
     backRequested = false;
-    tutorialRequested = false;  // **新追加**
+    tutorialRequested = false;
+    blockModeRequested = false;  // **新規追加**
     selectConfirmed = false;
     selectedCharacterIndex = -1;
     hoveredCharacterIndex = -1;

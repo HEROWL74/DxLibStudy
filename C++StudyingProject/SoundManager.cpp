@@ -11,6 +11,8 @@ void SoundManager::Initialize()
     soundPaths[SFX_JUMP] = "Sounds/sfx_jump.ogg";
     soundPaths[SFX_COIN] = "Sounds/sfx_coin.ogg";
     soundPaths[SFX_DISAPPEAR] = "Sounds/sfx_disappear.ogg";
+    soundPaths[SFX_HIT] = "Sounds/sfx_hit.ogg";
+    soundPaths[SFX_BREAK_BLOCK] = "Sounds/sfx_break.ogg";
 
     // BGMはストリーミング再生
     SetCreateSoundDataType(DX_SOUNDTYPE_STREAMSTYLE);
@@ -25,6 +27,8 @@ void SoundManager::Initialize()
     LoadSound(SFX_JUMP, soundPaths[SFX_JUMP]);
     LoadSound(SFX_COIN, soundPaths[SFX_COIN]);
     LoadSound(SFX_DISAPPEAR, soundPaths[SFX_DISAPPEAR]);
+    LoadSound(SFX_HIT, soundPaths[SFX_HIT]);
+    LoadSound(SFX_BREAK_BLOCK, soundPaths[SFX_BREAK_BLOCK]);
 
     // 初期ボリュームを設定
     UpdateVolumes();

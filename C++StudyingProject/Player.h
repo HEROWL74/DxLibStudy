@@ -82,37 +82,38 @@ public:
     void UpdatePhysics(StageManager* stageManager);
     void UpdateAnimation();
     void HandleCollisions(StageManager* stageManager);
+
 private:
     // キャラクタースプライト構造体
     struct CharacterSprites {
         int front, idle, walk_a, walk_b, jump, duck, hit, climb_a, climb_b;
     };
 
-    // ★改良された物理定数 - ふわっとジャンプ
-    static constexpr float GRAVITY = 0.4f;              // 重力を弱く（ふわっと効果）
-    static constexpr float JUMP_POWER = -14.0f;         // ジャンプ力を強く
-    static constexpr float MOVE_SPEED = 4.0f;
+    // 改良された物理定数 - 適切な速度バランスとふわっとジャンプ
+        static constexpr float GRAVITY = 0.35f;             // ふわっとした重力
+    static constexpr float JUMP_POWER = -10.0f;         // 強化されたジャンプ力
+    static constexpr float MAX_FALL_SPEED = 9.0f;       // 落下速度上限を下げる（ストンッと防止）
+
+    // 水平移動速度を調整（遅くする）
+    static constexpr float MOVE_SPEED = 3.0f;           // 4.0f → 3.0f に減速
     static constexpr float WALK_ANIM_SPEED = 0.15f;
-    static constexpr float MAX_FALL_SPEED = 12.0f;      // 落下速度上限を下げる
+    static constexpr float FRICTION = 0.88f;            // 0.85f → 0.88f に増加（止まりやすく）
+    static constexpr float ACCELERATION = 0.6f;         // 0.8f → 0.6f に減少（加速を緩やかに）
+    static constexpr float MAX_HORIZONTAL_SPEED = 8.0f; // 10.0f → 8.0f に減速
 
-    // ★追加: ジャンプ関連の詳細定数
-    static constexpr float JUMP_RELEASE_MULTIPLIER = 0.5f;  // ジャンプボタン離した時の減速率
-    static constexpr float APEX_GRAVITY_REDUCTION = 0.6f;   // ジャンプ頂点付近での重力軽減
-    static constexpr float APEX_THRESHOLD = 2.0f;           // 頂点判定の速度閾値
+    // ジャンプ関連の詳細調整（ふわっと効果強化）
+    static constexpr float JUMP_RELEASE_MULTIPLIER = 0.3f;  // 0.5f → 0.3f（ボタン離し時の減速を強化）
+    static constexpr float APEX_GRAVITY_REDUCTION = 0.4f;   // 0.6f → 0.4f（頂点付近での重力大幅軽減）
+    static constexpr float APEX_THRESHOLD = 3.0f;           // 2.0f → 3.0f（頂点判定の範囲を拡大）
 
-    // 段階的加速度システムの定数
-    static constexpr float FRICTION = 0.85f;
-    static constexpr float ACCELERATION = 0.8f;
-    static constexpr float MAX_HORIZONTAL_SPEED = 10.0f;
-
-    // スライディングシステム定数
+    // 段階的加速度システムの定数（既存）
     static constexpr float SLIDING_DURATION = 1.2f;
     static constexpr float SLIDING_INITIAL_SPEED = 12.0f;
     static constexpr float SLIDING_DECELERATION = 0.92f;
     static constexpr float SLIDING_MIN_SPEED = 1.0f;
     static constexpr float SLIDING_HEIGHT_REDUCTION = 0.6f;
 
-    // ダメージシステム定数
+    // ダメージシステム定数（既存）
     static constexpr float HIT_DURATION = 0.8f;
     static constexpr float INVULNERABILITY_DURATION = 2.0f;
     static constexpr float KNOCKBACK_FORCE = 6.0f;

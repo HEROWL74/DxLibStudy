@@ -14,7 +14,8 @@ public:
         SFX_JUMP,
         SFX_COIN,
         SFX_DISAPPEAR,
-        SFX_BREAK_BLOCK
+        SFX_BREAK_BLOCK,
+        SFX_HIT
     };
 
     static SoundManager& GetInstance() {

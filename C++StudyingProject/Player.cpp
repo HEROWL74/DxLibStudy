@@ -174,8 +174,6 @@ void Player::Draw(float cameraX)
     }
 }
 
-// Player.cpp の UpdatePhysics関数のHIT状態処理部分を修正
-
 void Player::UpdatePhysics(StageManager* stageManager)
 {
     // 自動歩行モード専用の処理
@@ -205,9 +203,6 @@ void Player::UpdatePhysics(StageManager* stageManager)
         knockbackDecay = 0.0f;
     }
 
-
-    
-
     // スライディング状態の更新
     if (currentState == SLIDING) {
         UpdateSliding();
@@ -231,7 +226,7 @@ void Player::UpdatePhysics(StageManager* stageManager)
         return;
     }
 
-    // 改良された水平移動処理
+    // 改良された水平移動処理（速度調整版）
     bool leftPressed = canControl && CheckHitKey(KEY_INPUT_LEFT);
     bool rightPressed = canControl && CheckHitKey(KEY_INPUT_RIGHT);
     bool downPressed = canControl && CheckHitKey(KEY_INPUT_DOWN);
@@ -247,22 +242,23 @@ void Player::UpdatePhysics(StageManager* stageManager)
     }
     downWasPressedLastFrame = downPressed;
 
-    // 段階的加速度システム
+    // 段階的加速度システム（調整版）
     float currentSpeed = fabsf(velocityX);
     float targetSpeed = 0.0f;
-    float accelerationRate = ACCELERATION;
+    float accelerationRate = ACCELERATION; // 0.6f（調整済み）
 
     if (leftPressed && !downPressed) {
-        targetSpeed = -MAX_HORIZONTAL_SPEED;
+        targetSpeed = -MAX_HORIZONTAL_SPEED; // -8.0f（調整済み）
 
-        if (currentSpeed < 2.0f) {
-            accelerationRate = ACCELERATION * 1.5f;
+        // より段階的な加速
+        if (currentSpeed < 1.5f) {
+            accelerationRate = ACCELERATION * 1.2f; // 初期加速をやや強めに
         }
-        else if (currentSpeed < 5.0f) {
-            accelerationRate = ACCELERATION;
+        else if (currentSpeed < 4.0f) {
+            accelerationRate = ACCELERATION;        // 通常加速
         }
         else {
-            accelerationRate = ACCELERATION * 0.7f;
+            accelerationRate = ACCELERATION * 0.6f; // 高速域では加速を抑制
         }
 
         velocityX -= accelerationRate;
@@ -282,26 +278,26 @@ void Player::UpdatePhysics(StageManager* stageManager)
             hitTimer = 0.0f;
             knockbackDecay = 0.0f;
         }
-
     }
     else if (rightPressed && !downPressed) {
-        targetSpeed = MAX_HORIZONTAL_SPEED;
+        targetSpeed = MAX_HORIZONTAL_SPEED; // 8.0f（修正: 正の値）
 
-        if (currentSpeed < 2.0f) {
-            accelerationRate = ACCELERATION * 1.5f;
+        // より段階的な加速
+        if (currentSpeed < 1.5f) {
+            accelerationRate = ACCELERATION * 1.2f; // 初期加速をやや強めに
         }
-        else if (currentSpeed < 5.0f) {
-            accelerationRate = ACCELERATION;
+        else if (currentSpeed < 4.0f) {
+            accelerationRate = ACCELERATION;        // 通常加速
         }
         else {
-            accelerationRate = ACCELERATION * 0.7f;
+            accelerationRate = ACCELERATION * 0.6f; // 高速域では加速を抑制
         }
 
-        velocityX += accelerationRate;
+        velocityX += accelerationRate; // 修正: 正の方向に加速
         if (velocityX > targetSpeed) {
             velocityX = targetSpeed;
         }
-        facingRight = true;
+        facingRight = true; // 修正: 右向きに設定
 
         // **修正: HIT状態でも動けるようになったら状態を更新**
         if (onGround && currentState == HIT && canControl) {
@@ -314,28 +310,29 @@ void Player::UpdatePhysics(StageManager* stageManager)
         }
     }
     else {
-        // 改良された減速システム
-        float currentFriction = FRICTION;
+        // 改良された減速システム（より止まりやすく）
+        float currentFriction = FRICTION; // 0.88f（調整済み）
 
         // **修正: HIT状態でのノックバック減速処理を簡素化**
         if (currentState == HIT && knockbackDecay > 0.0f) {
-            currentFriction = 0.92f; // ノックバック中は滑りやすい
+            currentFriction = 0.90f; // ノックバック中の減速を調整
         }
         else {
-            if (currentSpeed > 6.0f) {
-                currentFriction = 0.92f;
+            if (currentSpeed > 5.0f) {
+                currentFriction = 0.90f; // 高速時の摩擦を増加
             }
-            else if (currentSpeed > 3.0f) {
-                currentFriction = 0.88f;
+            else if (currentSpeed > 2.5f) {
+                currentFriction = 0.88f; // 中速時の摩擦
             }
             else {
-                currentFriction = 0.82f;
+                currentFriction = 0.84f; // 低速時の摩擦
             }
         }
 
         velocityX *= currentFriction;
 
-        if (fabsf(velocityX) < 0.3f) {
+        // 停止判定を厳しく
+        if (fabsf(velocityX) < 0.2f) {
             velocityX = 0.0f;
         }
 
@@ -370,7 +367,7 @@ void Player::UpdatePhysics(StageManager* stageManager)
     if (canControl && spacePressed && !spaceWasPressedLastFrame && onGround &&
         currentState != JUMPING && currentState != SLIDING) {
 
-        float jumpPower = JUMP_POWER;
+        float jumpPower = JUMP_POWER; // -16.0f（強化済み）
         if (fabsf(velocityX) > 6.0f) {
             jumpPower *= 1.1f;
         }
@@ -391,45 +388,47 @@ void Player::UpdatePhysics(StageManager* stageManager)
 
     spaceWasPressedLastFrame = spacePressed;
 
-     if (!onGround) {
-        float currentGravity = GRAVITY;
-        
-        // ★1. ジャンプボタンを離した時の早期落下
+    // 空中での重力処理（ふわっとジャンプ対応）
+    if (!onGround) {
+        float currentGravity = GRAVITY; // 0.35f（調整済み）
+
+        // ★1. ジャンプボタンを離した時の早期落下（強化）
         if (currentState == JUMPING && !spacePressed && velocityY < 0) {
-            velocityY *= JUMP_RELEASE_MULTIPLIER; // より強い減速
+            velocityY *= JUMP_RELEASE_MULTIPLIER; // 0.3f（強化済み）
         }
-        
-        // ★2. ジャンプ頂点付近での重力軽減（ふわっと効果）
-        if (fabsf(velocityY) < APEX_THRESHOLD) {
-            currentGravity *= APEX_GRAVITY_REDUCTION; // 頂点付近で重力を軽減
-            
+
+        // ★2. ジャンプ頂点付近での重力軽減（ふわっと効果強化）
+        if (fabsf(velocityY) < APEX_THRESHOLD) { // 3.0f（拡大済み）
+            currentGravity *= APEX_GRAVITY_REDUCTION; // 0.4f（大幅軽減）
+
             // デバッグ出力（頂点付近のふわっと効果）
             static int apexDebugCounter = 0;
             apexDebugCounter++;
             if (apexDebugCounter % 30 == 0) {
-                OutputDebugStringA("Player: Apex float effect active!\n");
+                OutputDebugStringA("Player: Enhanced apex float effect active!\n");
             }
         }
-        
-        // ★3. 上昇中と下降中で異なる重力
+
+        // ★3. 上昇中と下降中で異なる重力（滑らかな落下）
         if (velocityY < 0) {
-            // 上昇中：通常重力または軽減重力
+            // 上昇中：軽減重力またはさらに軽い重力
             velocityY += currentGravity;
-        } else {
-            // 下降中：少し強い重力（でも元の値より弱い）
-            velocityY += currentGravity * 1.1f;
+        }
+        else {
+            // 下降中：少し重い重力だが、ストンッとしないように調整
+            velocityY += currentGravity * 1.15f; // 控えめな落下加速
         }
 
-        // ★4. 速度制限
-        if (velocityY < -20.0f) {  // 上昇速度上限を引き上げ
-            velocityY = -20.0f;
+        // ★4. 速度制限（改良版）
+        if (velocityY < -22.0f) {  // 上昇速度上限をさらに引き上げ
+            velocityY = -22.0f;
         }
-        if (velocityY > MAX_FALL_SPEED) {  // 落下速度上限は低く保つ
+        if (velocityY > MAX_FALL_SPEED) {  // 9.0f（落下速度上限を低く保つ）
             velocityY = MAX_FALL_SPEED;
         }
 
-        // ★5. 状態遷移
-        if (velocityY > 1.0f && currentState == JUMPING) {  // 落下判定を緩く
+        // ★5. 状態遷移（改良版）
+        if (velocityY > 0.5f && currentState == JUMPING) {  // 落下判定をより緩く
             currentState = FALLING;
         }
     }

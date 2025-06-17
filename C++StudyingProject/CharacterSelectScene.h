@@ -17,9 +17,10 @@ public:
 
     bool IsCharacterSelected() const { return selectConfirmed; }
     bool IsBackRequested() const { return backRequested; }
-    bool IsTutorialRequested() const { return tutorialRequested; }  // **新追加**
+    bool IsTutorialRequested() const { return tutorialRequested; }
+    bool IsBlockModeRequested() const { return blockModeRequested; }  // **新規追加**
     int GetSelectedCharacter() const { return selectedCharacterIndex; }
-    void SetTutorialEnabled(bool enabled); // **新規追加**
+    void SetTutorialEnabled(bool enabled);
     void ResetState(); // 状態リセット用関数を追加
 
 private:
@@ -84,7 +85,8 @@ private:
     // 状態管理
     bool characterSelected;
     bool backRequested;
-    bool tutorialRequested;      // **新追加：チュートリアルリクエスト**
+    bool tutorialRequested;
+    bool blockModeRequested;     // **新規追加：ブロックモードリクエスト**
     bool selectConfirmed;       // SELECT ボタンが押された
     int selectedCharacterIndex;
     int hoveredCharacterIndex;
@@ -115,5 +117,5 @@ private:
     float EaseInOutCubic(float t);
     float Lerp(float a, float b, float t);
 
-    bool tutorialEnabled; // **新規追加: チュートリアルボタンの表示制御*
+    bool tutorialEnabled; // **新規追加: チュートリアルボタンの表示制御**
 };

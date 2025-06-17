@@ -74,9 +74,14 @@ void GameScene::Initialize(int selectedCharacter)
     doorSystem.PlaceDoorForStage(currentStageIndex, &stageManager);
     enemyManager.GenerateEnemiesForStage(currentStageIndex);
     goalSystem.ResetGoal(); // ゴール状態をリセット
-
-    blockSystem.Initialize();
-    blockSystem.GenerateBlocksForStageIndex(currentStageIndex);
+    try {
+        blockSystem.Initialize();
+        blockSystem.GenerateBlocksForStageIndex(currentStageIndex);
+    }
+    catch (...) {
+        OutputDebugStringA("GameScene: BlockSystem initialization failed\n");
+    }
+   
 
     // 収集カウントをリセット
     coinSystem.ResetCollectedCount();
@@ -126,8 +131,11 @@ void GameScene::Update()
 
     UpdatePlayerInvulnerability();
 
-    // **3. コイン管理の簡素化**
+    // **3. コイン管理**
     UpdateCoins();
+
+    // **4. 重要: 敵との衝突判定を確実に実行**
+    UpdatePlayerEnemyInteractions();
 
     // 他のシステム更新
     float hudCoinIconWorldX = 30 + 80 + 20 + 48 / 2 + cameraX;
@@ -136,11 +144,6 @@ void GameScene::Update()
     coinSystem.Update(&gamePlayer, hudCoinIconWorldX, hudCoinIconWorldY);
     starSystem.Update(&gamePlayer);
     enemyManager.Update(&gamePlayer, &stageManager);
-
-    if (!gamePlayer.IsAutoWalking()) {
-        UpdatePlayerEnemyInteractions();
-    }
-
 
     goalSystem.Update(&gamePlayer);
     doorSystem.Update(&gamePlayer);
@@ -261,14 +264,21 @@ void GameScene::HandlePlayerEnteredDoor()
 
 void GameScene::UpdatePlayerEnemyInteractions()
 {
-    // 敵のどれかを踏みつけたら、ダメージ判定は呼ばない
-    if (CheckIfPlayerStompedEnemy()) {
-        HandleSuccessfulStomp();
-        return;
-
+    // 無敵状態チェック
+    if (playerInvulnerable) {
+        return; // 無敵中は衝突判定をスキップ
     }
-    else if (enemyManager.CheckPlayerEnemyCollisions(&gamePlayer)) {
-        HandlePlayerEnemyCollision();
+
+    // 敵との衝突をチェック
+    if (enemyManager.CheckPlayerEnemyCollisions(&gamePlayer)) {
+        // 踏みつけチェック
+        if (CheckIfPlayerStompedEnemy()) {
+            HandleSuccessfulStomp();
+        }
+        else {
+            // 横からの衝突 = ダメージ
+            HandlePlayerEnemyCollision();
+        }
     }
 }
 
@@ -278,24 +288,24 @@ void GameScene::HandlePlayerEnemyCollision()
     // 無敵状態の場合は何もしない
     if (playerInvulnerable) return;
 
-    // **敵との衝突を詳細に処理**
-    // より詳細な判定はEnemyManager.CheckDetailedPlayerEnemyCollision で行われる
-
-    // **プレイヤーが敵の上から踏んだかどうかの詳細判定**
+    // **敵との衝突によるダメージ処理**
     bool playerStompedEnemy = CheckIfPlayerStompedEnemy();
 
     if (!playerStompedEnemy) {
         // **横からの接触によるダメージ**
         HandlePlayerDamage(1); // 1ダメージ（ハーフハート）
+
+        // **デバッグ出力**
+        OutputDebugStringA("GameScene: Player hit by enemy - taking damage!\n");
     }
     else {
         // **踏みつけ成功時の処理**
         HandleSuccessfulStomp();
-        
     }
 }
 // GameScene.cpp の HandlePlayerDamage関数を修正
 
+// HandlePlayerDamage を確実に動作するよう修正
 void GameScene::HandlePlayerDamage(int damage)
 {
     if (playerInvulnerable) return;
@@ -303,34 +313,34 @@ void GameScene::HandlePlayerDamage(int damage)
     // **ライフ減少処理**
     int oldLife = playerLife;
     playerLife -= damage;
-    // ダメージ時
+
+    // **ダメージ音を確実に再生**
     SoundManager::GetInstance().PlaySE(SoundManager::SFX_HURT);
+
     if (playerLife < 0) playerLife = 0;
 
     // **HUDシステムに即座にライフ変更を通知**
     hudSystem.SetCurrentLife(playerLife);
 
-    // **修正: ノックバック方向を計算**
+    // **ノックバック方向を計算**
     float knockbackDirection = 0.0f;
-    // 敵の位置を取得してノックバック方向を決定
     const auto& enemies = enemyManager.GetEnemies();
     for (const auto& enemy : enemies) {
         if (enemy && enemy->IsActive() && !enemy->IsDead()) {
             float enemyX = enemy->GetX();
             float playerX = gamePlayer.GetX();
 
-            // プレイヤーと敵の位置関係からノックバック方向を決定
-            if (abs(enemyX - playerX) < 100.0f) { // 近い敵からのダメージ
+            if (abs(enemyX - playerX) < 100.0f) {
                 knockbackDirection = (playerX > enemyX) ? 1.0f : -1.0f;
                 break;
             }
         }
     }
 
-    // **修正: TakeDamageにノックバック方向を渡す**
+    // **重要: Player::TakeDamage を呼び出してダメージ状態にする**
     gamePlayer.TakeDamage(damage, knockbackDirection);
 
-    // 無敵状態を開始
+    // **無敵状態を開始**
     playerInvulnerable = true;
     invulnerabilityTimer = 0.0f;
 
@@ -340,7 +350,7 @@ void GameScene::HandlePlayerDamage(int damage)
         damage, oldLife, playerLife, knockbackDirection);
     OutputDebugStringA(debugMsg);
 
-    // プレイヤーが死亡した場合の処理
+    // **プレイヤーが死亡した場合の処理**
     if (playerLife <= 0) {
         // リスポーン処理
         gamePlayer.ResetPosition();
@@ -353,19 +363,12 @@ void GameScene::HandlePlayerDamage(int damage)
         playerInvulnerable = false;
         invulnerabilityTimer = 0.0f;
 
-        // **ドア状態もリセット（新追加）**
+        // **各種状態をリセット**
         doorOpened = false;
         playerEnteringDoor = false;
-        if (doorSystem.IsDoorExists()) {
-            // ドアを閉じた状態に戻す（必要に応じて）
-            doorSystem.PlaceDoorForStage(currentStageIndex, &stageManager);
-        }
-
-        // ゴール状態もリセット
         goalReached = false;
         goalSystem.ResetGoal();
 
-        // デバッグ出力
         OutputDebugStringA("GameScene: Player respawned with full life!\n");
     }
 }

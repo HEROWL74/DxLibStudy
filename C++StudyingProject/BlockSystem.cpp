@@ -29,9 +29,16 @@ BlockSystem::~BlockSystem()
 
 void BlockSystem::Initialize()
 {
+    // **既存のデータをクリア**
+    blocks.clear();
+    fragments.clear();
+
     LoadTextures();
     CreateBrickFragmentTextures();
     coinsFromBlocks = 0;
+
+    // **初期化完了の確認**
+    OutputDebugStringA("BlockSystem: Initialize completed successfully\n");
 }
 
 void BlockSystem::LoadTextures()
@@ -82,20 +89,37 @@ void BlockSystem::CreateBrickFragmentTextures()
 
     OutputDebugStringA("BlockSystem: Created brick fragment textures using DerivationGraph\n");
 }
-
 void BlockSystem::Update(Player* player)
 {
     if (!player) return;
 
-    // 全ブロックの更新
-    for (auto& block : blocks) {
-        if (block->state != DESTROYED) {
-            UpdateBlock(*block, player);
+    // **安全なイテレーション**
+    for (auto it = blocks.begin(); it != blocks.end(); ++it) {
+        // **unique_ptrの有効性チェック**
+        if (!*it) {
+            OutputDebugStringA("BlockSystem::Update: Invalid block pointer found\n");
+            continue;
+        }
+
+        // **状態チェック**
+        if ((*it)->state != DESTROYED) {
+            try {
+                UpdateBlock(**it, player);
+            }
+            catch (...) {
+                OutputDebugStringA("BlockSystem::Update: Exception in UpdateBlock\n");
+                continue;
+            }
         }
     }
 
-    // 破片の更新
-    UpdateFragments();
+    // **フラグメント更新も安全に**
+    try {
+        UpdateFragments();
+    }
+    catch (...) {
+        OutputDebugStringA("BlockSystem::Update: Exception in UpdateFragments\n");
+    }
 }
 
 void BlockSystem::UpdateBlock(Block& block, Player* player)
@@ -139,35 +163,35 @@ void BlockSystem::UpdateBlock(Block& block, Player* player)
 void BlockSystem::UpdateFragments()
 {
     for (auto it = fragments.begin(); it != fragments.end();) {
+        // **unique_ptrの有効性チェック**
+        if (!*it) {
+            OutputDebugStringA("BlockSystem::UpdateFragments: Invalid fragment pointer\n");
+            it = fragments.erase(it);
+            continue;
+        }
+
         auto& fragment = *it;
 
         // 物理更新
         fragment->x += fragment->velocityX;
         fragment->y += fragment->velocityY;
-        fragment->velocityY += FRAGMENT_GRAVITY; // 重力適用
+        fragment->velocityY += FRAGMENT_GRAVITY;
 
-        // **地面との簡易バウンス処理**
-        const float GROUND_LEVEL = 800.0f; // 地面レベル（適宜調整）
+        // 地面との衝突処理
+        const float GROUND_LEVEL = 800.0f;
         if (fragment->y >= GROUND_LEVEL && fragment->velocityY > 0 && !fragment->bounced) {
             fragment->y = GROUND_LEVEL;
-            fragment->velocityY *= -0.4f; // 40%の反発係数
-            fragment->velocityX *= 0.8f;  // 地面摩擦で横速度減少
+            fragment->velocityY *= -0.4f;
+            fragment->velocityX *= 0.8f;
             fragment->bounced = true;
-
-            // バウンス後は回転速度も減少
             fragment->rotationSpeed *= 0.6f;
         }
 
-        // **空気抵抗の適用**
-        fragment->velocityX *= 0.995f; // 徐々に横速度が減少
-
-        // 回転更新
+        fragment->velocityX *= 0.995f;
         fragment->rotation += fragment->rotationSpeed;
+        fragment->life -= 0.016f;
 
-        // 生存時間の減少
-        fragment->life -= 0.016f; // 60FPS想定
-
-        // 生存時間が切れたら削除
+        // **生存時間チェックと安全な削除**
         if (fragment->life <= 0.0f) {
             it = fragments.erase(it);
         }
@@ -215,8 +239,8 @@ void BlockSystem::HandleBrickBlockHit(Block& block)
     // 破片を生成
     CreateBrickFragments(block.x, block.y);
 
-    // サウンド再生（ブロック破壊音）
-    // SoundManager::GetInstance().PlaySE(SoundManager::SFX_BREAK); // 必要に応じて追加
+
+     SoundManager::GetInstance().PlaySE(SoundManager::SFX_BREAK_BLOCK); // 必要に応じて追加
 
     // デバッグ出力
     OutputDebugStringA("BlockSystem: Brick block destroyed!\n");
@@ -255,7 +279,7 @@ void BlockSystem::CreateBrickFragments(float blockX, float blockY)
     }
 
     // **ブロック破壊時のエフェクト音**
-    // SoundManager::GetInstance().PlaySE(SoundManager::SFX_BREAK);
+     SoundManager::GetInstance().PlaySE(SoundManager::SFX_BREAK_BLOCK);
 
     OutputDebugStringA("BlockSystem: Created 4 brick fragments with improved physics\n");
 }
@@ -314,6 +338,12 @@ void BlockSystem::DrawBlock(const Block& block, float cameraX)
 void BlockSystem::DrawFragments(float cameraX)
 {
     for (const auto& fragment : fragments) {
+        // **unique_ptrの有効性チェック**
+        if (!fragment) {
+            OutputDebugStringA("BlockSystem::DrawFragments: Invalid fragment pointer\n");
+            continue;
+        }
+
         // 画面座標に変換
         int screenX = (int)(fragment->x - cameraX);
         int screenY = (int)fragment->y;
@@ -321,33 +351,28 @@ void BlockSystem::DrawFragments(float cameraX)
         // 画面外なら描画しない
         if (screenX < -64 || screenX > 1920 + 64) continue;
 
-        // 透明度を生存時間に基づいて設定
+        // 透明度を生存時間に応じて設定
         float lifeRatio = fragment->life / FRAGMENT_LIFE;
         int alpha = (int)(255 * lifeRatio);
 
         if (alpha > 0 && fragment->textureHandle != -1) {
             SetDrawBlendMode(DX_BLENDMODE_ALPHA, alpha);
 
-            // 破片サイズ（元のブロックの1/2）
             int fragmentSize = 32;
 
-            // **回転描画（DerivationGraphで作成した破片テクスチャを回転）**
             if (fragment->rotation != 0.0f) {
-                // 回転の中心点
                 int centerX = screenX + fragmentSize / 2;
                 int centerY = screenY + fragmentSize / 2;
 
-                // 回転描画（DxLibのDrawRotaGraph相当の処理）
                 DrawRotaGraph(
-                    centerX, centerY,                    // 描画中心
-                    1.0,                                 // 拡大率
-                    fragment->rotation,                  // 回転角度（ラジアン）
-                    fragment->textureHandle,            // DerivationGraphで作成したテクスチャ
-                    TRUE                                // 透明色処理
+                    centerX, centerY,
+                    1.0,
+                    fragment->rotation,
+                    fragment->textureHandle,
+                    TRUE
                 );
             }
             else {
-                // 通常描画（回転なし）
                 DrawExtendGraph(
                     screenX, screenY,
                     screenX + fragmentSize, screenY + fragmentSize,
@@ -356,19 +381,6 @@ void BlockSystem::DrawFragments(float cameraX)
             }
 
             SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 255);
-
-            // **デバッグ：破片の軌道を表示**
-#ifdef _DEBUG
-// 破片の速度ベクトルを線で表示
-            int velocityEndX = screenX + (int)(fragment->velocityX * 10);
-            int velocityEndY = screenY + (int)(fragment->velocityY * 10);
-            DrawLine(screenX + fragmentSize / 2, screenY + fragmentSize / 2,
-                velocityEndX, velocityEndY, GetColor(255, 0, 0));
-
-            // 生存時間を数値で表示
-            string lifeText = to_string(fragment->life).substr(0, 3);
-            DrawString(screenX, screenY - 20, lifeText.c_str(), GetColor(255, 255, 0));
-#endif
         }
     }
 }
@@ -535,16 +547,30 @@ bool BlockSystem::IsBlockSolid(const Block& block)
 
 void BlockSystem::AddCoinBlock(float x, float y)
 {
-    auto block = std::make_unique<Block>(x, y, COIN_BLOCK);
-    block->textureHandle = coinBlockActiveTexture;
-    blocks.push_back(std::move(block));
+    try {
+        auto block = std::make_unique<Block>(x, y, COIN_BLOCK);
+        if (block) {  // **作成確認**
+            block->textureHandle = coinBlockActiveTexture;
+            blocks.push_back(std::move(block));
+        }
+    }
+    catch (...) {
+        OutputDebugStringA("BlockSystem::AddCoinBlock: Failed to create coin block\n");
+    }
 }
 
 void BlockSystem::AddBrickBlock(float x, float y)
 {
-    auto block = std::make_unique<Block>(x, y, BRICK_BLOCK);
-    block->textureHandle = brickBlockTexture;
-    blocks.push_back(std::move(block));
+    try {
+        auto block = std::make_unique<Block>(x, y, BRICK_BLOCK);
+        if (block) {  // **作成確認**
+            block->textureHandle = brickBlockTexture;
+            blocks.push_back(std::move(block));
+        }
+    }
+    catch (...) {
+        OutputDebugStringA("BlockSystem::AddBrickBlock: Failed to create brick block\n");
+    }
 }
 
 void BlockSystem::ClearAllBlocks()
