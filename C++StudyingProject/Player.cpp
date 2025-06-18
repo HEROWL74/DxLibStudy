@@ -488,7 +488,7 @@ void Player::HandleCollisions(StageManager* stageManager)
             }
         }
         else {
-            if (onGround && velocityY > 2.0f) {
+            if (onGround) {
                 onGround = false;
                 if (currentState != JUMPING && currentState != SLIDING) {
                     currentState = FALLING;
@@ -563,7 +563,7 @@ void Player::HandleDownwardMovementStageOnly(float newY, float width, float heig
         }
     }
     else {
-        if (onGround && velocityY > 1.0f) {
+        if (onGround) {
             // 十分な落下速度がある場合は落下状態に
             onGround = false;
             if (currentState != JUMPING) {
@@ -676,7 +676,7 @@ void Player::HandleCollisionsWithBlocks(StageManager* stageManager, BlockSystem*
         bool onBlockGround = blockSystem->CheckPlayerLandingOnBlocksImproved(x, y, COLLISION_WIDTH, collisionHeight);
 
         // **修正: より厳格な地面離脱判定**
-        if (!onStageGround && !onBlockGround && velocityY > 1.0f) {
+        if (!onStageGround && !onBlockGround) {
             onGround = false;
             if (currentState != JUMPING && currentState != SLIDING) {
                 currentState = FALLING;
@@ -773,7 +773,7 @@ void Player::HandleDownwardMovement(float newY, float width, float height, Stage
         y = newY;
 
         // **地面から離れた時の処理を慎重に**
-        if (onGround && velocityY > 2.0f) { // 十分な落下速度がある場合のみ
+        if (onGround) { // 十分な落下速度がある場合のみ
             bool stillNearGround = IsOnGround(x, y, width, collisionHeight, stageManager);
             if (!stillNearGround) {
                 onGround = false;

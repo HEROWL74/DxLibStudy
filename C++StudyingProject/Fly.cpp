@@ -141,7 +141,7 @@ void Fly::OnPlayerCollision(Player* player)
 
     // ƒnƒG‚ÍŽã‚¢‚Ì‚Å“¥‚Ý‚Â‚¯‚Å‘¦Ž€
     float playerVelY = player->GetVelocityY();
-    if (playerVelY > 0.5f && player->GetY() < y) {
+    if (playerVelY >= 0.0f && player->GetY() < y) {
         TakeDamage(100);
         player->ApplyStompBounce(-8.0f);
         OutputDebugStringA("Fly: STOMPED and defeated!\n");

@@ -121,7 +121,7 @@ void SlimeBlock::OnPlayerCollision(Player* player)
 
     float playerVelY = player->GetVelocityY();
     bool isStompedFromAbove = (
-        playerVelY > 0.5f &&
+        playerVelY >= 0.0f &&
         player->GetY() < y - 10.0f
         );
 

@@ -93,6 +93,8 @@ void GameScene::Initialize(int selectedCharacter)
     playerCoins = 0;
     doorOpened = false;
     playerEnteringDoor = false;
+    exitRequested = false;
+    stageChangeRequested = false;
 }
 void GameScene::Update()
 {
@@ -273,7 +275,7 @@ void GameScene::UpdatePlayerEnemyInteractions()
 
                 // 踏みつけ判定
                 bool isStompFromAbove = (
-                    playerVelY > 1.0f &&
+                    playerVelY >= 0.0f &&
                     playerY < enemyY - 15.0f &&
                     playerY + 50.0f >= enemyY - 28.0f
                     );

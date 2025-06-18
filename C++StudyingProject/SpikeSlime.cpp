@@ -204,7 +204,7 @@ void SpikeSlime::OnPlayerCollision(Player* player)
 
     // **詳細な踏み判定: プレイヤーが上から踏んだ場合**
     bool isStompedFromAbove = (
-        playerVelY > 0.5f &&                    // 下向きの速度
+        playerVelY >= 0.0f &&                   // 下向きの速度
         playerY < y - 10.0f &&                  // プレイヤーが敵より上
         playerY + 50.0f >= enemyTop             // 足が敵の頭部付近
         );

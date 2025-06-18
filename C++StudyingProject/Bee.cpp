@@ -220,7 +220,7 @@ void Bee::OnPlayerCollision(Player* player)
 
     // “¥‚Ý‚Â‚¯”»’è
     bool isStompedFromAbove = (
-        playerVelY > 0.5f &&
+        playerVelY >= 0.0f &&
         playerY < y - 10.0f &&
         playerY + 50.0f >= y - COLLISION_HEIGHT / 2
         );

@@ -372,7 +372,7 @@ bool EnemyManager::CheckDetailedPlayerEnemyCollision(Player* player, EnemyBase* 
 
     // **修正: 踏みつけ判定を改善**
     bool isStompFromAbove = (
-        playerVelY > 1.0f &&                    // 下向きの速度が十分
+        playerVelY >= 0.0f &&                   // 下向きの速度が十分
         playerY < enemyY - 15.0f &&             // プレイヤーが敵より十分上
         playerY + PLAYER_HEIGHT / 2 >= enemyY - ENEMY_HEIGHT / 2 - 8.0f  // 足が敵の頭付近
         );

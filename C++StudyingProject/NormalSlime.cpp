@@ -195,7 +195,7 @@ void NormalSlime::OnPlayerCollision(Player* player)
 
     // **踏みつけ判定を明確化**
     bool isStompedFromAbove = (
-        playerVelY > 0.5f &&                    // プレイヤーが下向きに移動
+        playerVelY >= 0.0f &&                   // プレイヤーが下向きに移動
         playerY < y - 10.0f &&                  // プレイヤーが敵より上
         playerY + 50.0f >= enemyTop             // プレイヤーの足が敵の頭部付近
         );
